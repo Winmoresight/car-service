@@ -35,7 +35,10 @@ export default function InsightsPage() {
     { refreshInterval: 60000 },
   );
 
-  const lossProducts = lossProductsData?.data || [];
+  const lossProducts =
+    lossProductsData?.success && lossProductsData.data
+      ? lossProductsData.data
+      : [];
   const totalLoss = lossProducts.reduce((sum, p) => sum + p.profit, 0);
 
   const formatCurrency = (value: number) => {

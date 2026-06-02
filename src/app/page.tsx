@@ -54,10 +54,17 @@ export default function DashboardPage() {
     ApiResponse<LossProduct[]>
   >("/api/products/loss?limit=5", fetcher, { refreshInterval: 60000 });
 
-  const kpi = kpiData?.data;
-  const dailySales = salesData?.data || [];
-  const topProducts = topProductsData?.data || [];
-  const lossProducts = lossProductsData?.data || [];
+  const kpi = kpiData?.success && kpiData.data ? kpiData.data : undefined;
+  const dailySales =
+    salesData?.success && salesData.data ? salesData.data : [];
+  const topProducts =
+    topProductsData?.success && topProductsData.data
+      ? topProductsData.data
+      : [];
+  const lossProducts =
+    lossProductsData?.success && lossProductsData.data
+      ? lossProductsData.data
+      : [];
 
   const isLoading =
     !kpiData || !salesData || !topProductsData || !lossProductsData;

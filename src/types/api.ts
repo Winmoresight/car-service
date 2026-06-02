@@ -48,15 +48,25 @@ export interface LossProduct {
   quantity: number;
 }
 
-// API Response wrapper
-export interface ApiResponse<T> {
-  success: boolean;
+// API Response wrapper - Success
+export interface ApiSuccessResponse<T> {
+  success: true;
   data: T;
-  error?: string;
   timestamp: string;
 }
 
-// Error response
+// API Response wrapper - Error
+export interface ApiErrorResponse {
+  success: false;
+  error: string;
+  details?: unknown;
+  timestamp: string;
+}
+
+// Combined API Response type
+export type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;
+
+// Error response (backward compatibility)
 export interface ApiError {
   success: false;
   error: string;

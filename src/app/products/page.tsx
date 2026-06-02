@@ -42,7 +42,10 @@ export default function ProductsPage() {
     { refreshInterval: 60000 },
   );
 
-  const products = topProductsData?.data || [];
+  const products =
+    topProductsData?.success && topProductsData.data
+      ? topProductsData.data
+      : [];
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("th-TH", {

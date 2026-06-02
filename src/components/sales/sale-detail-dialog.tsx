@@ -80,7 +80,9 @@ export function SaleDetailDialog({
         const data: ApiResponse<SaleDetail> = await response.json();
 
         if (!response.ok || !data.success) {
-          throw new Error(data.error || "Failed to fetch sale detail");
+          throw new Error(
+            !data.success ? data.error : "Failed to fetch sale detail",
+          );
         }
 
         setSaleDetail(data.data);
@@ -114,7 +116,7 @@ export function SaleDetailDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] w-full max-h-[95vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>รายละเอียดบิลขาย</DialogTitle>
         </DialogHeader>
@@ -171,7 +173,9 @@ export function SaleDetailDialog({
                     <MapPin className="h-4 w-4 mt-1 text-muted-foreground" />
                     <div>
                       <p className="text-sm text-muted-foreground">ที่อยู่</p>
-                      <p className="font-medium">{saleDetail.customer.address}</p>
+                      <p className="font-medium">
+                        {saleDetail.customer.address}
+                      </p>
                     </div>
                   </div>
                 )}
@@ -228,11 +232,15 @@ export function SaleDetailDialog({
                         <TableCell className="font-mono text-sm">
                           {item.barCode}
                         </TableCell>
-                        <TableCell className="font-medium">{item.name}</TableCell>
+                        <TableCell className="font-medium">
+                          {item.name}
+                        </TableCell>
                         <TableCell className="text-right">
                           {formatCurrency(item.price)}
                         </TableCell>
-                        <TableCell className="text-right">{item.quantity}</TableCell>
+                        <TableCell className="text-right">
+                          {item.quantity}
+                        </TableCell>
                         <TableCell className="text-right font-medium">
                           {formatCurrency(item.total)}
                         </TableCell>
@@ -285,9 +293,10 @@ export function SaleDetailDialog({
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">% กำไร</span>
                   <span className="font-medium">
-                    {((saleDetail.totalProfit / saleDetail.totalPrice) * 100).toFixed(
-                      1,
-                    )}
+                    {(
+                      (saleDetail.totalProfit / saleDetail.totalPrice) *
+                      100
+                    ).toFixed(1)}
                     %
                   </span>
                 </div>

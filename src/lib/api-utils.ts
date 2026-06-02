@@ -36,11 +36,8 @@ export function errorResponse(
     success: false,
     error: message,
     timestamp: new Date().toISOString(),
+    ...(details && process.env.NODE_ENV === "development" ? { details } : {}),
   };
-
-  if (details && process.env.NODE_ENV === "development") {
-    response.details = details;
-  }
 
   return NextResponse.json(response, { status });
 }

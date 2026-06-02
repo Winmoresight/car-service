@@ -24,10 +24,8 @@ const config: sql.config = {
     min: 5, // maintain 5 connections ตลอด
     idleTimeoutMillis: 300000, // ปิดหลัง 5 นาที idle (ไม่ใช่เลย)
   },
-  connectionTimeout: 30000, // 30 วินาที (local ควรเร็ว ถ้าช้ากว่านี้แสดงว่ามีปัญหา)
+  connectionTimeout: 30000, // 30 วินาที (local ควรเร็ว ถ้าช้าก่ว่านี้แสดงว่ามีปัญหา)
   requestTimeout: 120000, // 2 นาที (ให้เวลา query ซับซ้อน)
-  // Retry logic
-  connectionIsolationLevel: sql.ISOLATION_LEVEL.READ_COMMITTED,
   parseJSON: true,
 };
 

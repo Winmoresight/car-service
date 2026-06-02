@@ -61,8 +61,10 @@ export default function StockPage() {
     ApiResponse<StockMovement[]>
   >("/api/stock?type=movements&limit=100", fetcher, { refreshInterval: 30000 });
 
-  const stockItems = summaryData?.data || [];
-  const movements = movementsData?.data || [];
+  const stockItems =
+    summaryData?.success && summaryData.data ? summaryData.data : [];
+  const movements =
+    movementsData?.success && movementsData.data ? movementsData.data : [];
 
   // Calculate stats
   const totalItems = stockItems.length;

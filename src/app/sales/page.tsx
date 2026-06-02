@@ -198,7 +198,7 @@ export default function SalesPage() {
               </p>
               {data && !data.success && (
                 <p className="text-sm text-muted-foreground mt-1">
-                  API Error: {data.error || "Unknown API error"}
+                  API Error: {data.error}
                 </p>
               )}
             </div>
