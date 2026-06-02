@@ -9,7 +9,7 @@ import { MobileNav } from "@/components/layout/mobile-nav";
 import { Header } from "@/components/layout/header";
 
 export const metadata: Metadata = {
-  title: "ServiceCar Insight - ระบบสรุปข้อมูลยอดขาย",
+  title: "Car Service - ระบบสรุปข้อมูลยอดขาย",
   description: "Dashboard สำหรับสรุปข้อมูลยอดขาย สินค้า สต็อก และลูกค้า",
 };
 
