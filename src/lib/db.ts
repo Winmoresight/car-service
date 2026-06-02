@@ -139,6 +139,9 @@ if (typeof window === "undefined" && process.env.NODE_ENV !== "test") {
       console.log("🚀 Database pool warmed up");
     })
     .catch((err) => {
-      console.warn("⚠️ Database warm-up failed (will retry on first request):", err.message);
+      console.warn(
+        "⚠️ Database warm-up failed (will retry on first request):",
+        err.message,
+      );
     });
 }

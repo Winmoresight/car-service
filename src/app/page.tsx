@@ -8,22 +8,22 @@
 import useSWR from "swr";
 import {
   Banknote,
-  TrendingUp,
-  ShoppingCart,
-  Wallet,
-  CreditCard,
   Calendar,
+  CreditCard,
+  ShoppingCart,
+  TrendingUp,
+  Wallet,
 } from "lucide-react";
 import { KPICard } from "@/components/dashboard/kpi-card";
+import { LossAlertTable } from "@/components/dashboard/loss-alert-table";
 import { SalesChart } from "@/components/dashboard/sales-chart";
 import { TopProductsTable } from "@/components/dashboard/top-products-table";
-import { LossAlertTable } from "@/components/dashboard/loss-alert-table";
 import type {
   ApiResponse,
-  DashboardKPI,
   DailySales,
-  TopProduct,
+  DashboardKPI,
   LossProduct,
+  TopProduct,
 } from "@/types/api";
 
 // Fetcher function for SWR
@@ -34,7 +34,7 @@ export default function DashboardPage() {
   const { data: kpiData, error: kpiError } = useSWR<ApiResponse<DashboardKPI>>(
     "/api/dashboard",
     fetcher,
-    { refreshInterval: 30000 }, // Refresh every 30 seconds
+    { refreshInterval: 30000 },
   );
 
   // Fetch daily sales (30 days)
@@ -90,15 +90,17 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-8">
+    <div className="p-4 md:p-8 space-y-6">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">ServiceCar Insight</h1>
-        <p className="text-muted-foreground mt-1">ระบบสรุปข้อมูลยอดขายและสินค้า</p>
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">ภาพรวม</h1>
+        <p className="text-muted-foreground mt-1">
+          สรุปข้อมูลยอดขายและกำไรประจำวัน
+        </p>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <KPICard
           title="ยอดขายวันนี้"
           value={kpi?.todaySales || 0}
@@ -128,7 +130,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Payment Method Cards */}
-      <div className="grid gap-4 md:grid-cols-2 mb-8">
+      <div className="grid gap-4 md:grid-cols-2">
         <KPICard
           title="เงินสดวันนี้"
           value={kpi?.todayCash || 0}
@@ -144,12 +146,10 @@ export default function DashboardPage() {
       </div>
 
       {/* Sales Chart */}
-      <div className="mb-8">
-        <SalesChart data={dailySales} />
-      </div>
+      <SalesChart data={dailySales} />
 
       {/* Top Products and Loss Alert */}
-      <div className="grid gap-8 lg:grid-cols-2 mb-8">
+      <div className="grid gap-6 lg:grid-cols-2">
         <TopProductsTable products={topProducts} />
         <LossAlertTable products={lossProducts} />
       </div>

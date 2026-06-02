@@ -23,9 +23,8 @@ export interface DetailSalePost {
   BarCode: string;
   NameProduct: string;
   NumProduct: number;
-  PriceProduct: number;
+  SalePrice: number;
   SumPrice: number;
-  CostPrice: number;
   SumCost: number;
   SumProfit: number;
 }
@@ -44,7 +43,7 @@ export interface MasterProductDetail {
   BarCode: string;
   CodeProduct: string;
   NameProduct: string;
-  PriceProduct: number;
+  SalePrice: number;
   CostPrice: number;
   Stock: number;
   Active: boolean;

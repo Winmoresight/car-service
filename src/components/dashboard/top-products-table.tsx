@@ -5,6 +5,8 @@
  * ตารางแสดงสินค้าขายดี/กำไรดี
  */
 
+import React from "react";
+import { cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -48,16 +50,18 @@ export function TopProductsTable({
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        {description && <CardDescription>{description}</CardDescription>}
-      </CardHeader>
-      <CardContent>
+    <Card className="overflow-hidden">
+      {(title || description) && (
+        <CardHeader className="bg-muted/5 border-b border-border/40">
+          {title && <CardTitle className="text-lg">{title}</CardTitle>}
+          {description && <CardDescription>{description}</CardDescription>}
+        </CardHeader>
+      )}
+      <CardContent className="p-0">
         <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[40px]">#</TableHead>
+          <TableHeader className="bg-muted/20">
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="w-[50px] text-center">#</TableHead>
               <TableHead>สินค้า</TableHead>
               <TableHead className="text-right">ยอดขาย</TableHead>
               <TableHead className="text-right">กำไร</TableHead>
@@ -70,36 +74,56 @@ export function TopProductsTable({
               <TableRow>
                 <TableCell
                   colSpan={6}
-                  className="text-center text-muted-foreground"
+                  className="h-24 text-center text-muted-foreground"
                 >
                   ไม่มีข้อมูล
                 </TableCell>
               </TableRow>
             ) : (
               products.map((product, index) => (
-                <TableRow key={`${product.name}-${index}`}>
-                  <TableCell className="font-medium">{index + 1}</TableCell>
-                  <TableCell className="font-medium">{product.name}</TableCell>
-                  <TableCell className="text-right">
+                <TableRow
+                  key={`${product.name}-${index}`}
+                  className="hover:bg-muted/5 transition-colors"
+                >
+                  <TableCell className="text-center text-muted-foreground font-mono text-xs">
+                    {(index + 1).toString().padStart(2, "0")}
+                  </TableCell>
+                  <TableCell className="font-medium text-foreground">
+                    {product.name}
+                  </TableCell>
+                  <TableCell className="text-right font-medium">
                     {formatCurrency(product.sales)}
                   </TableCell>
                   <TableCell className="text-right">
                     <span
                       className={
-                        product.profit >= 0 ? "text-green-600" : "text-red-600"
+                        product.profit >= 0
+                          ? "text-emerald-600 font-medium"
+                          : "text-destructive font-medium"
                       }
                     >
                       {formatCurrency(product.profit)}
                     </span>
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right text-muted-foreground">
                     {formatNumber(product.quantity)}
                   </TableCell>
                   <TableCell className="text-right">
                     <Badge
                       variant={
-                        product.profitMargin >= 10 ? "default" : "secondary"
+                        product.profitMargin >= 20
+                          ? "default"
+                          : product.profitMargin >= 10
+                            ? "secondary"
+                            : "outline"
                       }
+                      className={cn(
+                        "font-medium",
+                        product.profitMargin >= 20 &&
+                          "bg-emerald-500/10 text-emerald-700 border-emerald-200 shadow-none hover:bg-emerald-500/20",
+                        product.profitMargin < 10 &&
+                          "text-muted-foreground border-border/60",
+                      )}
                     >
                       {product.profitMargin.toFixed(1)}%
                     </Badge>

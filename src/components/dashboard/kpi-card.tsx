@@ -47,17 +47,25 @@ export function KPICard({
   };
 
   return (
-    <Card>
+    <Card className="hover:ring-primary/20 transition-all duration-300">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
+        <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
           {title}
         </CardTitle>
-        {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+        {Icon && (
+          <div className="p-2 rounded-lg bg-primary/5">
+            <Icon className="h-4 w-4 text-primary" />
+          </div>
+        )}
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{formattedValue()}</div>
+        <div className="text-2xl font-semibold tracking-tight text-foreground">
+          {formattedValue()}
+        </div>
         {subtitle && (
-          <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
+          <p className="text-xs text-muted-foreground mt-1 font-light">
+            {subtitle}
+          </p>
         )}
         {trend && (
           <div className="flex items-center mt-2">
