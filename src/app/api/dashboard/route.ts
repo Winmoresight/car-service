@@ -1,6 +1,8 @@
 /**
  * Dashboard API
  * GET /api/dashboard - ดึง KPI หลักสำหรับหน้า Dashboard
+ * Query params:
+ *   - date: วันที่ต้องการดูข้อมูล (YYYY-MM-DD) ถ้าไม่ระบุจะใช้วันนี้
  */
 
 import { type NextRequest, NextResponse } from "next/server";
@@ -10,9 +12,18 @@ import type { ApiResponse, DashboardKPI } from "@/types/api";
 
 export async function GET(request: NextRequest) {
   try {
+    // อ่าน query parameter สำหรับวันที่
+    const searchParams = request.nextUrl.searchParams;
+    const dateParam = searchParams.get("date");
+    
     // Wrap ด้วย timeout (60 วินาที)
     const data = await withTimeout(async () => {
-      // Query สำหรับข้อมูลวันนี้
+      // ถ้ามีการระบุวันที่ ให้ใช้วันที่นั้น ถ้าไม่มีใช้วันนี้
+      const dateCondition = dateParam
+        ? `CONVERT(date, DateSalePost) = '${dateParam}'`
+        : `CONVERT(date, DateSalePost) = CONVERT(date, GETDATE())`;
+      
+      // Query สำหรับข้อมูลวันที่เลือก
       const todayQuery = `
         SELECT 
           COUNT(*) as bill_count,
@@ -21,7 +32,7 @@ export async function GET(request: NextRequest) {
           ISNULL(SUM(Cash), 0) as total_cash,
           ISNULL(SUM(Transfer), 0) as total_transfer
         FROM dbo.MasterSalePost
-        WHERE CONVERT(date, DateSalePost) = CONVERT(date, GETDATE())
+        WHERE ${dateCondition}
       `;
 
       // Query สำหรับข้อมูลเดือนนี้

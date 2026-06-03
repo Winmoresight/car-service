@@ -7,7 +7,10 @@
 
 import { useState } from "react";
 import useSWR from "swr";
-import { Search, Download, Eye } from "lucide-react";
+import { Search, Download, X } from "lucide-react";
+import { format } from "date-fns";
+import type { DateRange } from "react-day-picker";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { SaleDetailDialog } from "@/components/sales/sale-detail-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -43,7 +46,30 @@ export default function SalesPage() {
   const [page, setPage] = useState(0);
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const limit = 20;
+
+  // สร้าง URL สำหรับ API พร้อม query parameters
+  const buildApiUrl = () => {
+    const params = new URLSearchParams({
+      limit: limit.toString(),
+      offset: (page * limit).toString(),
+    });
+
+    if (searchTerm) {
+      params.append("search", searchTerm);
+    }
+
+    if (dateRange?.from) {
+      params.append("startDate", format(dateRange.from, "yyyy-MM-dd"));
+    }
+
+    if (dateRange?.to) {
+      params.append("endDate", format(dateRange.to, "yyyy-MM-dd"));
+    }
+
+    return `/api/sales?${params.toString()}`;
+  };
 
   // Fetch sales data
   const { data, error, isLoading } = useSWR<
@@ -53,16 +79,12 @@ export default function SalesPage() {
       limit: number;
       offset: number;
     }>
-  >(
-    `/api/sales?limit=${limit}&offset=${page * limit}&search=${searchTerm}`,
-    fetcher,
-    {
-      refreshInterval: 60000,
-      onError: (err) => {
-        console.error("SWR Error:", err);
-      },
+  >(buildApiUrl(), fetcher, {
+    refreshInterval: 60000,
+    onError: (err) => {
+      console.error("SWR Error:", err);
     },
-  );
+  });
 
   const sales = data?.success && data?.data?.sales ? data.data.sales : [];
   const total = data?.success && data?.data?.total ? data.data.total : 0;
@@ -90,6 +112,19 @@ export default function SalesPage() {
     setSearchTerm(value);
     setPage(0); // Reset to first page
   };
+
+  const handleDateRangeChange = (range: DateRange | undefined) => {
+    setDateRange(range);
+    setPage(0); // Reset to first page
+  };
+
+  const handleClearFilters = () => {
+    setSearchTerm("");
+    setDateRange(undefined);
+    setPage(0);
+  };
+
+  const hasActiveFilters = searchTerm || dateRange?.from || dateRange?.to;
 
   const handleViewSale = (saleId: string) => {
     setSelectedSaleId(saleId);
@@ -155,23 +190,61 @@ export default function SalesPage() {
       {/* Filters & Actions */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* Search */}
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="ค้นหาเลขที่บิล หรือชื่อลูกค้า..."
-                value={searchTerm}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="pl-10"
+          <div className="flex flex-col gap-4">
+            {/* First Row: Search and Date Range */}
+            <div className="flex flex-col md:flex-row gap-4">
+              {/* Search */}
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="ค้นหาเลขที่บิล หรือชื่อลูกค้า..."
+                  value={searchTerm}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+
+              {/* Date Range Picker */}
+              <DateRangePicker
+                dateRange={dateRange}
+                onDateRangeChange={handleDateRangeChange}
+                placeholder="เลือกช่วงวันที่"
               />
+
+              {/* Clear Filters Button */}
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  onClick={handleClearFilters}
+                  className="gap-2"
+                >
+                  <X className="h-4 w-4" />
+                  ล้างตัวกรอง
+                </Button>
+              )}
+
+              {/* Export Button */}
+              <Button variant="outline" className="gap-2">
+                <Download className="h-4 w-4" />
+                Export
+              </Button>
             </div>
 
-            {/* Export Button */}
-            <Button variant="outline" className="gap-2">
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
+            {/* Active Filters Display */}
+            {hasActiveFilters && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>ตัวกรองที่เปิดใช้งาน:</span>
+                {searchTerm && (
+                  <Badge variant="secondary">ค้นหา: {searchTerm}</Badge>
+                )}
+                {dateRange?.from && (
+                  <Badge variant="secondary">
+                    {format(dateRange.from, "d MMM yyyy")}
+                    {dateRange.to && ` - ${format(dateRange.to, "d MMM yyyy")}`}
+                  </Badge>
+                )}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -213,20 +286,23 @@ export default function SalesPage() {
                     <TableHead className="text-right">รายการ</TableHead>
                     <TableHead className="text-right">ยอดขาย</TableHead>
                     <TableHead className="text-right">กำไร</TableHead>
-                    <TableHead>การชำระ</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
+                    <TableHead className="text-center">การชำระ</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {sales.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8">
+                      <TableCell colSpan={7} className="text-center py-8">
                         <p className="text-muted-foreground">ไม่พบข้อมูล</p>
                       </TableCell>
                     </TableRow>
                   ) : (
                     sales.map((sale) => (
-                      <TableRow key={sale.id}>
+                      <TableRow
+                        key={sale.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => handleViewSale(sale.id)}
+                      >
                         <TableCell className="font-medium">{sale.id}</TableCell>
                         <TableCell className="text-sm">
                           {formatDate(sale.date)}
@@ -258,24 +334,15 @@ export default function SalesPage() {
                             {formatCurrency(sale.totalProfit)}
                           </span>
                         </TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            {sale.cash > 0 && <Badge variant="default">สด</Badge>}
+                        <TableCell className="text-center">
+                          <div className="flex gap-1 justify-center">
+                            {sale.cash > 0 && (
+                              <Badge variant="default">สด</Badge>
+                            )}
                             {sale.transfer > 0 && (
                               <Badge variant="secondary">โอน</Badge>
                             )}
                           </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="gap-1"
-                            onClick={() => handleViewSale(sale.id)}
-                          >
-                            <Eye className="h-4 w-4" />
-                            ดู
-                          </Button>
                         </TableCell>
                       </TableRow>
                     ))

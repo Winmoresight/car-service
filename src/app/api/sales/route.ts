@@ -6,7 +6,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
 import type { ApiResponse } from "@/types/api";
-import { maskName, maskPhone } from "@/lib/privacy";
 
 interface SaleItem {
   id: string;
@@ -26,6 +25,8 @@ export async function GET(request: NextRequest) {
     const limit = Number.parseInt(searchParams.get("limit") || "50", 10);
     const offset = Number.parseInt(searchParams.get("offset") || "0", 10);
     const search = searchParams.get("search") || "";
+    const startDate = searchParams.get("startDate") || "";
+    const endDate = searchParams.get("endDate") || "";
 
     // Build query (join with Customer table for phone/address if needed)
     let query = `
@@ -42,12 +43,23 @@ export async function GET(request: NextRequest) {
       FROM dbo.MasterSalePost m
     `;
 
-    // Add search filter
+    // Build WHERE clause
+    const conditions: string[] = [];
+    
     if (search) {
-      query += `
-        WHERE NumberPrintSalePost LIKE @search 
-           OR NameCustomer LIKE @search
-      `;
+      conditions.push(`(NumberPrintSalePost LIKE @search OR NameCustomer LIKE @search)`);
+    }
+    
+    if (startDate) {
+      conditions.push(`CONVERT(date, DateSalePost) >= @startDate`);
+    }
+    
+    if (endDate) {
+      conditions.push(`CONVERT(date, DateSalePost) <= @endDate`);
+    }
+    
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(' AND ')}`;
     }
 
     query += `
@@ -70,14 +82,16 @@ export async function GET(request: NextRequest) {
       limit,
       offset,
       search: `%${search}%`,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
     });
 
-    // Mask sensitive data
+    // Return data without masking
     const sales: SaleItem[] = results.map((row) => ({
       id: row.id,
       date: new Date(row.date).toISOString(),
-      customerName: maskName(row.customerName),
-      customerPhone: maskPhone(row.customerPhone),
+      customerName: row.customerName,
+      customerPhone: row.customerPhone,
       totalPrice: row.totalPrice,
       totalProfit: row.totalProfit,
       cash: row.cash,
@@ -86,12 +100,31 @@ export async function GET(request: NextRequest) {
     }));
 
     // Get total count
-    const countQuery = search
-      ? `SELECT COUNT(*) as total FROM dbo.MasterSalePost WHERE NumberPrintSalePost LIKE @search OR NameCustomer LIKE @search`
-      : `SELECT COUNT(*) as total FROM dbo.MasterSalePost`;
+    let countQuery = `SELECT COUNT(*) as total FROM dbo.MasterSalePost`;
+    
+    // Build WHERE clause for count query
+    const countConditions: string[] = [];
+    
+    if (search) {
+      countConditions.push(`(NumberPrintSalePost LIKE @search OR NameCustomer LIKE @search)`);
+    }
+    
+    if (startDate) {
+      countConditions.push(`CONVERT(date, DateSalePost) >= @startDate`);
+    }
+    
+    if (endDate) {
+      countConditions.push(`CONVERT(date, DateSalePost) <= @endDate`);
+    }
+    
+    if (countConditions.length > 0) {
+      countQuery += ` WHERE ${countConditions.join(' AND ')}`;
+    }
 
     const [countResult] = await executeQuery<{ total: number }>(countQuery, {
       search: `%${search}%`,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
     });
 
     const response: ApiResponse<{

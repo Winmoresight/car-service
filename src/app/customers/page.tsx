@@ -357,7 +357,7 @@ export default function CustomersPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredCustomers.map((customer) => (
+                  filteredCustomers.map((customer: Customer) => (
                     <TableRow
                       key={customer.code}
                       className="cursor-pointer hover:bg-muted/50"

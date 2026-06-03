@@ -5,15 +5,18 @@
  * แสดง KPI, กราฟยอดขาย, สินค้าขายดี และรายการขาดทุน
  */
 
+import { useState } from "react";
 import useSWR from "swr";
 import {
   Banknote,
-  Calendar,
+  Calendar as CalendarIcon,
   CreditCard,
   ShoppingCart,
   TrendingUp,
   Wallet,
 } from "lucide-react";
+import { format } from "date-fns";
+import { DatePicker } from "@/components/ui/date-picker";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { LossAlertTable } from "@/components/dashboard/loss-alert-table";
 import { SalesChart } from "@/components/dashboard/sales-chart";
@@ -30,9 +33,17 @@ import type {
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function DashboardPage() {
+  // State สำหรับวันที่ที่เลือก (default = วันนี้)
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+
+  // สร้าง URL สำหรับ API พร้อม query parameter
+  const dashboardUrl = selectedDate
+    ? `/api/dashboard?date=${format(selectedDate, "yyyy-MM-dd")}`
+    : "/api/dashboard";
+
   // Fetch dashboard KPI
   const { data: kpiData, error: kpiError } = useSWR<ApiResponse<DashboardKPI>>(
-    "/api/dashboard",
+    dashboardUrl,
     fetcher,
     { refreshInterval: 30000 },
   );
@@ -98,25 +109,34 @@ export default function DashboardPage() {
 
   return (
     <div className="p-4 md:p-8 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">ภาพรวม</h1>
-        <p className="text-muted-foreground mt-1">
-          สรุปข้อมูลยอดขายและกำไรประจำวัน
-        </p>
+      {/* Header with Date Picker */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">ภาพรวม</h1>
+          <p className="text-muted-foreground mt-1">
+            สรุปข้อมูลยอดขายและกำไรประจำวัน
+          </p>
+        </div>
+        <div>
+          <DatePicker
+            date={selectedDate}
+            onDateChange={setSelectedDate}
+            placeholder="เลือกวันที่"
+          />
+        </div>
       </div>
 
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <KPICard
-          title="ยอดขายวันนี้"
+          title={selectedDate && format(selectedDate, "yyyy-MM-dd") !== format(new Date(), "yyyy-MM-dd") ? "ยอดขายวันที่เลือก" : "ยอดขายวันนี้"}
           value={kpi?.todaySales || 0}
           format="currency"
           icon={Banknote}
           subtitle={`${kpi?.todayBills || 0} บิล`}
         />
         <KPICard
-          title="กำไรวันนี้"
+          title={selectedDate && format(selectedDate, "yyyy-MM-dd") !== format(new Date(), "yyyy-MM-dd") ? "กำไรวันที่เลือก" : "กำไรวันนี้"}
           value={kpi?.todayProfit || 0}
           format="currency"
           icon={TrendingUp}
@@ -132,20 +152,20 @@ export default function DashboardPage() {
           title="อัตรากำไรขั้นต้น"
           value={kpi?.profitMargin || 0}
           format="percent"
-          icon={Calendar}
+          icon={CalendarIcon}
         />
       </div>
 
       {/* Payment Method Cards */}
       <div className="grid gap-4 md:grid-cols-2">
         <KPICard
-          title="เงินสดวันนี้"
+          title={selectedDate && format(selectedDate, "yyyy-MM-dd") !== format(new Date(), "yyyy-MM-dd") ? "เงินสดวันที่เลือก" : "เงินสดวันนี้"}
           value={kpi?.todayCash || 0}
           format="currency"
           icon={Wallet}
         />
         <KPICard
-          title="เงินโอนวันนี้"
+          title={selectedDate && format(selectedDate, "yyyy-MM-dd") !== format(new Date(), "yyyy-MM-dd") ? "เงินโอนวันที่เลือก" : "เงินโอนวันนี้"}
           value={kpi?.todayTransfer || 0}
           format="currency"
           icon={CreditCard}
