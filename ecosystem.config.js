@@ -6,7 +6,7 @@
 module.exports = {
   apps: [
     {
-      name: "servicecar-dashboard",
+      name: "car-service",
       script: "node_modules/next/dist/bin/next",
       args: "start",
       cwd: "./",
