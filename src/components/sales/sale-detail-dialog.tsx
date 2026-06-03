@@ -6,13 +6,14 @@
  */
 
 import { useEffect, useState } from "react";
-import { X, User, Phone, MapPin, CreditCard, Package } from "lucide-react";
+import { User, Phone, MapPin, CreditCard, Package } from "lucide-react";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  LargeDialog,
+  LargeDialogContent,
+  LargeDialogHeader,
+  LargeDialogBody,
+  LargeDialogTitle,
+} from "@/components/ui/large-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -115,65 +116,66 @@ export function SaleDetailDialog({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-[95vw] w-full max-h-[95vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>รายละเอียดบิลขาย</DialogTitle>
-        </DialogHeader>
+    <LargeDialog open={isOpen} onOpenChange={onClose}>
+      <LargeDialogContent size="2xl">
+        <LargeDialogHeader>
+          <LargeDialogTitle>รายละเอียดบิลขาย</LargeDialogTitle>
+        </LargeDialogHeader>
 
-        {isLoading ? (
-          <div className="space-y-4">
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-32 w-full" />
-            <Skeleton className="h-48 w-full" />
-          </div>
-        ) : error ? (
-          <div className="text-center py-8">
-            <p className="text-red-600">{error}</p>
-          </div>
-        ) : saleDetail ? (
+        <LargeDialogBody>
+          {isLoading ? (
+            <div className="space-y-4">
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-32 w-full" />
+              <Skeleton className="h-48 w-full" />
+            </div>
+          ) : error ? (
+            <div className="text-center py-8">
+              <p className="text-red-600">{error}</p>
+            </div>
+          ) : saleDetail ? (
           <div className="space-y-6">
             {/* Header Info */}
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-6 md:grid-cols-2 bg-muted/30 p-6 rounded-lg">
               <div>
-                <p className="text-sm text-muted-foreground">เลขที่บิล</p>
-                <p className="text-lg font-bold">{saleDetail.id}</p>
+                <p className="text-sm text-muted-foreground mb-1">เลขที่บิล</p>
+                <p className="text-xl font-bold">{saleDetail.id}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">วันที่</p>
-                <p className="text-lg">{formatDate(saleDetail.date)}</p>
+                <p className="text-sm text-muted-foreground mb-1">วันที่</p>
+                <p className="text-xl">{formatDate(saleDetail.date)}</p>
               </div>
             </div>
 
             {/* Customer Info */}
-            <div className="border rounded-lg p-4 space-y-3">
-              <h3 className="font-semibold flex items-center gap-2">
-                <User className="h-4 w-4" />
+            <div className="border rounded-lg p-6 space-y-4">
+              <h3 className="font-semibold text-lg flex items-center gap-2">
+                <User className="h-5 w-5" />
                 ข้อมูลลูกค้า
               </h3>
-              <div className="grid gap-2 md:grid-cols-2">
-                <div className="flex items-start gap-2">
-                  <User className="h-4 w-4 mt-1 text-muted-foreground" />
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="flex items-start gap-3">
+                  <User className="h-5 w-5 mt-1 text-muted-foreground" />
                   <div>
-                    <p className="text-sm text-muted-foreground">ชื่อ</p>
-                    <p className="font-medium">{saleDetail.customer.name}</p>
+                    <p className="text-sm text-muted-foreground mb-1">ชื่อ</p>
+                    <p className="font-medium text-base">{saleDetail.customer.name}</p>
                   </div>
                 </div>
                 {saleDetail.customer.phone && (
-                  <div className="flex items-start gap-2">
-                    <Phone className="h-4 w-4 mt-1 text-muted-foreground" />
+                  <div className="flex items-start gap-3">
+                    <Phone className="h-5 w-5 mt-1 text-muted-foreground" />
                     <div>
-                      <p className="text-sm text-muted-foreground">เบอร์โทร</p>
-                      <p className="font-medium">{saleDetail.customer.phone}</p>
+                      <p className="text-sm text-muted-foreground mb-1">เบอร์โทร</p>
+                      <p className="font-medium text-base">{saleDetail.customer.phone}</p>
                     </div>
                   </div>
                 )}
                 {saleDetail.customer.address && (
-                  <div className="flex items-start gap-2 md:col-span-2">
-                    <MapPin className="h-4 w-4 mt-1 text-muted-foreground" />
+                  <div className="flex items-start gap-3 md:col-span-2">
+                    <MapPin className="h-5 w-5 mt-1 text-muted-foreground" />
                     <div>
-                      <p className="text-sm text-muted-foreground">ที่อยู่</p>
-                      <p className="font-medium">
+                      <p className="text-sm text-muted-foreground mb-1">ที่อยู่</p>
+                      <p className="font-medium text-base">
                         {saleDetail.customer.address}
                       </p>
                     </div>
@@ -183,24 +185,24 @@ export function SaleDetailDialog({
             </div>
 
             {/* Payment Info */}
-            <div className="border rounded-lg p-4 space-y-3">
-              <h3 className="font-semibold flex items-center gap-2">
-                <CreditCard className="h-4 w-4" />
+            <div className="border rounded-lg p-6 space-y-4">
+              <h3 className="font-semibold text-lg flex items-center gap-2">
+                <CreditCard className="h-5 w-5" />
                 การชำระเงิน
               </h3>
-              <div className="grid gap-2 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-2">
                 {saleDetail.cash > 0 && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">เงินสด</p>
-                    <p className="text-lg font-bold text-green-600">
+                  <div className="p-4 bg-green-50 rounded-lg">
+                    <p className="text-sm text-muted-foreground mb-1">เงินสด</p>
+                    <p className="text-2xl font-bold text-green-600">
                       {formatCurrency(saleDetail.cash)}
                     </p>
                   </div>
                 )}
                 {saleDetail.transfer > 0 && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">เงินโอน</p>
-                    <p className="text-lg font-bold text-blue-600">
+                  <div className="p-4 bg-blue-50 rounded-lg">
+                    <p className="text-sm text-muted-foreground mb-1">เงินโอน</p>
+                    <p className="text-2xl font-bold text-blue-600">
                       {formatCurrency(saleDetail.transfer)}
                     </p>
                   </div>
@@ -210,46 +212,46 @@ export function SaleDetailDialog({
 
             {/* Items Table */}
             <div>
-              <h3 className="font-semibold mb-3 flex items-center gap-2">
-                <Package className="h-4 w-4" />
+              <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                <Package className="h-5 w-5" />
                 รายการสินค้า ({saleDetail.items.length} รายการ)
               </h3>
               <div className="border rounded-lg">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>บาร์โค้ด</TableHead>
-                      <TableHead>ชื่อสินค้า</TableHead>
-                      <TableHead className="text-right">ราคา/หน่วย</TableHead>
-                      <TableHead className="text-right">จำนวน</TableHead>
-                      <TableHead className="text-right">รวม</TableHead>
-                      <TableHead className="text-right">กำไร</TableHead>
+                      <TableHead className="text-base">บาร์โค้ด</TableHead>
+                      <TableHead className="text-base">ชื่อสินค้า</TableHead>
+                      <TableHead className="text-right text-base">ราคา/หน่วย</TableHead>
+                      <TableHead className="text-right text-base">จำนวน</TableHead>
+                      <TableHead className="text-right text-base">รวม</TableHead>
+                      <TableHead className="text-right text-base">กำไร</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {saleDetail.items.map((item) => (
                       <TableRow key={item.barCode}>
-                        <TableCell className="font-mono text-sm">
+                        <TableCell className="font-mono">
                           {item.barCode}
                         </TableCell>
-                        <TableCell className="font-medium">
+                        <TableCell className="font-medium text-base">
                           {item.name}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right text-base">
                           {formatCurrency(item.price)}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right text-base">
                           {item.quantity}
                         </TableCell>
-                        <TableCell className="text-right font-medium">
+                        <TableCell className="text-right font-medium text-base">
                           {formatCurrency(item.total)}
                         </TableCell>
                         <TableCell className="text-right">
                           <span
                             className={
                               item.profit >= 0
-                                ? "text-green-600 font-medium"
-                                : "text-red-600 font-medium"
+                                ? "text-green-600 font-medium text-base"
+                                : "text-red-600 font-medium text-base"
                             }
                           >
                             {formatCurrency(item.profit)}
@@ -263,25 +265,25 @@ export function SaleDetailDialog({
             </div>
 
             {/* Summary */}
-            <div className="border rounded-lg p-4 bg-muted/30">
-              <div className="space-y-2">
-                <div className="flex justify-between">
+            <div className="border rounded-lg p-6 bg-muted/30">
+              <div className="space-y-3">
+                <div className="flex justify-between text-base">
                   <span className="text-muted-foreground">ยอดรวม</span>
-                  <span className="font-medium">
+                  <span className="font-medium text-lg">
                     {formatCurrency(saleDetail.totalPrice)}
                   </span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between text-base">
                   <span className="text-muted-foreground">ต้นทุนรวม</span>
-                  <span className="font-medium">
+                  <span className="font-medium text-lg">
                     {formatCurrency(saleDetail.totalCost)}
                   </span>
                 </div>
-                <div className="h-px bg-border my-2" />
+                <div className="h-px bg-border my-3" />
                 <div className="flex justify-between items-center">
-                  <span className="font-semibold">กำไรรวม</span>
+                  <span className="font-semibold text-lg">กำไรรวม</span>
                   <span
-                    className={`text-xl font-bold ${
+                    className={`text-3xl font-bold ${
                       saleDetail.totalProfit >= 0
                         ? "text-green-600"
                         : "text-red-600"
@@ -290,9 +292,9 @@ export function SaleDetailDialog({
                     {formatCurrency(saleDetail.totalProfit)}
                   </span>
                 </div>
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between">
                   <span className="text-muted-foreground">% กำไร</span>
-                  <span className="font-medium">
+                  <span className="font-medium text-lg">
                     {(
                       (saleDetail.totalProfit / saleDetail.totalPrice) *
                       100
@@ -303,8 +305,9 @@ export function SaleDetailDialog({
               </div>
             </div>
           </div>
-        ) : null}
-      </DialogContent>
-    </Dialog>
+          ) : null}
+        </LargeDialogBody>
+      </LargeDialogContent>
+    </LargeDialog>
   );
 }
