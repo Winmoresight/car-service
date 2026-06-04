@@ -28,13 +28,16 @@ import type {
   LossProduct,
   TopProduct,
 } from "@/types/api";
+import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
 
 // Fetcher function for SWR
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function DashboardPage() {
   // State สำหรับวันที่ที่เลือก (default = วันนี้)
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
+    new Date(),
+  );
 
   // สร้าง URL สำหรับ API พร้อม query parameter
   const dashboardUrl = selectedDate
@@ -66,8 +69,7 @@ export default function DashboardPage() {
   >("/api/products/loss?limit=5", fetcher, { refreshInterval: 60000 });
 
   const kpi = kpiData?.success && kpiData.data ? kpiData.data : undefined;
-  const dailySales =
-    salesData?.success && salesData.data ? salesData.data : [];
+  const dailySales = salesData?.success && salesData.data ? salesData.data : [];
   const topProducts =
     topProductsData?.success && topProductsData.data
       ? topProductsData.data
@@ -86,8 +88,12 @@ export default function DashboardPage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-red-600 mb-2">เกิดข้อผิดพลาด</h1>
-          <p className="text-muted-foreground">ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้</p>
+          <h1 className="text-2xl font-bold text-red-600 mb-2">
+            เกิดข้อผิดพลาด
+          </h1>
+          <p className="text-muted-foreground">
+            ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้
+          </p>
           <p className="text-sm text-muted-foreground mt-2">
             กรุณาตรวจสอบการตั้งค่าใน .env.local
           </p>
@@ -97,14 +103,7 @@ export default function DashboardPage() {
   }
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4" />
-          <p className="text-muted-foreground">กำลังโหลดข้อมูล...</p>
-        </div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   return (
@@ -112,8 +111,21 @@ export default function DashboardPage() {
       {/* Header with Date Picker */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">ภาพรวม</h1>
-          <p className="text-muted-foreground mt-1">
+          <div className="flex items-center gap-2">
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+              ภาพรวม
+            </h1>
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100 mt-1">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">
+                Live
+              </span>
+            </div>
+          </div>
+          <p className="text-muted-foreground mt-1 font-medium">
             สรุปข้อมูลยอดขายและกำไรประจำวัน
           </p>
         </div>
@@ -129,17 +141,31 @@ export default function DashboardPage() {
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <KPICard
-          title={selectedDate && format(selectedDate, "yyyy-MM-dd") !== format(new Date(), "yyyy-MM-dd") ? "ยอดขายวันที่เลือก" : "ยอดขายวันนี้"}
+          title={
+            selectedDate &&
+            format(selectedDate, "yyyy-MM-dd") !==
+              format(new Date(), "yyyy-MM-dd")
+              ? "ยอดขายวันที่เลือก"
+              : "ยอดขายวันนี้"
+          }
           value={kpi?.todaySales || 0}
           format="currency"
           icon={Banknote}
           subtitle={`${kpi?.todayBills || 0} บิล`}
+          variant="blue"
         />
         <KPICard
-          title={selectedDate && format(selectedDate, "yyyy-MM-dd") !== format(new Date(), "yyyy-MM-dd") ? "กำไรวันที่เลือก" : "กำไรวันนี้"}
+          title={
+            selectedDate &&
+            format(selectedDate, "yyyy-MM-dd") !==
+              format(new Date(), "yyyy-MM-dd")
+              ? "กำไรวันที่เลือก"
+              : "กำไรวันนี้"
+          }
           value={kpi?.todayProfit || 0}
           format="currency"
           icon={TrendingUp}
+          variant="emerald"
         />
         <KPICard
           title="ยอดขายเดือนนี้"
@@ -147,28 +173,44 @@ export default function DashboardPage() {
           format="currency"
           icon={ShoppingCart}
           subtitle={`${kpi?.monthBills || 0} บิล`}
+          variant="purple"
         />
         <KPICard
           title="อัตรากำไรขั้นต้น"
           value={kpi?.profitMargin || 0}
           format="percent"
           icon={CalendarIcon}
+          variant="orange"
         />
       </div>
 
       {/* Payment Method Cards */}
       <div className="grid gap-4 md:grid-cols-2">
         <KPICard
-          title={selectedDate && format(selectedDate, "yyyy-MM-dd") !== format(new Date(), "yyyy-MM-dd") ? "เงินสดวันที่เลือก" : "เงินสดวันนี้"}
+          title={
+            selectedDate &&
+            format(selectedDate, "yyyy-MM-dd") !==
+              format(new Date(), "yyyy-MM-dd")
+              ? "เงินสดวันที่เลือก"
+              : "เงินสดวันนี้"
+          }
           value={kpi?.todayCash || 0}
           format="currency"
           icon={Wallet}
+          variant="default"
         />
         <KPICard
-          title={selectedDate && format(selectedDate, "yyyy-MM-dd") !== format(new Date(), "yyyy-MM-dd") ? "เงินโอนวันที่เลือก" : "เงินโอนวันนี้"}
+          title={
+            selectedDate &&
+            format(selectedDate, "yyyy-MM-dd") !==
+              format(new Date(), "yyyy-MM-dd")
+              ? "เงินโอนวันที่เลือก"
+              : "เงินโอนวันนี้"
+          }
           value={kpi?.todayTransfer || 0}
           format="currency"
           icon={CreditCard}
+          variant="default"
         />
       </div>
 

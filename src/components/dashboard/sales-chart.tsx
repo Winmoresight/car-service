@@ -106,15 +106,18 @@ export function SalesChart({
               tickLine={false}
               axisLine={false}
               tickMargin={12}
-              tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))", fontWeight: 500 }}
               tickFormatter={(value) => value}
             />
             <YAxis
               tickLine={false}
               axisLine={false}
               tickMargin={12}
-              tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-              tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))", fontWeight: 500 }}
+              tickFormatter={(value) => {
+                if (value >= 1000) return `${(value / 1000).toFixed(0)}k`;
+                return value;
+              }}
             />
             <ChartTooltip
               cursor={{
@@ -122,25 +125,27 @@ export function SalesChart({
                 strokeWidth: 1,
                 strokeDasharray: "4 4",
               }}
-              content={<ChartTooltipContent indicator="dot" />}
+              content={<ChartTooltipContent indicator="line" />}
             />
             <Area
               dataKey="sales"
-              type="monotone"
+              type="natural"
               fill="url(#fillSales)"
               fillOpacity={1}
               stroke="var(--color-sales)"
-              strokeWidth={2}
+              strokeWidth={3}
               stackId="sales"
+              animationDuration={1500}
             />
             <Area
               dataKey="profit"
-              type="monotone"
+              type="natural"
               fill="url(#fillProfit)"
               fillOpacity={1}
               stroke="var(--color-profit)"
-              strokeWidth={2}
+              strokeWidth={3}
               stackId="profit"
+              animationDuration={1500}
             />
           </AreaChart>
         </ChartContainer>

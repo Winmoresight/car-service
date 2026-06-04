@@ -1,0 +1,43 @@
+-- ค้นหาตารางที่เกี่ยวข้องกับพนักงาน (Employee)
+-- ค้นหาจากชื่อตาราง
+
+SELECT 
+    TABLE_SCHEMA,
+    TABLE_NAME,
+    TABLE_TYPE
+FROM INFORMATION_SCHEMA.TABLES
+WHERE 
+    TABLE_NAME LIKE '%Employee%'
+    OR TABLE_NAME LIKE '%Staff%'
+    OR TABLE_NAME LIKE '%Worker%'
+    OR TABLE_NAME LIKE '%User%'
+    OR TABLE_NAME LIKE '%Person%'
+    OR TABLE_NAME LIKE '%Member%'
+    OR TABLE_NAME LIKE '%คน%'
+    OR TABLE_NAME LIKE '%พนักงาน%'
+ORDER BY TABLE_NAME;
+
+-- ดูคอลัมน์ที่มีคำว่า Employee, Staff, Worker ในชื่อ
+SELECT DISTINCT
+    TABLE_SCHEMA,
+    TABLE_NAME,
+    COLUMN_NAME,
+    DATA_TYPE
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE 
+    COLUMN_NAME LIKE '%Employee%'
+    OR COLUMN_NAME LIKE '%Staff%'
+    OR COLUMN_NAME LIKE '%Worker%'
+    OR COLUMN_NAME LIKE '%User%'
+    OR COLUMN_NAME LIKE '%Person%'
+    OR COLUMN_NAME LIKE '%พนักงาน%'
+ORDER BY TABLE_NAME, COLUMN_NAME;
+
+-- แสดงตารางทั้งหมดในฐานข้อมูล
+SELECT 
+    TABLE_SCHEMA,
+    TABLE_NAME,
+    TABLE_TYPE
+FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_TYPE = 'BASE TABLE'
+ORDER BY TABLE_NAME;

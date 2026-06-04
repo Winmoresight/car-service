@@ -65,71 +65,79 @@ export function LossAlertTable({
   }
 
   return (
-    <Card className="border-red-100 overflow-hidden">
+    <Card className="border-red-200 overflow-hidden shadow-sm shadow-red-50">
       {(title || description) && (
-        <CardHeader className="bg-red-50/50 border-b border-red-100">
-          <CardTitle className="text-red-700 flex items-center gap-2 text-lg">
-            <AlertTriangle className="h-5 w-5" />
-            {title}
-          </CardTitle>
-          {description && (
-            <CardDescription className="text-red-600/70">
-              {description}
-            </CardDescription>
-          )}
+        <CardHeader className="bg-red-50/50 border-b border-red-100 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-red-100 rounded-lg">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+            </div>
+            <div>
+              <CardTitle className="text-red-800 text-xl font-bold tracking-tight">
+                {title}
+              </CardTitle>
+              {description && (
+                <CardDescription className="text-red-600/70 font-medium">
+                  {description}
+                </CardDescription>
+              )}
+            </div>
+          </div>
         </CardHeader>
       )}
       <CardContent className="p-0">
-        <Table>
-          <TableHeader className="bg-red-50/30">
-            <TableRow className="hover:bg-transparent border-red-100">
-              <TableHead className="text-red-900/60">สินค้า/รายการ</TableHead>
-              <TableHead className="text-right text-red-900/60">
-                ยอดขาย
-              </TableHead>
-              <TableHead className="text-right text-red-900/60">
-                ขาดทุน
-              </TableHead>
-              <TableHead className="text-right text-red-900/60">
-                จำนวน
-              </TableHead>
-              <TableHead className="text-right text-red-900/60">
-                สถานะ
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {products.map((product, index) => (
-              <TableRow
-                key={`${product.name}-${index}`}
-                className="hover:bg-red-50/20 transition-colors border-red-50"
-              >
-                <TableCell className="font-medium text-foreground">
-                  {product.name}
-                </TableCell>
-                <TableCell className="text-right font-medium">
-                  {formatCurrency(product.sales)}
-                </TableCell>
-                <TableCell className="text-right">
-                  <span className="text-destructive font-bold">
-                    {formatCurrency(product.profit)}
-                  </span>
-                </TableCell>
-                <TableCell className="text-right text-muted-foreground">
-                  {formatNumber(product.quantity)}
-                </TableCell>
-                <TableCell className="text-right">
-                  <Badge
-                    variant="destructive"
-                    className="bg-red-100 text-red-700 border-red-200 hover:bg-red-200 shadow-none font-medium"
-                  >
-                    ตรวจสอบ
-                  </Badge>
-                </TableCell>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader className="bg-red-50/20">
+              <TableRow className="hover:bg-transparent border-red-100">
+                <TableHead className="text-red-900/60 font-bold text-xs uppercase tracking-wider">สินค้า/รายการ</TableHead>
+                <TableHead className="text-right text-red-900/60 font-bold text-xs uppercase tracking-wider">
+                  ยอดขาย
+                </TableHead>
+                <TableHead className="text-right text-red-900/60 font-bold text-xs uppercase tracking-wider">
+                  ขาดทุน
+                </TableHead>
+                <TableHead className="text-right text-red-900/60 font-bold text-xs uppercase tracking-wider">
+                  จำนวน
+                </TableHead>
+                <TableHead className="text-right text-red-900/60 font-bold text-xs uppercase tracking-wider">
+                  สถานะ
+                </TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {products.map((product, index) => (
+                <TableRow
+                  key={`${product.name}-${index}`}
+                  className="hover:bg-red-50/40 transition-colors border-red-50 group"
+                >
+                  <TableCell className="font-bold text-foreground group-hover:text-red-700 transition-colors">
+                    {product.name}
+                  </TableCell>
+                  <TableCell className="text-right font-medium">
+                    {formatCurrency(product.sales)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <span className="text-red-600 font-bold">
+                      {formatCurrency(product.profit)}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right text-muted-foreground font-medium">
+                    {formatNumber(product.quantity)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Badge
+                      variant="destructive"
+                      className="bg-red-600 text-white border-none hover:bg-red-700 shadow-sm font-bold text-[10px] px-2"
+                    >
+                      URGENT
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );

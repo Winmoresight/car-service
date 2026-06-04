@@ -12,6 +12,7 @@ import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { SaleDetailDialog } from "@/components/sales/sale-detail-dialog";
+import { KPICard } from "@/components/dashboard/kpi-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,9 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Banknote, FileText, TrendingUp } from "lucide-react";
 import type { ApiResponse } from "@/types/api";
+import { cn } from "@/lib/utils";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -140,51 +143,39 @@ export default function SalesPage() {
     <div className="p-4 md:p-8 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">ยอดขาย</h1>
-        <p className="text-muted-foreground mt-1">
+        <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+          ยอดขาย
+        </h1>
+        <p className="text-muted-foreground mt-1 font-medium">
           รายการบิลขายทั้งหมด ({total.toLocaleString()} บิล)
         </p>
       </div>
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              บิลทั้งหมด
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{total.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              ตั้งแต่ ก.พ. 2025
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              ยอดขายรวม
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">฿13.8M</div>
-            <p className="text-xs text-green-600 mt-1">+12.5% จากเดือนก่อน</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              กำไรรวม
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">฿1.12M</div>
-            <p className="text-xs text-muted-foreground mt-1">8.1% margin</p>
-          </CardContent>
-        </Card>
+        <KPICard
+          title="บิลทั้งหมด"
+          value={total}
+          icon={FileText}
+          subtitle="ตั้งแต่ ก.พ. 2025"
+          variant="blue"
+        />
+        <KPICard
+          title="ยอดขายรวม"
+          value={13800000} // Mocked from original code
+          format="currency"
+          icon={Banknote}
+          trend={{ value: 12.5, isPositive: true }}
+          variant="purple"
+        />
+        <KPICard
+          title="กำไรรวม"
+          value={1120000} // Mocked from original code
+          format="currency"
+          icon={TrendingUp}
+          subtitle="8.1% margin"
+          variant="emerald"
+        />
       </div>
 
       {/* Filters & Actions */}
@@ -250,112 +241,153 @@ export default function SalesPage() {
       </Card>
 
       {/* Sales Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>รายการบิลขาย</CardTitle>
+      <Card className="border-none shadow-sm ring-1 ring-border/50 overflow-hidden">
+        <CardHeader className="bg-muted/5 border-b border-border/40">
+          <CardTitle className="text-xl font-bold tracking-tight">
+            รายการบิลขาย
+          </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {isLoading ? (
-            <div className="space-y-3">
+            <div className="p-4 space-y-3">
               {[...Array(10)].map((_, i) => (
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
             </div>
           ) : error || (data && !data.success) ? (
-            <div className="text-center py-8">
-              <p className="text-red-600 font-semibold">
+            <div className="text-center py-12">
+              <p className="text-red-600 font-bold text-lg">
                 เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง
               </p>
               <p className="text-sm text-muted-foreground mt-2">
                 {error?.message || "Unknown error"}
               </p>
-              {data && !data.success && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  API Error: {data.error}
-                </p>
-              )}
             </div>
           ) : (
             <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>เลขที่บิล</TableHead>
-                    <TableHead>วันที่</TableHead>
-                    <TableHead>ลูกค้า</TableHead>
-                    <TableHead className="text-right">รายการ</TableHead>
-                    <TableHead className="text-right">ยอดขาย</TableHead>
-                    <TableHead className="text-right">กำไร</TableHead>
-                    <TableHead className="text-center">การชำระ</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sales.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8">
-                        <p className="text-muted-foreground">ไม่พบข้อมูล</p>
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-muted/30">
+                    <TableRow className="hover:bg-transparent border-none">
+                      <TableHead className="font-bold text-xs uppercase tracking-wider">
+                        เลขที่บิล
+                      </TableHead>
+                      <TableHead className="font-bold text-xs uppercase tracking-wider">
+                        วันที่
+                      </TableHead>
+                      <TableHead className="font-bold text-xs uppercase tracking-wider">
+                        ลูกค้า
+                      </TableHead>
+                      <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
+                        รายการ
+                      </TableHead>
+                      <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
+                        ยอดขาย
+                      </TableHead>
+                      <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
+                        กำไร
+                      </TableHead>
+                      <TableHead className="text-center font-bold text-xs uppercase tracking-wider">
+                        การชำระ
+                      </TableHead>
                     </TableRow>
-                  ) : (
-                    sales.map((sale) => (
-                      <TableRow
-                        key={sale.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => handleViewSale(sale.id)}
-                      >
-                        <TableCell className="font-medium">{sale.id}</TableCell>
-                        <TableCell className="text-sm">
-                          {formatDate(sale.date)}
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{sale.customerName}</p>
-                            {sale.customerPhone && (
-                              <p className="text-xs text-muted-foreground">
-                                {sale.customerPhone}
-                              </p>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {sale.itemCount}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(sale.totalPrice)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <span
-                            className={
-                              sale.totalProfit >= 0
-                                ? "text-green-600 font-medium"
-                                : "text-red-600 font-medium"
-                            }
-                          >
-                            {formatCurrency(sale.totalProfit)}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <div className="flex gap-1 justify-center">
-                            {sale.cash > 0 && (
-                              <Badge variant="default">สด</Badge>
-                            )}
-                            {sale.transfer > 0 && (
-                              <Badge variant="secondary">โอน</Badge>
-                            )}
-                          </div>
+                  </TableHeader>
+                  <TableBody>
+                    {sales.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-16">
+                          <p className="text-muted-foreground font-medium">
+                            ไม่พบข้อมูลบิลขาย
+                          </p>
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ) : (
+                      sales.map((sale) => (
+                        <TableRow
+                          key={sale.id}
+                          className="cursor-pointer hover:bg-muted/20 transition-all duration-200 group border-border/40"
+                          onClick={() => handleViewSale(sale.id)}
+                        >
+                          <TableCell className="font-mono font-bold text-primary group-hover:underline">
+                            {sale.id}
+                          </TableCell>
+                          <TableCell className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                            {formatDate(sale.date)}
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <p className="font-bold text-foreground">
+                                {sale.customerName}
+                              </p>
+                              {sale.customerPhone && (
+                                <p className="text-[10px] text-muted-foreground font-medium">
+                                  {sale.customerPhone}
+                                </p>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-muted-foreground">
+                            {sale.itemCount}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-foreground">
+                            {formatCurrency(sale.totalPrice)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span
+                              className={cn(
+                                "font-bold",
+                                sale.totalProfit >= 0
+                                  ? "text-emerald-600"
+                                  : "text-destructive",
+                              )}
+                            >
+                              {formatCurrency(sale.totalProfit)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex gap-1.5 justify-center">
+                              {sale.cash > 0 && (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold shadow-none"
+                                >
+                                  สด
+                                </Badge>
+                              )}
+                              {sale.transfer > 0 && (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] font-bold shadow-none"
+                                >
+                                  โอน
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4">
-                  <p className="text-sm text-muted-foreground">
-                    แสดง {page * limit + 1}-
-                    {Math.min((page + 1) * limit, total)} จาก {total} บิล
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-muted/5 border-t border-border/40">
+                  <p className="text-sm text-muted-foreground font-medium">
+                    แสดง{" "}
+                    <span className="text-foreground font-bold">
+                      {page * limit + 1}
+                    </span>
+                    -
+                    <span className="text-foreground font-bold">
+                      {Math.min((page + 1) * limit, total)}
+                    </span>{" "}
+                    จาก{" "}
+                    <span className="text-foreground font-bold">
+                      {total.toLocaleString()}
+                    </span>{" "}
+                    บิล
                   </p>
                   <div className="flex gap-2">
                     <Button
@@ -363,9 +395,13 @@ export default function SalesPage() {
                       size="sm"
                       onClick={() => setPage(Math.max(0, page - 1))}
                       disabled={page === 0}
+                      className="font-bold h-8"
                     >
                       ← ก่อนหน้า
                     </Button>
+                    <div className="flex items-center gap-1 px-4 text-sm font-bold">
+                      Page {page + 1} of {totalPages}
+                    </div>
                     <Button
                       variant="outline"
                       size="sm"
@@ -373,6 +409,7 @@ export default function SalesPage() {
                         setPage(Math.min(totalPages - 1, page + 1))
                       }
                       disabled={page >= totalPages - 1}
+                      className="font-bold h-8"
                     >
                       ถัดไป →
                     </Button>
