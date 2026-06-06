@@ -284,7 +284,7 @@ export default function BillEditHistoryPage() {
       </div>
 
       {/* Summary Cards */}
-      {summary && (
+      {summary && totalSummary && (
         <>
           <div className="grid gap-4 md:grid-cols-3">
             <KPICard
@@ -483,7 +483,7 @@ export default function BillEditHistoryPage() {
                   <SelectItem value="all">
                     <div className="flex items-center gap-2">
                       <span>แสดงทั้งหมด</span>
-                      {summary && (
+                      {summary && totalSummary && (
                         <Badge variant="outline" className="text-[10px]">
                           {totalSummary.totalEdits}
                         </Badge>
@@ -493,7 +493,7 @@ export default function BillEditHistoryPage() {
                   <SelectItem value="amountChanges">
                     <div className="flex items-center gap-2">
                       <span>🔴 แก้ไขยอดเงินเท่านั้น</span>
-                      {summary && (
+                      {summary && totalSummary && (
                         <Badge variant="destructive" className="text-[10px]">
                           {totalSummary.totalAmountChanges}
                         </Badge>
@@ -503,7 +503,7 @@ export default function BillEditHistoryPage() {
                   <SelectItem value="bankOnly">
                     <div className="flex items-center gap-2">
                       <span>🏦 แก้ไขธนาคารเท่านั้น</span>
-                      {summary && (
+                      {summary && totalSummary && (
                         <Badge variant="secondary" className="text-[10px]">
                           {totalSummary.totalBankOnlyChanges}
                         </Badge>
@@ -563,7 +563,7 @@ export default function BillEditHistoryPage() {
             )}
 
             {/* Filtered Count Info */}
-            {filterType !== "all" && summary && (
+            {filterType !== "all" && summary && totalSummary && (
               <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <AlertCircle className="h-4 w-4 text-blue-600" />
                 <span className="text-sm text-blue-800 font-medium">

@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
       const totalChange = cashChange + transferChange;
       
       // ตรวจสอบประเภทการเปลี่ยนแปลง
-      let changeType = '';
+      let changeType: 'amount_change' | 'payment_method_change' | 'bank_added' | 'bank_change' | 'no_change' = 'no_change';
       const hasCashChange = row.payCashOld !== row.payCashNew;
       const hasTransferChange = row.payTransferOld !== row.payTransferNew;
       const hasBankChange = row.nameBankOld !== row.nameBankNew;

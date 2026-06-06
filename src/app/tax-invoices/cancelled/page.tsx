@@ -133,7 +133,7 @@ export default function CancelledTaxInvoicesPage() {
             value={summary.totalAmount}
             format="currency"
             icon={TrendingDown}
-            variant="red"
+            variant="orange"
           />
           <KPICard
             title="VAT ที่ยกเลิก"

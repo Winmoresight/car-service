@@ -126,7 +126,7 @@ export default function DeletedBillsPage() {
             title={`ลบ/ยกเลิกทั้งหมด (${summary.periodDays} วัน)`}
             value={summary.totalDeleted}
             icon={Trash2}
-            variant="red"
+            variant="orange"
             subtitle={`${summary.totalDeleted} บิล`}
           />
           <KPICard
