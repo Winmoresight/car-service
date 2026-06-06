@@ -50,31 +50,29 @@ export function TopProductsTable({
   };
 
   return (
-    <Card className="overflow-hidden border-none shadow-sm ring-1 ring-border/50">
-      {(title || description) && (
-        <CardHeader className="bg-muted/10 border-b border-border/40 pb-4">
-          <div className="flex items-center justify-between">
-            <div>
-              {title && <CardTitle className="text-xl font-bold tracking-tight">{title}</CardTitle>}
-              {description && <CardDescription className="font-medium">{description}</CardDescription>}
-            </div>
-            <Badge variant="outline" className="bg-background/50 font-bold">
-              30 Days
-            </Badge>
+    <Card className="border-none shadow-sm bg-card overflow-hidden">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6 pt-6">
+        <div className="space-y-1">
+          {title && <CardTitle className="text-xl font-bold text-card-foreground">{title}</CardTitle>}
+          {description && <CardDescription className="text-sm font-medium text-muted-foreground">{description}</CardDescription>}
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="px-3 py-1.5 bg-secondary rounded-xl text-[11px] font-bold text-muted-foreground border border-border uppercase tracking-wider">
+            30 Days
           </div>
-        </CardHeader>
-      )}
+        </div>
+      </CardHeader>
       <CardContent className="p-0">
         <div className="overflow-x-auto">
           <Table>
-            <TableHeader className="bg-muted/30">
-              <TableRow className="hover:bg-transparent border-none">
-                <TableHead className="w-[60px] text-center font-bold text-xs uppercase tracking-wider">#</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider">สินค้า</TableHead>
-                <TableHead className="text-right font-bold text-xs uppercase tracking-wider">ยอดขาย</TableHead>
-                <TableHead className="text-right font-bold text-xs uppercase tracking-wider">กำไร</TableHead>
-                <TableHead className="text-right font-bold text-xs uppercase tracking-wider">จำนวน</TableHead>
-                <TableHead className="text-right font-bold text-xs uppercase tracking-wider">% กำไร</TableHead>
+            <TableHeader className="bg-secondary/50">
+              <TableRow className="hover:bg-transparent border-border">
+                <TableHead className="w-[60px] text-center font-bold text-muted-foreground text-[11px] uppercase tracking-wider">#</TableHead>
+                <TableHead className="font-bold text-muted-foreground text-[11px] uppercase tracking-wider">สินค้า</TableHead>
+                <TableHead className="text-right font-bold text-muted-foreground text-[11px] uppercase tracking-wider">ยอดขาย</TableHead>
+                <TableHead className="text-right font-bold text-muted-foreground text-[11px] uppercase tracking-wider">กำไร</TableHead>
+                <TableHead className="text-right font-bold text-muted-foreground text-[11px] uppercase tracking-wider">จำนวน</TableHead>
+                <TableHead className="text-right font-bold text-muted-foreground text-[11px] uppercase tracking-wider">% กำไร</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -93,23 +91,23 @@ export function TopProductsTable({
                 products.map((product, index) => (
                   <TableRow
                     key={`${product.name}-${index}`}
-                    className="hover:bg-muted/20 transition-all duration-200 group border-border/40"
+                    className="hover:bg-secondary/50 transition-all duration-200 group border-border/50"
                   >
                     <TableCell className="text-center">
-                      <span className={cn(
-                        "inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold font-mono",
-                        index < 3 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                      <div className={cn(
+                        "inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold mx-auto",
+                        index < 3 ? "bg-main-blue text-white shadow-sm" : "bg-secondary text-muted-foreground"
                       )}>
                         {index + 1}
-                      </span>
+                      </div>
                     </TableCell>
                     <TableCell>
-                      <div className="font-bold text-foreground group-hover:text-primary transition-colors">
+                      <div className="font-bold text-card-foreground group-hover:text-main-blue transition-colors">
                         {product.name}
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="font-bold text-foreground">
+                      <div className="font-bold text-card-foreground">
                         {formatCurrency(product.sales)}
                       </div>
                     </TableCell>
@@ -118,8 +116,8 @@ export function TopProductsTable({
                         className={cn(
                           "font-bold",
                           product.profit >= 0
-                            ? "text-emerald-600"
-                            : "text-destructive"
+                            ? "text-main-green"
+                            : "text-main-red"
                         )}
                       >
                         {formatCurrency(product.profit)}
@@ -131,13 +129,13 @@ export function TopProductsTable({
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden hidden sm:block">
+                      <div className="flex items-center justify-end gap-3">
+                        <div className="w-16 h-1.5 bg-secondary rounded-full overflow-hidden hidden sm:block">
                           <div 
                             className={cn(
-                              "h-full rounded-full",
-                              product.profitMargin >= 20 ? "bg-emerald-500" : 
-                              product.profitMargin >= 10 ? "bg-blue-500" : "bg-orange-500"
+                              "h-full rounded-full transition-all duration-500",
+                              product.profitMargin >= 20 ? "bg-main-green" : 
+                              product.profitMargin >= 10 ? "bg-main-blue" : "bg-main-orange"
                             )}
                             style={{ width: `${Math.min(product.profitMargin * 2, 100)}%` }}
                           />
@@ -145,12 +143,12 @@ export function TopProductsTable({
                         <Badge
                           variant="outline"
                           className={cn(
-                            "font-bold text-[10px] px-1.5 py-0 min-w-[45px] justify-center shadow-none border-none",
+                            "font-bold text-[10px] px-2 py-0.5 min-w-[50px] justify-center shadow-none border-none rounded-lg",
                             product.profitMargin >= 20
-                              ? "bg-emerald-50 text-emerald-700"
+                              ? "bg-emerald-50 text-main-green"
                               : product.profitMargin >= 10
-                                ? "bg-blue-50 text-blue-700"
-                                : "bg-orange-50 text-orange-700",
+                                ? "bg-blue-50 text-main-blue"
+                                : "bg-orange-50 text-main-orange",
                           )}
                         >
                           {product.profitMargin.toFixed(1)}%

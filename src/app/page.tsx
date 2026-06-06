@@ -88,7 +88,7 @@ export default function DashboardPage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-red-600 mb-2">
+          <h1 className="text-2xl font-bold text-main-red mb-2">
             เกิดข้อผิดพลาด
           </h1>
           <p className="text-muted-foreground">
@@ -112,7 +112,7 @@ export default function DashboardPage() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+            <h1 className="text-3xl font-bold tracking-tight text-card-foreground">
               ภาพรวม
             </h1>
             <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100 mt-1">
@@ -120,7 +120,7 @@ export default function DashboardPage() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">
+              <span className="text-[10px] font-bold text-main-green uppercase tracking-wider">
                 Live
               </span>
             </div>
@@ -134,6 +134,7 @@ export default function DashboardPage() {
             date={selectedDate}
             onDateChange={setSelectedDate}
             placeholder="เลือกวันที่"
+            className="bg-white hover:bg-white"
           />
         </div>
       </div>

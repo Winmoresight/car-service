@@ -1,0 +1,991 @@
+{
+  "timestamp": "2026-06-06T04:41:31.784Z",
+  "tables": {
+    "MasterPrintPostVate": {
+      "structure": [
+        {
+          "COLUMN_NAME": "DatePost",
+          "DATA_TYPE": "datetime",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NumberPrintPost",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "CodeCustomer",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NameCar",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 50,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "Province",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 200,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "BrandAndGenerate",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 200,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "MileCar",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 50,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NameCustomer",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": -1,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "SubVatePrice",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "ReducePrice",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NoVatePrice",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "Result",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "Reduceproduct",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "VatePrice",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "TotalPrice",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "Status",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NameUser",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 250,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        }
+      ],
+      "totalRecords": 5,
+      "hasSample": true
+    },
+    "DetailPrintPostVate": {
+      "structure": [
+        {
+          "COLUMN_NAME": "DatePost",
+          "DATA_TYPE": "datetime",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NumberPrintPost",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "AddRows",
+          "DATA_TYPE": "int",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "AddOder",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 10,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "BarCode",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NameProduct",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 250,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NumProduct",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "MeterProduct",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 50,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "SalePrice",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "RealSalePrice",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "VatePrice",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "ReducePrice",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "SumPrice",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "SubStock",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 1,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "CheckVate",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 1,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "CostPrice",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "CodeCustomer",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "CaseProduct",
+          "DATA_TYPE": "int",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "Status",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "DateStart",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 100,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "DateEnd",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 100,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        }
+      ],
+      "totalRecords": 12,
+      "hasSample": true
+    },
+    "MasterPrintCashVate": {
+      "structure": [
+        {
+          "COLUMN_NAME": "DateCash",
+          "DATA_TYPE": "datetime",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NumberPrintCash",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "CodeCustomer",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NameCar",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 50,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "Province",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 200,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "BrandAndGenerate",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 200,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "MileCar",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 50,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NameCustomer",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": -1,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "SubVatePrice",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "ReducePrice",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NoVatePrice",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "Result",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "Reduceproduct",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "VatePrice",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "TotalPrice",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "Status",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NameUser",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 250,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        }
+      ],
+      "totalRecords": 4,
+      "hasSample": true
+    },
+    "DetailPrintCashVate": {
+      "structure": [
+        {
+          "COLUMN_NAME": "DateCash",
+          "DATA_TYPE": "datetime",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NumberPrintCash",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "AddRows",
+          "DATA_TYPE": "int",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "AddOder",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 10,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "BarCode",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NameProduct",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 250,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NumProduct",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "MeterProduct",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 50,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "SalePrice",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "RealSalePrice",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "VatePrice",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "ReducePrice",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "SumPrice",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "SubStock",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 1,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "CheckVate",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 1,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "CostPrice",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "CodeCustomer",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "CaseProduct",
+          "DATA_TYPE": "int",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "Status",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "DateStart",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 100,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "DateEnd",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 100,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        }
+      ],
+      "totalRecords": 14,
+      "hasSample": true
+    },
+    "ChangeEditPrint": {
+      "structure": [
+        {
+          "COLUMN_NAME": "DateEditPrint",
+          "DATA_TYPE": "datetime",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "Times",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 20,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NumberPrint",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "PayCashOld",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "PayTransferOld",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NameBankOld",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 200,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "PayCashNew",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "PayTransferNew",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NameBankNew",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 200,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NameUser",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 200,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        }
+      ],
+      "totalRecords": 1051,
+      "hasSample": true
+    },
+    "EditTotalOldNewPrint": {
+      "structure": [
+        {
+          "COLUMN_NAME": "DateSave",
+          "DATA_TYPE": "datetime",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NumberPrint",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "TotalOld",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "TotalNew",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NameSave",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 250,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        }
+      ],
+      "totalRecords": 1,
+      "hasSample": true
+    },
+    "MasterPrintPost": {
+      "structure": [
+        {
+          "COLUMN_NAME": "DatePost",
+          "DATA_TYPE": "datetime",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "Times",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 20,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NumberPrintPost",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NameCar",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 250,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "Province",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 250,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "BrandAndGenerate",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 250,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "MileCar",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 50,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "CodeCustomer",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NameCustomer",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": -1,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "ReducePrice",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "Result",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "Reduceproduct",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "Deposits",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "TotalPrice",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "Status",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 150,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "PayCash",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "PayTransfer",
+          "DATA_TYPE": "money",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NameBank",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 200,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "CardBank",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 150,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NameWork",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": -1,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NameUser",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 250,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "DateDue",
+          "DATA_TYPE": "datetime",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NumDate",
+          "DATA_TYPE": "int",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "DetailPrint",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": -1,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        }
+      ],
+      "totalRecords": 1,
+      "hasSample": true
+    },
+    "DetailPrintPost": {
+      "structure": [
+        {
+          "COLUMN_NAME": "DatePost",
+          "DATA_TYPE": "datetime",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NumberPrintPost",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "AddRows",
+          "DATA_TYPE": "int",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "AddOder",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 10,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "BarCode",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NameProduct",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 250,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "NumProduct",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "MeterProduct",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 50,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "SalePrice",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "RealSalePrice",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "ReducePrice",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "SumPrice",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "CostPrice",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "CodeCustomer",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "CaseProduct",
+          "DATA_TYPE": "int",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "Status",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 30,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "Have",
+          "DATA_TYPE": "nvarchar",
+          "CHARACTER_MAXIMUM_LENGTH": 1,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "DateStart",
+          "DATA_TYPE": "datetime",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        },
+        {
+          "COLUMN_NAME": "DateEnd",
+          "DATA_TYPE": "datetime",
+          "CHARACTER_MAXIMUM_LENGTH": null,
+          "IS_NULLABLE": "YES",
+          "COLUMN_DEFAULT": null
+        }
+      ],
+      "totalRecords": 5,
+      "hasSample": true
+    }
+  }
+}

@@ -18,12 +18,14 @@ interface DatePickerProps {
   date?: Date;
   onDateChange?: (date: Date | undefined) => void;
   placeholder?: string;
+  className?: string;
 }
 
 export function DatePicker({
   date,
   onDateChange,
   placeholder = "เลือกวันที่",
+  className,
 }: DatePickerProps) {
   return (
     <Popover>
@@ -33,10 +35,15 @@ export function DatePicker({
           className={cn(
             "w-[240px] justify-start text-left font-normal",
             !date && "text-muted-foreground",
+            className && className,
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {date ? format(date, "PPP", { locale: th }) : <span>{placeholder}</span>}
+          {date ? (
+            format(date, "PPP", { locale: th })
+          ) : (
+            <span>{placeholder}</span>
+          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">

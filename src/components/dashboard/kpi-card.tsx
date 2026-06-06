@@ -30,19 +30,11 @@ export function KPICard({
   variant = "default",
 }: KPICardProps) {
   const variantStyles = {
-    default: "text-primary bg-primary/10",
-    emerald: "text-emerald-600 bg-emerald-50",
-    blue: "text-blue-600 bg-blue-50",
-    orange: "text-orange-600 bg-orange-50",
+    default: "text-main-blue bg-blue-50",
+    emerald: "text-main-green bg-emerald-50",
+    blue: "text-main-blue bg-blue-50",
+    orange: "text-main-orange bg-orange-50",
     purple: "text-purple-600 bg-purple-50",
-  };
-
-  const borderStyles = {
-    default: "hover:border-primary/50",
-    emerald: "hover:border-emerald-500/50",
-    blue: "hover:border-blue-500/50",
-    orange: "hover:border-orange-500/50",
-    purple: "hover:border-purple-500/50",
   };
 
   // Format value based on type
@@ -66,48 +58,40 @@ export function KPICard({
   };
 
   return (
-    <Card className={cn(
-      "relative overflow-hidden transition-all duration-300 hover:shadow-md",
-      borderStyles[variant]
-    )}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-          {title}
-        </CardTitle>
-        {Icon && (
-          <div className={cn("p-2.5 rounded-xl transition-colors", variantStyles[variant])}>
-            <Icon className="h-5 w-5" />
+    <Card className="border-none shadow-sm hover:shadow-md transition-all duration-300 bg-card overflow-hidden group">
+      <CardContent className="p-6">
+        <div className="flex flex-col gap-4">
+          <div className="flex items-start justify-between">
+            <div className={cn("p-2.5 rounded-2xl transition-transform group-hover:scale-110 duration-300", variantStyles[variant])}>
+              {Icon && <Icon className="h-6 w-6" />}
+            </div>
+            {trend && (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg",
+                  trend.isPositive ? "text-main-green bg-emerald-50" : "text-main-red bg-red-50"
+                )}
+              >
+                {trend.isPositive ? "↑" : "↓"} {Math.abs(trend.value).toFixed(1)}%
+              </span>
+            )}
           </div>
-        )}
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-bold tracking-tight text-foreground">
-          {formattedValue()}
-        </div>
-        
-        <div className="flex items-center gap-2 mt-1.5">
-          {trend && (
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 text-xs font-bold px-1.5 py-0.5 rounded-full",
-                trend.isPositive ? "text-emerald-700 bg-emerald-50" : "text-red-700 bg-red-50"
-              )}
-            >
-              {trend.isPositive ? "↑" : "↓"} {Math.abs(trend.value).toFixed(1)}%
-            </span>
-          )}
+          
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              {title}
+            </p>
+            <div className="text-3xl font-extrabold text-card-foreground tracking-tight">
+              {formattedValue()}
+            </div>
+          </div>
+
           {subtitle && (
             <p className="text-xs text-muted-foreground font-medium">
               {subtitle}
             </p>
           )}
         </div>
-
-        {/* Decorative background element */}
-        <div className={cn(
-          "absolute -right-4 -bottom-4 h-24 w-24 rounded-full opacity-[0.03]",
-          variant === "default" ? "bg-primary" : `bg-${variant}-500`
-        )} />
       </CardContent>
     </Card>
   );

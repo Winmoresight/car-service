@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 const RootLayout = ({ children }: { children: ReactNode }) => {
   return (
     <html lang="th" className={cn("h-full antialiased", noto.className)}>
-      <body className="min-h-full flex flex-col font-noto bg-gray-50">
+      <body className="min-h-full flex flex-col font-noto">
         {/* Desktop Sidebar */}
         <Sidebar />
 

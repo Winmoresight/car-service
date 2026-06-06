@@ -13,6 +13,8 @@ import {
   Package,
   Warehouse,
   Users,
+  UserCog,
+  Receipt,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,19 +30,14 @@ const navigation = [
     icon: ShoppingCart,
   },
   {
-    name: "สินค้า",
-    href: "/products",
-    icon: Package,
+    name: "พนักงาน",
+    href: "/employees",
+    icon: UserCog,
   },
   {
-    name: "สต็อก",
-    href: "/stock",
-    icon: Warehouse,
-  },
-  {
-    name: "ลูกค้า",
-    href: "/customers",
-    icon: Users,
+    name: "จ่ายเงิน",
+    href: "/payments",
+    icon: Receipt,
   },
 ];
 
@@ -48,8 +45,8 @@ export function MobileNav() {
   const pathname = usePathname();
 
   return (
-    <div className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t z-50">
-      <nav className="flex justify-around">
+    <div className="md:hidden fixed bottom-0 inset-x-0 bg-card border-t border-border z-50 pb-safe shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
+      <nav className="flex justify-around items-center h-16">
         {navigation.map((item) => {
           const isActive = pathname === item.href;
           return (
@@ -57,17 +54,18 @@ export function MobileNav() {
               key={item.name}
               href={item.href}
               className={cn(
-                "flex flex-col items-center justify-center py-2 px-3 min-w-0 flex-1",
-                "text-xs font-medium transition-colors",
-                isActive
-                  ? "text-gray-900"
-                  : "text-gray-500 hover:text-gray-900",
+                "flex flex-col items-center justify-center py-1 px-3 min-w-0 flex-1 h-full relative",
+                "text-[10px] font-bold uppercase tracking-widest transition-all duration-300",
+                isActive ? "text-main-blue" : "text-muted-foreground",
               )}
             >
+              {isActive && (
+                <div className="absolute top-0 w-8 h-1 bg-main-blue rounded-b-full" />
+              )}
               <item.icon
                 className={cn(
-                  "h-6 w-6 mb-1",
-                  isActive ? "text-gray-900" : "text-gray-400",
+                  "h-5 w-5 mb-1 transition-transform duration-300",
+                  isActive ? "scale-110 text-main-blue" : "text-muted-foreground",
                 )}
               />
               <span className="truncate">{item.name}</span>

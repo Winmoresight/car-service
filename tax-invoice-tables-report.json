@@ -1,0 +1,1989 @@
+{
+  "timestamp": "2026-06-06T04:17:19.369Z",
+  "relatedTables": [
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "CaseCreditor",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "ChangeEditPrint",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "CloseSalePostAccount",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "Creditor",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DepositSale",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DepositsPrintPost",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailCar",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailKeepNumberPrint",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailMoveStockState",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPaymentCustomer",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPrintCashVate",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPrintCashVateIR",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPrintDelect",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPrintDeliverPost",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPrintOderBuyProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPrintPost",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPrintPostVate",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPrintPresentPrice",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPrintRecive",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPrintRequisition",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPrintWarm",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailReciveStockState",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailSalePost",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "EditTotalOldNewPrint",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterKeepNumberPrint",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterMoveStockState",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPaymentCraditCompany",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPaymentCreditFinish",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPaymentCustomer",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPrintCashVate",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPrintCashVateIR",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPrintDelect",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPrintDeliverPost",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPrintOderBuyProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPrintPost",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPrintPostVate",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPrintPresentPrice",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPrintRecive",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPrintRequisition",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPrintWarm",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterProductDetail",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterProductDetailOld",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterProductOld",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterRecivePaymentCustomer",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterReciveStockState",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterSalePost",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberkeepPrint",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPayCredit",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintCashVate",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintCashVateIR",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintDeliverPost",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintOderBuyProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintPaymentCustomer",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintPlacePay",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintPost",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintPostVate",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintPresentPrice",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintRecive",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintRequisition",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintWarm",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberSalePost",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "PassWordChange",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "PayCredit",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "PrintNameCar",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "PrintPriceBig",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "PrintVatePlace",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "ReciveCreditCustomer",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "ReciveStockNumberPrint",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "SaveDetailPrint",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "SetComToPrinter",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "TmpMasterProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "TmpSalePost",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "VateProductSale",
+      "TABLE_TYPE": "BASE TABLE"
+    }
+  ],
+  "relatedColumns": [
+    {
+      "TABLE_NAME": "BroughtForwordSalary",
+      "COLUMN_NAME": "NumberPrintPost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "CaseCreditor",
+      "COLUMN_NAME": "CaseCreditor",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": -1,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ChangeEditPrint",
+      "COLUMN_NAME": "DateEditPrint",
+      "DATA_TYPE": "datetime",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ChangeEditPrint",
+      "COLUMN_NAME": "NumberPrint",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "Company",
+      "COLUMN_NAME": "TaxCompany",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 100,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "Creditor",
+      "COLUMN_NAME": "CaseCreditor",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 150,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "Creditor",
+      "COLUMN_NAME": "TaxCompany",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 100,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "Customer",
+      "COLUMN_NAME": "TaxCustomer",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 100,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DateDuePayment",
+      "COLUMN_NAME": "NumberPrint",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 20,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DeadlineProduct",
+      "COLUMN_NAME": "NumberPrintPost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 50,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "Deposits",
+      "COLUMN_NAME": "NumberPrint",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 50,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DepositSale",
+      "COLUMN_NAME": "NumberPrintSalePost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 25,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DepositsPrintPost",
+      "COLUMN_NAME": "NumberPrintPost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailKeepNumberPrint",
+      "COLUMN_NAME": "NumberPrintSalePost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 20,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailMoveStockState",
+      "COLUMN_NAME": "Vate",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 1,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailPaymentCustomer",
+      "COLUMN_NAME": "FormNumberPrint",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 50,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailPaymentCustomer",
+      "COLUMN_NAME": "NumberPrintPost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailPrintCashVate",
+      "COLUMN_NAME": "CheckVate",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 1,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailPrintCashVate",
+      "COLUMN_NAME": "NumberPrintCash",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailPrintCashVate",
+      "COLUMN_NAME": "VatePrice",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailPrintCashVateIR",
+      "COLUMN_NAME": "CheckVate",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 1,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailPrintCashVateIR",
+      "COLUMN_NAME": "NumberPrintCash",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailPrintCashVateIR",
+      "COLUMN_NAME": "VatePrice",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailPrintDelect",
+      "COLUMN_NAME": "NumberPrint",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailPrintDeliverPost",
+      "COLUMN_NAME": "NumberPrintDeliverPost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailPrintOderBuyProduct",
+      "COLUMN_NAME": "NumberPrintPost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailPrintPost",
+      "COLUMN_NAME": "NumberPrintPost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailPrintPostVate",
+      "COLUMN_NAME": "CheckVate",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 1,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailPrintPostVate",
+      "COLUMN_NAME": "NumberPrintPost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailPrintPostVate",
+      "COLUMN_NAME": "VatePrice",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailPrintPresentPrice",
+      "COLUMN_NAME": "NumberPrintPost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailPrintRecive",
+      "COLUMN_NAME": "DatePrintOther",
+      "DATA_TYPE": "datetime",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailPrintRecive",
+      "COLUMN_NAME": "NumberPrintOther",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailPrintRecive",
+      "COLUMN_NAME": "NumberPrintRecive",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailPrintRequisition",
+      "COLUMN_NAME": "NumberPrintPost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailPrintWarm",
+      "COLUMN_NAME": "DatePrintOther",
+      "DATA_TYPE": "datetime",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailPrintWarm",
+      "COLUMN_NAME": "NumberPrintOther",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailPrintWarm",
+      "COLUMN_NAME": "NumberPrintWarm",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailReciveStockState",
+      "COLUMN_NAME": "Vate",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 1,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "DetailSalePost",
+      "COLUMN_NAME": "NumberPrintSalePost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 20,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "EditTotalOldNewPrint",
+      "COLUMN_NAME": "NumberPrint",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "HistoryCar",
+      "COLUMN_NAME": "LubricatorChange",
+      "DATA_TYPE": "datetime",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "HistoryCar",
+      "COLUMN_NAME": "RubberWiperChange",
+      "DATA_TYPE": "datetime",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "HistoryCar",
+      "COLUMN_NAME": "TireChange",
+      "DATA_TYPE": "datetime",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "INOUTStockProduct",
+      "COLUMN_NAME": "Credit",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "INOUTStockProduct",
+      "COLUMN_NAME": "NumberPrint",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 20,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPaymentCraditCompany",
+      "COLUMN_NAME": "NumberPrintPay",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 20,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPaymentCraditCompany",
+      "COLUMN_NAME": "UsePrint",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 50,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPaymentCreditFinish",
+      "COLUMN_NAME": "NumberPrintPay",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 20,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPaymentCustomer",
+      "COLUMN_NAME": "NumberPrint",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 50,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPrintCashVate",
+      "COLUMN_NAME": "NoVatePrice",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPrintCashVate",
+      "COLUMN_NAME": "NumberPrintCash",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPrintCashVate",
+      "COLUMN_NAME": "SubVatePrice",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPrintCashVate",
+      "COLUMN_NAME": "VatePrice",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPrintCashVateIR",
+      "COLUMN_NAME": "NoVatePrice",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPrintCashVateIR",
+      "COLUMN_NAME": "NumberPrintCash",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPrintCashVateIR",
+      "COLUMN_NAME": "SubVatePrice",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPrintCashVateIR",
+      "COLUMN_NAME": "VatePrice",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPrintDelect",
+      "COLUMN_NAME": "NumberPrint",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPrintDeliverPost",
+      "COLUMN_NAME": "NumberPrintDeliverPost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPrintDeliverPost",
+      "COLUMN_NAME": "NumberPrintPost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPrintOderBuyProduct",
+      "COLUMN_NAME": "NumberPrintPost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPrintPost",
+      "COLUMN_NAME": "DetailPrint",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": -1,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPrintPost",
+      "COLUMN_NAME": "NumberPrintPost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPrintPostVate",
+      "COLUMN_NAME": "NoVatePrice",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPrintPostVate",
+      "COLUMN_NAME": "NumberPrintPost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPrintPostVate",
+      "COLUMN_NAME": "SubVatePrice",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPrintPostVate",
+      "COLUMN_NAME": "VatePrice",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPrintPresentPrice",
+      "COLUMN_NAME": "NumberPrintPost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPrintPresentPrice",
+      "COLUMN_NAME": "PriceVate",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPrintRecive",
+      "COLUMN_NAME": "NumberPrintRecive",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPrintRequisition",
+      "COLUMN_NAME": "NumberPrintPost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterPrintWarm",
+      "COLUMN_NAME": "NumberPrintWarm",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterProduct",
+      "COLUMN_NAME": "Vate",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 1,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterProductOld",
+      "COLUMN_NAME": "Vate",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 1,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterRecivePaymentCustomer",
+      "COLUMN_NAME": "NumberPrintPost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterSalePost",
+      "COLUMN_NAME": "DetailPrint",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": -1,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterSalePost",
+      "COLUMN_NAME": "NumberPrintCash",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 20,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "MasterSalePost",
+      "COLUMN_NAME": "NumberPrintSalePost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 20,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "PayCashAndCard",
+      "COLUMN_NAME": "TmpChange",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "PayCustomer",
+      "COLUMN_NAME": "NumberPrintPost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "Payment",
+      "COLUMN_NAME": "CodePrint",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 50,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "Payment",
+      "COLUMN_NAME": "Credit",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "Payment",
+      "COLUMN_NAME": "NumberPrintPost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "PrintNameCar",
+      "COLUMN_NAME": "NumberPrintPost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "PrintVatePlace",
+      "COLUMN_NAME": "NumberPrintPlacePay",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "PrintVatePlace",
+      "COLUMN_NAME": "TaxTrainees",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 50,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ReciveCreditCustomer",
+      "COLUMN_NAME": "NumberPrint",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 25,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "ReciveStockNumberPrint",
+      "COLUMN_NAME": "NumberPrint",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 50,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "SaveCompany",
+      "COLUMN_NAME": "TAX",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 50,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "SaveCompany",
+      "COLUMN_NAME": "VateSale",
+      "DATA_TYPE": "real",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "SaveDetailPrint",
+      "COLUMN_NAME": "NumberPrint",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "SetComToPrinter",
+      "COLUMN_NAME": "StatePrint",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 50,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "TmpMasterProduct",
+      "COLUMN_NAME": "Vate",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 1,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "VateProductSale",
+      "COLUMN_NAME": "CheckVate",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 1,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "VateProductSale",
+      "COLUMN_NAME": "NumberPrint",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "VateProductSale",
+      "COLUMN_NAME": "SubVatePrice",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "TABLE_NAME": "VateProductSale",
+      "COLUMN_NAME": "VatePrice",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES"
+    }
+  ],
+  "masterSalePostStructure": [
+    {
+      "COLUMN_NAME": "DateSalePost",
+      "DATA_TYPE": "datetime",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "Times",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 10,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "NumberPrintSalePost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 20,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "NameCar",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 250,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "Province",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 250,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "BrandAndGenerate",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 250,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "MileCar",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 50,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "CodeCustomer",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 20,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "NameCustomer",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": -1,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "Deposits",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "TotalReduce",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "TotalPrice",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "TotalCost",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "TotalProfit",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "Cash",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "Transfer",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "NameSave",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 250,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "CloseAcc",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 1,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "Status",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 30,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "NumberPrintCash",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 20,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "Code",
+      "DATA_TYPE": "int",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "NameBank",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 250,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "PriceService",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "NameSeviceProduct",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": -1,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "DetailPrint",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": -1,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    }
+  ],
+  "detailSalePostStructure": [
+    {
+      "COLUMN_NAME": "DateSalePost",
+      "DATA_TYPE": "datetime",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "NumberPrintSalePost",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 20,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "OderNum",
+      "DATA_TYPE": "int",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "BarCode",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 20,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "NameProduct",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 250,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "NumProduct",
+      "DATA_TYPE": "real",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "MeterProduct",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 50,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "SalePrice",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "ReducePrice",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "SumPrice",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "SumCost",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "SumProfit",
+      "DATA_TYPE": "money",
+      "CHARACTER_MAXIMUM_LENGTH": null,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "TypeSale",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 50,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "CodeCustomer",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 20,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    },
+    {
+      "COLUMN_NAME": "NameSave",
+      "DATA_TYPE": "nvarchar",
+      "CHARACTER_MAXIMUM_LENGTH": 200,
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null
+    }
+  ],
+  "allTables": [
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "AddNumberProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "AddProductToTableLayoutPanel",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "AddressProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "BarcodeProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "Branch",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "BrandAndGenerate",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "BrandProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "BroughtForwordSalary",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "CaseCalculate",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "CaseCreditor",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "CaseCustomer",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "CaseProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "ChangeEditPrint",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "CheckBeetaweenDate",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "CheckedPrice",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "CheckStock",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "ChoodsProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "CloseSalePostAccount",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "CodeProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "Company",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "Creditor",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "Customer",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DateDuePayment",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DatePromotion",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DeadlineProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "Deposits",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DepositSale",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DepositsPrintPost",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailCar",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailKeepNumberPrint",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailMoveStockState",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPaymentCustomer",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPrintCashVate",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPrintCashVateIR",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPrintDelect",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPrintDeliverPost",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPrintOderBuyProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPrintPost",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPrintPostVate",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPrintPresentPrice",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPrintRecive",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPrintRequisition",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailPrintWarm",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailReciveStockState",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "DetailSalePost",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "EditTotalOldNewPrint",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "GenerateProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "HistoryCar",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "INOUTStockProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "LevelProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterKeepNumberPrint",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterMoveStockState",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPaymentCraditCompany",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPaymentCreditFinish",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPaymentCustomer",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPrintCashVate",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPrintCashVateIR",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPrintDelect",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPrintDeliverPost",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPrintOderBuyProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPrintPost",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPrintPostVate",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPrintPresentPrice",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPrintRecive",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPrintRequisition",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterPrintWarm",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterProductDetail",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterProductDetailOld",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterProductOld",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterRecivePaymentCustomer",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterReciveStockState",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MasterSalePost",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MeterProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MoneyCash",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "MoveStockProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NameCar",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NameExpensesORIncome",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NameLayOut",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NamePositions",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NameServiceProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NameTypePament",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberkeepPrint",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberMoveStock",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberMoveStockState",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPayCredit",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintCashVate",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintCashVateIR",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintDeliverPost",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintOderBuyProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintPaymentCustomer",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintPlacePay",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintPost",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintPostVate",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintPresentPrice",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintRecive",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintRequisition",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberPrintWarm",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberReciveStockState",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberSalePost",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "NumberSave",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "PassWordChange",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "PassWordCloseAcc",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "PasswordID",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "PayCashAndCard",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "PayCredit",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "PayCustomer",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "Payment",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "PriceToday",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "PrintNameCar",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "PrintPriceBig",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "PrintVatePlace",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "PromotionNProductToPrice",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "PromotionProductFree",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "Province",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "ReciveCreditCustomer",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "ReciveStockNumberPrint",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "SaveCompany",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "SaveDetailPrint",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "SaveStock",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "SetBankPay",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "SetComToPrinter",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "StatusPass",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "TmpMasterProduct",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "TmpNumberSave",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "TmpSalePost",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "UpDatePriceCost",
+      "TABLE_TYPE": "BASE TABLE"
+    },
+    {
+      "TABLE_SCHEMA": "dbo",
+      "TABLE_NAME": "VateProductSale",
+      "TABLE_TYPE": "BASE TABLE"
+    }
+  ]
+}

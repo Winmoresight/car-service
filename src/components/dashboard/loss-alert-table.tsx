@@ -50,57 +50,55 @@ export function LossAlertTable({
 
   if (products.length === 0) {
     return (
-      <Card className="border-green-100 bg-green-50/30">
+      <Card className="border-emerald-100 bg-emerald-50/30">
         <CardContent className="py-10 text-center">
-          <div className="mx-auto w-10 h-10 rounded-full bg-green-100 flex items-center justify-center mb-4">
-            <span className="text-green-600 font-bold text-xl">✓</span>
+          <div className="mx-auto w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center mb-4">
+            <span className="text-main-green font-bold text-xl">✓</span>
           </div>
-          <h3 className="text-lg font-medium text-green-900">
+          <h3 className="text-lg font-medium text-card-foreground">
             ไม่พบรายการขาดทุน
           </h3>
-          <p className="text-sm text-green-700/70 mt-1">ทุกรายการมีกำไรเป็นบวก</p>
+          <p className="text-sm text-muted-foreground mt-1">ทุกรายการมีกำไรเป็นบวก</p>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className="border-red-200 overflow-hidden shadow-sm shadow-red-50">
-      {(title || description) && (
-        <CardHeader className="bg-red-50/50 border-b border-red-100 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-red-100 rounded-lg">
-              <AlertTriangle className="h-5 w-5 text-red-600" />
-            </div>
-            <div>
-              <CardTitle className="text-red-800 text-xl font-bold tracking-tight">
-                {title}
-              </CardTitle>
-              {description && (
-                <CardDescription className="text-red-600/70 font-medium">
-                  {description}
-                </CardDescription>
-              )}
-            </div>
+    <Card className="border-none shadow-sm bg-card overflow-hidden">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6 pt-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-red-50 rounded-2xl">
+            <AlertTriangle className="h-6 w-6 text-main-red" />
           </div>
-        </CardHeader>
-      )}
+          <div className="space-y-1">
+            <CardTitle className="text-xl font-bold text-card-foreground">
+              {title}
+            </CardTitle>
+            {description && (
+              <CardDescription className="text-sm font-medium text-muted-foreground">
+                {description}
+              </CardDescription>
+            )}
+          </div>
+        </div>
+      </CardHeader>
       <CardContent className="p-0">
         <div className="overflow-x-auto">
           <Table>
-            <TableHeader className="bg-red-50/20">
-              <TableRow className="hover:bg-transparent border-red-100">
-                <TableHead className="text-red-900/60 font-bold text-xs uppercase tracking-wider">สินค้า/รายการ</TableHead>
-                <TableHead className="text-right text-red-900/60 font-bold text-xs uppercase tracking-wider">
+            <TableHeader className="bg-red-50/30">
+              <TableRow className="hover:bg-transparent border-red-50">
+                <TableHead className="text-muted-foreground font-bold text-[11px] uppercase tracking-wider">สินค้า/รายการ</TableHead>
+                <TableHead className="text-right text-muted-foreground font-bold text-[11px] uppercase tracking-wider">
                   ยอดขาย
                 </TableHead>
-                <TableHead className="text-right text-red-900/60 font-bold text-xs uppercase tracking-wider">
+                <TableHead className="text-right text-muted-foreground font-bold text-[11px] uppercase tracking-wider">
                   ขาดทุน
                 </TableHead>
-                <TableHead className="text-right text-red-900/60 font-bold text-xs uppercase tracking-wider">
+                <TableHead className="text-right text-muted-foreground font-bold text-[11px] uppercase tracking-wider">
                   จำนวน
                 </TableHead>
-                <TableHead className="text-right text-red-900/60 font-bold text-xs uppercase tracking-wider">
+                <TableHead className="text-right text-muted-foreground font-bold text-[11px] uppercase tracking-wider">
                   สถานะ
                 </TableHead>
               </TableRow>
@@ -109,16 +107,16 @@ export function LossAlertTable({
               {products.map((product, index) => (
                 <TableRow
                   key={`${product.name}-${index}`}
-                  className="hover:bg-red-50/40 transition-colors border-red-50 group"
+                  className="hover:bg-red-50/20 transition-colors border-red-50 group"
                 >
-                  <TableCell className="font-bold text-foreground group-hover:text-red-700 transition-colors">
+                  <TableCell className="font-bold text-card-foreground group-hover:text-main-red transition-colors">
                     {product.name}
                   </TableCell>
-                  <TableCell className="text-right font-medium">
+                  <TableCell className="text-right font-medium text-muted-foreground">
                     {formatCurrency(product.sales)}
                   </TableCell>
                   <TableCell className="text-right">
-                    <span className="text-red-600 font-bold">
+                    <span className="text-main-red font-bold">
                       {formatCurrency(product.profit)}
                     </span>
                   </TableCell>
@@ -127,8 +125,7 @@ export function LossAlertTable({
                   </TableCell>
                   <TableCell className="text-right">
                     <Badge
-                      variant="destructive"
-                      className="bg-red-600 text-white border-none hover:bg-red-700 shadow-sm font-bold text-[10px] px-2"
+                      className="bg-main-red text-white border-none shadow-sm font-bold text-[10px] px-2 py-0.5 rounded-lg"
                     >
                       URGENT
                     </Badge>

@@ -5,17 +5,20 @@
  * Header bar สำหรับ Mobile + Desktop
  */
 
-import { Bell, Menu } from "lucide-react";
+import { Bell, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function Header() {
   return (
-    <header className="md:hidden sticky top-0 z-40 bg-white border-b">
+    <header className="md:hidden sticky top-0 z-40 bg-white border-b border-border shadow-sm">
       <div className="flex items-center justify-between px-4 py-3">
         {/* Logo */}
-        <div className="flex items-center">
-          <h1 className="text-lg font-bold text-gray-900">
-            ServiceCar Insight
+        <div className="flex items-center gap-2">
+          <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center">
+            <Package className="h-4 w-4 text-primary-foreground" />
+          </div>
+          <h1 className="text-lg font-bold text-primary tracking-tight">
+            Car Service
           </h1>
         </div>
 
