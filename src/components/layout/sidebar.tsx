@@ -21,6 +21,7 @@ import {
   History,
   Trash2,
   Trophy,
+  Banknote,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
@@ -75,6 +76,11 @@ const taxAndReports = [
     name: "ใบกำกับภาษี",
     href: "/tax-invoices",
     icon: FileText,
+  },
+  {
+    name: "ใบกำกับเงินสด (PSC)",
+    href: "/cash-invoices",
+    icon: Banknote,
   },
   {
     name: "บิลที่ยกเลิก",
