@@ -11,13 +11,14 @@ import {
   Banknote,
   Calendar as CalendarIcon,
   CreditCard,
+  LayoutDashboard,
   ShoppingCart,
   TrendingUp,
   Wallet,
 } from "lucide-react";
 import { format } from "date-fns";
 import { DatePicker } from "@/components/ui/date-picker";
-import { KPICard } from "@/components/dashboard/kpi-card";
+import { outfit } from "@/components/fonts/fonts";
 import { LossAlertTable } from "@/components/dashboard/loss-alert-table";
 import { SalesChart } from "@/components/dashboard/sales-chart";
 import { TopProductsTable } from "@/components/dashboard/top-products-table";
@@ -29,6 +30,7 @@ import type {
   TopProduct,
 } from "@/types/api";
 import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
+import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 
 // Fetcher function for SWR
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -107,130 +109,197 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-4 md:p-8 space-y-6">
-      {/* Header with Date Picker */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight text-card-foreground">
-              ภาพรวม
-            </h1>
-            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100 mt-1">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span className="text-[10px] font-bold text-main-green uppercase tracking-wider">
-                Live
-              </span>
+    <>
+      <div className="p-6 pb-16">
+        <DashboardBreadcrumb href="/" isMain />
+
+        <hr className="my-4 w-full" />
+
+        <div className="space-y-6">
+          <div className="dark:bg-background mt-6 flex h-auto w-full flex-col rounded-2xl border bg-white px-4 py-6 pb-6 shadow-sm">
+            <div className="flex flex-col justify-between gap-6 min-[798px]:flex-row min-[798px]:items-center mb-6">
+              <div className="flex items-center gap-3">
+                <div className="bg-background dark:bg-secondary flex min-h-12 min-w-12 items-center justify-center rounded-[8px] border min-[798px]:h-14 min-[798px]:w-14">
+                  <LayoutDashboard strokeWidth={2.5} className="text-primary" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-primary text-2xl font-bold transition-all duration-1000">
+                    ภาพรวม
+                  </span>
+                  <p className="text-foreground font-medium hidden min-[798px]:block">
+                    สรุปข้อมูลยอดขายและกำไรประจำวัน
+                  </p>
+                </div>
+              </div>
+
+              <div className="transition-all duration-1000 mt-4 min-[798px]:mt-0">
+                <DatePicker
+                  date={selectedDate}
+                  onDateChange={setSelectedDate}
+                  placeholder="เลือกวันที่"
+                />
+              </div>
+            </div>
+
+            {/* KPI Cards */}
+            <div className="grid min-[600px]:grid-cols-2 min-[1280px]:grid-cols-4 gap-4">
+              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
+                <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
+                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-blue-50 dark:bg-background/50">
+                    <Banknote
+                      strokeWidth={2.5}
+                      className="text-main-blue w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
+                    />
+                  </div>
+                  <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                    <span className="text-primary text-lg font-semibold">
+                      {selectedDate && format(selectedDate, "yyyy-MM-dd") !== format(new Date(), "yyyy-MM-dd") ? "ยอดขายวันที่เลือก" : "ยอดขายวันนี้"}
+                    </span>
+                    <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
+                      <span className={`${outfit.className}`}>
+                        {(kpi?.todaySales || 0).toLocaleString()}
+                      </span>{" "}
+                      บาท
+                    </h3>
+                    <span className="text-muted-foreground text-xs mt-1 font-medium">{kpi?.todayBills || 0} บิล</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
+                <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
+                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-emerald-50 dark:bg-background/50">
+                    <TrendingUp
+                      strokeWidth={2.5}
+                      className="text-main-green w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
+                    />
+                  </div>
+                  <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                    <span className="text-primary text-lg font-semibold">
+                      {selectedDate && format(selectedDate, "yyyy-MM-dd") !== format(new Date(), "yyyy-MM-dd") ? "กำไรวันที่เลือก" : "กำไรวันนี้"}
+                    </span>
+                    <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
+                      <span className={`${outfit.className}`}>
+                        {(kpi?.todayProfit || 0).toLocaleString()}
+                      </span>{" "}
+                      บาท
+                    </h3>
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
+                <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
+                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-purple-50 dark:bg-background/50">
+                    <ShoppingCart
+                      strokeWidth={2.5}
+                      className="text-purple-600 w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
+                    />
+                  </div>
+                  <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                    <span className="text-primary text-lg font-semibold">
+                      ยอดขายเดือนนี้
+                    </span>
+                    <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
+                      <span className={`${outfit.className}`}>
+                        {(kpi?.monthSales || 0).toLocaleString()}
+                      </span>{" "}
+                      บาท
+                    </h3>
+                    <span className="text-muted-foreground text-xs mt-1 font-medium">{kpi?.monthBills || 0} บิล</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
+                <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
+                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-orange-50 dark:bg-background/50">
+                    <CalendarIcon
+                      strokeWidth={2.5}
+                      className="text-main-orange w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
+                    />
+                  </div>
+                  <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                    <span className="text-primary text-lg font-semibold">
+                      อัตรากำไรขั้นต้น
+                    </span>
+                    <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
+                      <span className={`${outfit.className}`}>
+                        {(kpi?.profitMargin || 0).toFixed(2)}
+                      </span>{" "}
+                      %
+                    </h3>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Payment Method Cards */}
+            <div className="grid min-[600px]:grid-cols-2 gap-4 mt-4">
+              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
+                <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
+                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-blue-50 dark:bg-background/50">
+                    <Wallet
+                      strokeWidth={2.5}
+                      className="text-main-blue w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
+                    />
+                  </div>
+                  <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                    <span className="text-primary text-lg font-semibold">
+                      {selectedDate && format(selectedDate, "yyyy-MM-dd") !== format(new Date(), "yyyy-MM-dd") ? "เงินสดวันที่เลือก" : "เงินสดวันนี้"}
+                    </span>
+                    <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
+                      <span className={`${outfit.className}`}>
+                        {(kpi?.todayCash || 0).toLocaleString()}
+                      </span>{" "}
+                      บาท
+                    </h3>
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
+                <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
+                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-blue-50 dark:bg-background/50">
+                    <CreditCard
+                      strokeWidth={2.5}
+                      className="text-main-blue w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
+                    />
+                  </div>
+                  <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                    <span className="text-primary text-lg font-semibold">
+                      {selectedDate && format(selectedDate, "yyyy-MM-dd") !== format(new Date(), "yyyy-MM-dd") ? "เงินโอนวันที่เลือก" : "เงินโอนวันนี้"}
+                    </span>
+                    <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
+                      <span className={`${outfit.className}`}>
+                        {(kpi?.todayTransfer || 0).toLocaleString()}
+                      </span>{" "}
+                      บาท
+                    </h3>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-          <p className="text-muted-foreground mt-1 font-medium">
-            สรุปข้อมูลยอดขายและกำไรประจำวัน
-          </p>
+
+          {/* Sales Chart */}
+          <SalesChart data={dailySales} />
+
+          {/* Top Products and Loss Alert */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <TopProductsTable products={topProducts} />
+            <LossAlertTable products={lossProducts} />
+          </div>
+
+          {/* Footer */}
+          <div className="text-center text-sm text-muted-foreground mt-8">
+            <p>
+              ข้อมูลอัพเดทอัตโนมัติทุก 30 วินาที · Last updated:{" "}
+              {new Date().toLocaleTimeString("th-TH")}
+            </p>
+          </div>
         </div>
-        <div>
-          <DatePicker
-            date={selectedDate}
-            onDateChange={setSelectedDate}
-            placeholder="เลือกวันที่"
-            className="bg-white hover:bg-white"
-          />
-        </div>
       </div>
-
-      {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <KPICard
-          title={
-            selectedDate &&
-            format(selectedDate, "yyyy-MM-dd") !==
-              format(new Date(), "yyyy-MM-dd")
-              ? "ยอดขายวันที่เลือก"
-              : "ยอดขายวันนี้"
-          }
-          value={kpi?.todaySales || 0}
-          format="currency"
-          icon={Banknote}
-          subtitle={`${kpi?.todayBills || 0} บิล`}
-          variant="blue"
-        />
-        <KPICard
-          title={
-            selectedDate &&
-            format(selectedDate, "yyyy-MM-dd") !==
-              format(new Date(), "yyyy-MM-dd")
-              ? "กำไรวันที่เลือก"
-              : "กำไรวันนี้"
-          }
-          value={kpi?.todayProfit || 0}
-          format="currency"
-          icon={TrendingUp}
-          variant="emerald"
-        />
-        <KPICard
-          title="ยอดขายเดือนนี้"
-          value={kpi?.monthSales || 0}
-          format="currency"
-          icon={ShoppingCart}
-          subtitle={`${kpi?.monthBills || 0} บิล`}
-          variant="purple"
-        />
-        <KPICard
-          title="อัตรากำไรขั้นต้น"
-          value={kpi?.profitMargin || 0}
-          format="percent"
-          icon={CalendarIcon}
-          variant="orange"
-        />
-      </div>
-
-      {/* Payment Method Cards */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <KPICard
-          title={
-            selectedDate &&
-            format(selectedDate, "yyyy-MM-dd") !==
-              format(new Date(), "yyyy-MM-dd")
-              ? "เงินสดวันที่เลือก"
-              : "เงินสดวันนี้"
-          }
-          value={kpi?.todayCash || 0}
-          format="currency"
-          icon={Wallet}
-          variant="default"
-        />
-        <KPICard
-          title={
-            selectedDate &&
-            format(selectedDate, "yyyy-MM-dd") !==
-              format(new Date(), "yyyy-MM-dd")
-              ? "เงินโอนวันที่เลือก"
-              : "เงินโอนวันนี้"
-          }
-          value={kpi?.todayTransfer || 0}
-          format="currency"
-          icon={CreditCard}
-          variant="default"
-        />
-      </div>
-
-      {/* Sales Chart */}
-      <SalesChart data={dailySales} />
-
-      {/* Top Products and Loss Alert */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <TopProductsTable products={topProducts} />
-        <LossAlertTable products={lossProducts} />
-      </div>
-
-      {/* Footer */}
-      <div className="text-center text-sm text-muted-foreground mt-8">
-        <p>
-          ข้อมูลอัพเดทอัตโนมัติทุก 30 วินาที · Last updated:{" "}
-          {new Date().toLocaleTimeString("th-TH")}
-        </p>
-      </div>
-    </div>
+    </>
   );
 }

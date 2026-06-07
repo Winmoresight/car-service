@@ -11,7 +11,7 @@ import { Search, Download, X, FileText, Receipt, ShoppingCart, TrendingUp } from
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
-import { KPICard } from "@/components/dashboard/kpi-card";
+import { outfit } from "@/components/fonts/fonts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -166,109 +166,169 @@ export default function CashInvoicesPage() {
 
   return (
     <div className="p-4 md:p-8 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-          ใบกำกับภาษีเงินสดหน้าร้าน (PSC)
-        </h1>
-        <p className="text-muted-foreground mt-1 font-medium">
-          รายการใบกำกับภาษีเงินสดทั้งหมด ({total.toLocaleString()} รายการ)
-        </p>
-      </div>
+      <div className="dark:bg-background mt-2 flex w-full flex-col rounded-2xl border bg-white px-4 py-6 pb-4">
+        {/* Header Block inside the white box */}
+        <div className="flex flex-col min-[798px]:flex-row min-[798px]:items-center min-[798px]:justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="bg-background dark:bg-secondary flex h-12 w-12 items-center justify-center rounded-[8px] border min-[798px]:h-14 min-[798px]:w-14">
+              <Receipt strokeWidth={2.5} className="text-primary" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-primary text-2xl font-bold">
+                ใบกำกับภาษีเงินสดหน้าร้าน (PSC)
+              </span>
+              <p className="text-foreground hidden font-medium min-[798px]:block">
+                รายการใบกำกับภาษีเงินสดทั้งหมด ({total.toLocaleString()} รายการ)
+              </p>
+            </div>
+          </div>
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <KPICard
-          title="ใบกำกับทั้งหมด"
-          value={summary.totalInvoices}
-          icon={FileText}
-          variant="blue"
-          subtitle={`${summary.totalInvoices} ใบ`}
-        />
-        <KPICard
-          title="รายการทั้งหมด"
-          value={total}
-          icon={Receipt}
-          variant="purple"
-          subtitle={`${total} รายการ`}
-        />
-        <KPICard
-          title="จำนวนสินค้า"
-          value={summary.totalQuantity}
-          icon={ShoppingCart}
-          variant="emerald"
-          subtitle={`${summary.totalQuantity.toLocaleString()} ชิ้น`}
-        />
-        <KPICard
-          title="ยอดขายรวม"
-          value={summary.totalAmount}
-          format="currency"
-          icon={TrendingUp}
-          variant="orange"
-        />
-      </div>
+          <div className="flex items-center gap-2 mt-4 min-[798px]:mt-0">
+            <Button variant="outline" className="gap-2 text-[#28ab6e] border-[#28ab6e] hover:bg-[#28ab6e] hover:text-white">
+              <Download className="h-4 w-4" />
+              ดาวน์โหลดเป็นไฟล์ Excel
+            </Button>
+          </div>
+        </div>
 
-      {/* Filters & Actions */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col gap-4">
-            {/* First Row: Search and Date Range */}
-            <div className="flex flex-col md:flex-row gap-4">
-              {/* Search */}
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="ค้นหาเลขที่บิล, รหัสลูกค้า, ชื่อสินค้า..."
-                  value={searchTerm}
-                  onChange={(e) => handleSearch(e.target.value)}
-                  className="pl-10"
+        {/* Summary Cards */}
+        <div className="grid min-[600px]:grid-cols-2 min-[1280px]:grid-cols-4 gap-4">
+          <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
+            <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
+              <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/50">
+                <FileText
+                  strokeWidth={2.5}
+                  className="text-primary w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
                 />
               </div>
-
-              {/* Date Range Picker */}
-              <DateRangePicker
-                dateRange={dateRange}
-                onDateRangeChange={handleDateRangeChange}
-                placeholder="เลือกช่วงวันที่"
-              />
-
-              {/* Clear Filters */}
-              {hasActiveFilters && (
-                <Button
-                  variant="ghost"
-                  onClick={handleClearFilters}
-                  className="gap-2"
-                >
-                  <X className="h-4 w-4" />
-                  ล้างตัวกรอง
-                </Button>
-              )}
-
-              {/* Export */}
-              <Button variant="outline" className="gap-2">
-                <Download className="h-4 w-4" />
-                Export
-              </Button>
-            </div>
-
-            {/* Active Filters Display */}
-            {hasActiveFilters && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span>ตัวกรองที่เปิดใช้งาน:</span>
-                {searchTerm && (
-                  <Badge variant="secondary">ค้นหา: {searchTerm}</Badge>
-                )}
-                {dateRange?.from && (
-                  <Badge variant="secondary">
-                    {format(dateRange.from, "d MMM yyyy")}
-                    {dateRange.to && ` - ${format(dateRange.to, "d MMM yyyy")}`}
-                  </Badge>
-                )}
+              <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                <span className="text-primary text-lg font-semibold">
+                  ใบกำกับทั้งหมด
+                </span>
+                <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
+                  <span className={`${outfit.className}`}>
+                    {summary.totalInvoices.toLocaleString()}
+                  </span>{" "}
+                  ใบ
+                </h3>
               </div>
+            </div>
+          </div>
+
+          <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
+            <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
+              <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/50">
+                <Receipt
+                  strokeWidth={2.5}
+                  className="text-[#28ab6e] w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
+                />
+              </div>
+              <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                <span className="text-primary text-lg font-semibold">
+                  รายการทั้งหมด
+                </span>
+                <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
+                  <span className={`${outfit.className}`}>
+                    {total.toLocaleString()}
+                  </span>{" "}
+                  รายการ
+                </h3>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
+            <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
+              <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/50">
+                <ShoppingCart
+                  strokeWidth={2.5}
+                  className="text-[#f99b26] w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
+                />
+              </div>
+              <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                <span className="text-primary text-lg font-semibold">
+                  จำนวนสินค้า
+                </span>
+                <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
+                  <span className={`${outfit.className}`}>
+                    {summary.totalQuantity.toLocaleString()}
+                  </span>{" "}
+                  ชิ้น
+                </h3>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
+            <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
+              <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] min-[450px]:h-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/50">
+                <TrendingUp
+                  strokeWidth={2.5}
+                  className="text-primary w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
+                />
+              </div>
+              <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                <span className="text-primary text-lg font-semibold">
+                  ยอดขายรวม
+                </span>
+                <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
+                <span className={`${outfit.className}`}>
+                  {(summary.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>{" "}
+                บาท
+              </h3>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Filters & Actions below the cards */}
+        <div className="mt-6 flex flex-col md:flex-row gap-4 pt-6 border-t border-border/50">
+          <div className="flex-1 relative max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="ค้นหาเลขที่บิล, รหัสลูกค้า, ชื่อสินค้า..."
+              value={searchTerm}
+              onChange={(e) => handleSearch(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <DateRangePicker
+              dateRange={dateRange}
+              onDateRangeChange={handleDateRangeChange}
+              placeholder="เลือกช่วงวันที่"
+            />
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                onClick={handleClearFilters}
+                className="gap-2"
+              >
+                <X className="h-4 w-4" />
+                ล้างตัวกรอง
+              </Button>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+        
+        {/* Active Filters Display */}
+        {hasActiveFilters && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-4">
+            <span>ตัวกรองที่เปิดใช้งาน:</span>
+            {searchTerm && (
+              <Badge variant="secondary">ค้นหา: {searchTerm}</Badge>
+            )}
+            {dateRange?.from && (
+              <Badge variant="secondary">
+                {format(dateRange.from, "d MMM yyyy")}
+                {dateRange.to && ` - ${format(dateRange.to, "d MMM yyyy")}`}
+              </Badge>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Cash Invoices Table */}
       <Card className="border-none shadow-sm ring-1 ring-border/50 overflow-hidden">
