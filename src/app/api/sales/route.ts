@@ -33,19 +33,20 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("startDate") || "";
     const endDate = searchParams.get("endDate") || "";
 
-    // Build query (join with Customer table for phone/address if needed)
+    // Build query
     let query = `
       SELECT 
         m.NumberPrintSalePost as id,
         m.DateSalePost as date,
         ISNULL(m.NameCustomer, 'ไม่ระบุ') as customerName,
-        '' as customerPhone,
+        ISNULL(c.PhoneCustomer, '') as customerPhone,
         m.TotalPrice as totalPrice,
         m.TotalProfit as totalProfit,
         m.Cash as cash,
         m.Transfer as transfer,
         (SELECT COUNT(*) FROM dbo.DetailSalePost WHERE NumberPrintSalePost = m.NumberPrintSalePost) as itemCount
       FROM dbo.MasterSalePost m
+      LEFT JOIN dbo.Customer c ON m.CodeCustomer = c.CodeCustomer
     `;
 
     // Build WHERE clause

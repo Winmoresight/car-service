@@ -12,9 +12,9 @@ import {
 import { useEffect, useState } from "react";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { KPICard } from "@/components/dashboard/kpi-card";
+import { outfit } from "@/components/fonts/fonts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -23,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 
 interface Payment {
   OrderNum: number;
@@ -55,6 +56,80 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "salary" | "expense">("all");
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("th-TH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value || 0);
+  };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) {
+      return "-";
+    }
+
+    return new Date(dateString).toLocaleDateString("th-TH", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  const getFilterLabel = () => {
+    if (filter === "salary") {
+      return "รายการมีพนักงาน";
+    }
+
+    if (filter === "expense") {
+      return "ค่าใช้จ่ายอื่น";
+    }
+
+    return "ทั้งหมด";
+  };
+
+  const getPaymentType = (payment: Payment) => {
+    const hasEmployee =
+      payment.CodeStaff > 0 && payment.NameSure && payment.NameSure !== "";
+
+    if (hasEmployee) {
+      return {
+        label: "พนักงาน",
+        className:
+          "bg-orange-50 text-main-orange border-orange-100 dark:bg-orange-500/10 dark:border-orange-500/20",
+      };
+    }
+
+    return {
+      label: "ค่าใช้จ่าย",
+      className:
+        "bg-blue-50 text-main-blue border-blue-100 dark:bg-blue-500/10 dark:border-blue-500/20",
+    };
+  };
+
+  const getPaymentMethods = (payment: Payment) => {
+    const methods = [];
+
+    if (payment.MoneyCash > 0) {
+      methods.push({
+        label: "สด",
+        amount: payment.MoneyCash,
+        className:
+          "bg-emerald-50 text-main-green border-emerald-100 dark:bg-emerald-500/10 dark:border-emerald-500/20",
+      });
+    }
+
+    if (payment.MoneyTransfer > 0) {
+      methods.push({
+        label: "โอน",
+        amount: payment.MoneyTransfer,
+        className:
+          "bg-blue-50 text-main-blue border-blue-100 dark:bg-blue-500/10 dark:border-blue-500/20",
+      });
+    }
+
+    return methods;
+  };
 
   useEffect(() => {
     async function fetchPayments() {
@@ -91,11 +166,10 @@ export default function PaymentsPage() {
   if (error) {
     return (
       <div className="container mx-auto p-6">
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="pt-6">
-            <p className="text-red-600">❌ {error}</p>
-          </CardContent>
-        </Card>
+        <div className="rounded-2xl border border-red-100 bg-red-50 p-6">
+          <p className="font-bold text-main-red">เกิดข้อผิดพลาด</p>
+          <p className="mt-1 text-sm font-medium text-red-600">{error}</p>
+        </div>
       </div>
     );
   }
@@ -108,24 +182,31 @@ export default function PaymentsPage() {
       <div className="space-y-6">
         <div className="dark:bg-background flex w-full flex-col rounded-2xl border bg-white px-4 py-6 shadow-sm">
           <div className="flex flex-col justify-between gap-6 min-[798px]:flex-row min-[798px]:items-center mb-6">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">
-                รายการจ่ายเงินทั้งหมด
-              </h1>
-              <p className="text-muted-foreground hidden min-[798px]:block">
-                ติดตามการเบิกเงินล่วงหน้า เงินเดือน และค่าใช้จ่ายต่างๆ
-              </p>
+            <div className="flex items-center gap-3">
+              <div className="bg-background dark:bg-secondary flex h-12 w-12 items-center justify-center rounded-[8px] border min-[798px]:h-14 min-[798px]:w-14">
+                <Receipt strokeWidth={2.5} className="text-primary" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-primary text-2xl font-bold">
+                  รายการจ่ายเงินทั้งหมด
+                </span>
+                <p className="text-foreground hidden font-medium min-[798px]:block">
+                  ติดตามการเบิกเงินล่วงหน้า เงินเดือน และค่าใช้จ่ายต่างๆ
+                </p>
+              </div>
             </div>
             <div className="flex gap-2 flex-wrap">
               <Button
                 variant={filter === "all" ? "default" : "outline"}
                 onClick={() => setFilter("all")}
+                className="font-bold"
               >
                 ทั้งหมด
               </Button>
               <Button
                 variant={filter === "salary" ? "default" : "outline"}
                 onClick={() => setFilter("salary")}
+                className="font-bold"
               >
                 <Users className="h-4 w-4 mr-2" />
                 มีพนักงาน
@@ -133,6 +214,7 @@ export default function PaymentsPage() {
               <Button
                 variant={filter === "expense" ? "default" : "outline"}
                 onClick={() => setFilter("expense")}
+                className="font-bold"
               >
                 <Receipt className="h-4 w-4 mr-2" />
                 ค่าใช้จ่ายอื่น
@@ -183,122 +265,229 @@ export default function PaymentsPage() {
         </div>
 
         {/* ตารางรายการจ่าย */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ArrowUpDown className="h-5 w-5" />
-              รายการล่าสุด ({payments.length} รายการ)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
+        <div className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm">
+          <div className="mb-4 flex flex-col justify-between gap-4 min-[720px]:flex-row min-[720px]:items-center">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-orange-100 bg-orange-50 dark:border-orange-500/20 dark:bg-orange-500/10">
+                <ArrowUpDown className="h-6 w-6 text-main-orange" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xl font-bold text-card-foreground">
+                  รายการล่าสุด
+                </span>
+                <p className="text-sm font-medium text-muted-foreground">
+                  รายการจ่ายเงิน 50 รายการล่าสุดตามตัวกรองที่เลือก
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="h-8 rounded-full bg-orange-50 px-4 text-sm font-bold text-main-orange dark:bg-orange-500/10">
+                {payments.length} รายการ
+              </Badge>
+              <Badge
+                variant="outline"
+                className="h-8 rounded-full px-4 text-sm font-bold text-card-foreground"
+              >
+                {getFilterLabel()}
+              </Badge>
+            </div>
+          </div>
+
+          {payments.length === 0 ? (
+            <div className="rounded-2xl border bg-white px-4 py-12 text-center dark:bg-card">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
+                <Receipt className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-bold text-card-foreground">
+                ไม่พบรายการจ่ายเงิน
+              </h3>
+              <p className="mt-1 text-sm font-medium text-muted-foreground">
+                ลองเปลี่ยนตัวกรองด้านบนเพื่อดูรายการอื่น
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-2xl border bg-white dark:bg-card">
               <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>วันที่จ่าย</TableHead>
-                    <TableHead>เลขที่เอกสาร</TableHead>
-                    <TableHead>รายการ</TableHead>
-                    <TableHead>พนักงาน/ตำแหน่ง</TableHead>
-                    <TableHead className="text-right">เงินสด</TableHead>
-                    <TableHead className="text-right">เงินโอน</TableHead>
-                    <TableHead className="text-right">รวม</TableHead>
-                    <TableHead>ธนาคาร</TableHead>
-                    <TableHead>หมายเหตุ</TableHead>
+                <TableHeader className="bg-secondary/70">
+                  <TableRow className="border-border/60 hover:bg-transparent">
+                    <TableHead className="w-[24%] px-4 text-base font-bold text-card-foreground min-[500px]:text-lg">
+                      เอกสาร
+                    </TableHead>
+                    <TableHead className="hidden text-base font-bold text-card-foreground min-[640px]:table-cell min-[500px]:text-lg">
+                      รายการ
+                    </TableHead>
+                    <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[760px]:table-cell">
+                      วันที่
+                    </TableHead>
+                    <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[760px]:table-cell">
+                      ประเภท
+                    </TableHead>
+                    <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[1020px]:table-cell">
+                      พนักงาน/ธนาคาร
+                    </TableHead>
+                    <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[900px]:table-cell">
+                      วิธีจ่าย
+                    </TableHead>
+                    <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
+                      ยอดรวม
+                    </TableHead>
+                    <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[1200px]:table-cell">
+                      หมายเหตุ
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {payments.map((payment) => {
+                  {payments.map((payment, index) => {
+                    const paymentType = getPaymentType(payment);
+                    const paymentMethods = getPaymentMethods(payment);
                     const hasEmployee =
                       payment.CodeStaff > 0 &&
                       payment.NameSure &&
                       payment.NameSure !== "";
 
                     return (
-                      <TableRow key={payment.OrderNum}>
-                        <TableCell className="whitespace-nowrap">
-                          {payment.Datepayment
-                            ? new Date(payment.Datepayment).toLocaleDateString(
-                                "th-TH",
-                                {
-                                  year: "numeric",
-                                  month: "short",
-                                  day: "numeric",
-                                },
-                              )
-                            : "-"}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {payment.NumberPrintPost || payment.OrderNum}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {payment.NameExpensesORIncome || (
-                            <span className="text-muted-foreground">
-                              ไม่ระบุ
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {hasEmployee ? (
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm">
-                                {payment.NameSure}
+                      <TableRow
+                        key={payment.OrderNum}
+                        className="group border-border/60 transition-colors duration-200 hover:bg-orange-50/30 dark:hover:bg-orange-500/5"
+                      >
+                        <TableCell className="px-4 py-4 font-medium">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-orange-100 bg-orange-50 text-sm font-bold text-main-orange select-none dark:border-orange-500/20 dark:bg-orange-500/10 min-[550px]:h-12 min-[550px]:w-12">
+                              {index + 1}
+                            </div>
+                            <div className="flex min-w-0 flex-col">
+                              <span
+                                className={cn(
+                                  outfit.className,
+                                  "max-w-[120px] truncate text-sm font-bold text-card-foreground transition-colors group-hover:text-main-orange min-[420px]:max-w-[180px] min-[550px]:max-w-[260px] min-[550px]:text-base min-[1100px]:max-w-[420px]",
+                                )}
+                              >
+                                {payment.NumberPrintPost || payment.OrderNum}
                               </span>
-                              {payment.NamePositions && (
-                                <Badge variant="outline" className="text-xs">
-                                  {payment.NamePositions}
+                              <p className="max-w-[120px] truncate text-sm font-semibold text-muted-foreground min-[420px]:max-w-[180px] min-[550px]:max-w-[260px] min-[640px]:hidden">
+                                {payment.NameExpensesORIncome || "ไม่ระบุ"}
+                              </p>
+                              <p className="hidden text-xs font-medium text-muted-foreground min-[560px]:block min-[760px]:hidden">
+                                {formatDate(payment.Datepayment)}
+                              </p>
+                            </div>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="hidden align-middle min-[640px]:table-cell">
+                          <div className="flex min-w-0 flex-col">
+                            <span className="max-w-[180px] truncate text-sm font-bold text-card-foreground min-[900px]:max-w-[260px] min-[1200px]:max-w-[360px]">
+                              {payment.NameExpensesORIncome || "ไม่ระบุ"}
+                            </span>
+                            <span className="max-w-[180px] truncate text-xs font-medium text-muted-foreground min-[900px]:max-w-[260px] min-[1200px]:max-w-[360px]">
+                              {payment.UserName
+                                ? `บันทึกโดย ${payment.UserName}`
+                                : "ไม่มีข้อมูลผู้บันทึก"}
+                            </span>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="hidden text-right align-middle min-[760px]:table-cell">
+                          <span className="text-sm font-semibold text-card-foreground">
+                            {formatDate(payment.Datepayment)}
+                          </span>
+                        </TableCell>
+
+                        <TableCell className="hidden text-right align-middle min-[760px]:table-cell">
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "h-7 rounded-full px-3 text-xs font-bold shadow-none",
+                              paymentType.className,
+                            )}
+                          >
+                            {paymentType.label}
+                          </Badge>
+                        </TableCell>
+
+                        <TableCell className="hidden text-right align-middle min-[1020px]:table-cell">
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="max-w-[220px] truncate text-sm font-semibold text-card-foreground">
+                              {hasEmployee
+                                ? payment.NameSure
+                                : payment.NameBank || "-"}
+                            </span>
+                            <span className="max-w-[220px] truncate text-xs font-medium text-muted-foreground">
+                              {hasEmployee
+                                ? payment.NamePositions || "ไม่ระบุตำแหน่ง"
+                                : payment.NameBank
+                                  ? "ธนาคาร"
+                                  : "ไม่มีข้อมูลธนาคาร"}
+                            </span>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="hidden text-right align-middle min-[900px]:table-cell">
+                          <div className="flex flex-wrap justify-end gap-1.5">
+                            {paymentMethods.length > 0 ? (
+                              paymentMethods.map((method) => (
+                                <Badge
+                                  key={method.label}
+                                  variant="outline"
+                                  className={cn(
+                                    "h-7 rounded-full px-3 text-xs font-bold shadow-none",
+                                    method.className,
+                                  )}
+                                >
+                                  {method.label}
                                 </Badge>
+                              ))
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="h-7 rounded-full px-3 text-xs font-bold text-muted-foreground shadow-none"
+                              >
+                                ไม่ระบุ
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="text-right align-middle">
+                          <div className="flex flex-col items-end gap-1">
+                            <span
+                              className={cn(
+                                outfit.className,
+                                "text-sm font-bold text-card-foreground min-[500px]:text-base",
+                              )}
+                            >
+                              {formatCurrency(payment.TotalPrice)}
+                            </span>
+                            <div className="flex flex-wrap justify-end gap-1 min-[700px]:hidden">
+                              {paymentMethods.length > 0 ? (
+                                paymentMethods.map((method) => (
+                                  <span
+                                    key={method.label}
+                                    className={cn(
+                                      "text-xs font-semibold",
+                                      method.label === "สด"
+                                        ? "text-main-green"
+                                        : "text-main-blue",
+                                    )}
+                                  >
+                                    {method.label}{" "}
+                                    {formatCurrency(method.amount)}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-xs font-semibold text-muted-foreground">
+                                  ไม่ระบุวิธีจ่าย
+                                </span>
                               )}
                             </div>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">
-                              -
-                            </span>
-                          )}
+                          </div>
                         </TableCell>
-                        <TableCell className="text-right">
-                          {payment.MoneyCash > 0 ? (
-                            <span className="text-green-600 font-medium">
-                              {payment.MoneyCash.toLocaleString("th-TH", {
-                                minimumFractionDigits: 2,
-                              })}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {payment.MoneyTransfer > 0 ? (
-                            <span className="text-blue-600 font-medium">
-                              {payment.MoneyTransfer.toLocaleString("th-TH", {
-                                minimumFractionDigits: 2,
-                              })}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right font-bold">
-                          {payment.TotalPrice
-                            ? payment.TotalPrice.toLocaleString("th-TH", {
-                                minimumFractionDigits: 2,
-                              })
-                            : "0.00"}
-                        </TableCell>
-                        <TableCell>
-                          {payment.NameBank ? (
-                            <span className="text-xs">{payment.NameBank}</span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="max-w-xs">
-                          {payment.Remark ? (
-                            <span className="text-xs text-muted-foreground line-clamp-2">
-                              {payment.Remark}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
+
+                        <TableCell className="hidden max-w-xs text-right align-middle min-[1200px]:table-cell">
+                          <span className="line-clamp-2 text-xs font-medium text-muted-foreground">
+                            {payment.Remark || "-"}
+                          </span>
                         </TableCell>
                       </TableRow>
                     );
@@ -306,8 +495,8 @@ export default function PaymentsPage() {
                 </TableBody>
               </Table>
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </div>
       </div>
     </div>
   );

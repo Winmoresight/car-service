@@ -403,8 +403,11 @@ export default function SalesPage() {
                 <Table>
                   <TableHeader className="bg-secondary/70">
                     <TableRow className="border-border/60 hover:bg-transparent">
-                      <TableHead className="w-[42%] px-4 text-base font-bold text-card-foreground min-[500px]:text-lg">
-                        บิล/ลูกค้า
+                      <TableHead className="w-[24%] px-4 text-base font-bold text-card-foreground min-[500px]:text-lg">
+                        เลขที่บิล
+                      </TableHead>
+                      <TableHead className="hidden text-base font-bold text-card-foreground min-[640px]:table-cell min-[500px]:text-lg">
+                        ลูกค้า
                       </TableHead>
                       <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[760px]:table-cell">
                         วันที่
@@ -447,13 +450,35 @@ export default function SalesPage() {
                                 >
                                   {sale.id}
                                 </span>
-                                <p className="max-w-[120px] truncate text-sm font-semibold text-muted-foreground min-[420px]:max-w-[180px] min-[550px]:max-w-[260px] min-[1100px]:max-w-[420px]">
+                                <p className="max-w-[120px] truncate text-sm font-semibold text-muted-foreground min-[420px]:max-w-[180px] min-[550px]:max-w-[260px] min-[640px]:hidden">
                                   {sale.customerName}
                                 </p>
                                 <p className="hidden text-xs font-medium text-muted-foreground min-[560px]:block min-[760px]:hidden">
                                   {formatDate(sale.date)}
                                 </p>
                               </div>
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="hidden align-middle min-[640px]:table-cell">
+                            <div className="flex min-w-0 flex-col">
+                              <span className="max-w-[180px] truncate text-base font-bold text-card-foreground min-[900px]:max-w-[260px] min-[1200px]:max-w-[360px]">
+                                {sale.customerName}
+                              </span>
+                              {sale.customerPhone ? (
+                                <span
+                                  className={cn(
+                                    outfit.className,
+                                    "text-xs font-semibold text-muted-foreground",
+                                  )}
+                                >
+                                  {sale.customerPhone}
+                                </span>
+                              ) : (
+                                <span className="text-xs font-medium text-muted-foreground">
+                                  ไม่ระบุเบอร์โทร
+                                </span>
+                              )}
                             </div>
                           </TableCell>
 

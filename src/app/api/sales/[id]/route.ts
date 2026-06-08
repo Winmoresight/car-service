@@ -5,8 +5,8 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
+import { maskName, maskPhone } from "@/lib/privacy";
 import type { ApiResponse } from "@/types/api";
-import { maskName, maskPhone, maskIdCard } from "@/lib/privacy";
 
 interface SaleDetail {
   // Header
@@ -38,7 +38,7 @@ interface SaleDetail {
 }
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -55,9 +55,10 @@ export async function GET(
         m.Cash as cash,
         m.Transfer as transfer,
         ISNULL(m.NameCustomer, 'ไม่ระบุ') as customerName,
-        '' as customerPhone,
-        '' as customerAddress
+        ISNULL(c.PhoneCustomer, '') as customerPhone,
+        ISNULL(c.AddressCustomer, '') as customerAddress
       FROM dbo.MasterSalePost m
+      LEFT JOIN dbo.Customer c ON m.CodeCustomer = c.CodeCustomer
       WHERE m.NumberPrintSalePost = @id
     `;
 
@@ -123,7 +124,7 @@ export async function GET(
         name: maskName(header.customerName),
         phone: maskPhone(header.customerPhone),
         address: header.customerAddress
-          ? header.customerAddress.substring(0, 20) + "..."
+          ? `${header.customerAddress.substring(0, 20)}...`
           : undefined,
       },
       items: items,
