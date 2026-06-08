@@ -5,8 +5,7 @@
  * แสดง KPI, กราฟยอดขาย, สินค้าขายดี และรายการขาดทุน
  */
 
-import { useState } from "react";
-import useSWR from "swr";
+import { format } from "date-fns";
 import {
   Banknote,
   Calendar as CalendarIcon,
@@ -16,12 +15,15 @@ import {
   TrendingUp,
   Wallet,
 } from "lucide-react";
-import { format } from "date-fns";
-import { DatePicker } from "@/components/ui/date-picker";
-import { outfit } from "@/components/fonts/fonts";
+import { useState } from "react";
+import useSWR from "swr";
+import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
+import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
+import { KPICard } from "@/components/dashboard/kpi-card";
 import { LossAlertTable } from "@/components/dashboard/loss-alert-table";
 import { SalesChart } from "@/components/dashboard/sales-chart";
 import { TopProductsTable } from "@/components/dashboard/top-products-table";
+import { DatePicker } from "@/components/ui/date-picker";
 import type {
   ApiResponse,
   DailySales,
@@ -29,8 +31,6 @@ import type {
   LossProduct,
   TopProduct,
 } from "@/types/api";
-import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
-import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 
 // Fetcher function for SWR
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -85,18 +85,20 @@ export default function DashboardPage() {
     !kpiData || !salesData || !topProductsData || !lossProductsData;
   const hasError =
     kpiError || salesError || topProductsError || lossProductsError;
+  const isSelectedDateToday =
+    !selectedDate ||
+    format(selectedDate, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+  const dateLabel = isSelectedDateToday ? "วันนี้" : "วันที่เลือก";
 
   if (hasError) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-main-red mb-2">
-            เกิดข้อผิดพลาด
-          </h1>
-          <p className="text-muted-foreground">
+      <div className="flex min-h-screen items-center justify-center p-6">
+        <div className="rounded-3xl border border-red-100 bg-red-50/50 px-6 py-10 text-center dark:border-red-500/20 dark:bg-red-500/10">
+          <h1 className="mb-2 text-2xl font-bold text-main-red">เกิดข้อผิดพลาด</h1>
+          <p className="font-medium text-muted-foreground">
             ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้
           </p>
-          <p className="text-sm text-muted-foreground mt-2">
+          <p className="mt-2 text-sm text-muted-foreground">
             กรุณาตรวจสอบการตั้งค่าใน .env.local
           </p>
         </div>
@@ -109,217 +111,107 @@ export default function DashboardPage() {
   }
 
   return (
-    <>
-      <div className="p-6 pb-16">
-        <DashboardBreadcrumb href="/" isMain />
+    <div className="p-6 pb-16">
+      <DashboardBreadcrumb href="/" isMain />
 
-        <hr className="my-4 hidden w-full min-[1025px]:block" />
+      <hr className="my-4 hidden w-full min-[1025px]:block" />
 
-        <div className="space-y-6">
-          <div className="dark:bg-background mt-6 flex h-auto w-full flex-col rounded-2xl border bg-white px-4 py-6 pb-6 shadow-sm">
-            <div className="flex flex-col justify-between gap-6 min-[798px]:flex-row min-[798px]:items-center mb-6">
-              <div className="flex items-center gap-3">
-                <div className="bg-background dark:bg-secondary flex min-h-12 min-w-12 items-center justify-center rounded-[8px] border min-[798px]:h-14 min-[798px]:w-14">
-                  <LayoutDashboard strokeWidth={2.5} className="text-primary" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-primary text-2xl font-bold transition-all duration-1000">
-                    ภาพรวม
-                  </span>
-                  <p className="text-foreground font-medium hidden min-[798px]:block">
-                    สรุปข้อมูลยอดขายและกำไรประจำวัน
-                  </p>
-                </div>
+      <div className="space-y-6">
+        <div className="dark:bg-background mt-2 flex h-auto w-full flex-col rounded-2xl border bg-white px-4 py-6 pb-4 shadow-sm md:mt-6">
+          <div className="mb-6 flex flex-col justify-between gap-6 min-[798px]:flex-row min-[798px]:items-center">
+            <div className="flex items-center gap-3">
+              <div className="bg-background dark:bg-secondary flex h-12 w-12 items-center justify-center rounded-[8px] border min-[798px]:h-14 min-[798px]:w-14">
+                <LayoutDashboard strokeWidth={2.5} className="text-primary" />
               </div>
-
-              <div className="transition-all duration-1000 mt-4 min-[798px]:mt-0">
-                <DatePicker
-                  date={selectedDate}
-                  onDateChange={setSelectedDate}
-                  placeholder="เลือกวันที่"
-                />
+              <div className="flex flex-col">
+                <span className="text-primary text-2xl font-bold transition-all duration-1000">
+                  ภาพรวม
+                </span>
+                <p className="text-foreground hidden font-medium min-[798px]:block">
+                  สรุปข้อมูลยอดขายและกำไรประจำวัน
+                </p>
               </div>
             </div>
 
-            {/* KPI Cards */}
-            <div className="grid min-[600px]:grid-cols-2 min-[1280px]:grid-cols-4 gap-4">
-              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4 min-h-[210px]">
-                <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-blue-50 dark:bg-background/50 shrink-0">
-                    <Banknote
-                      strokeWidth={2.5}
-                      className="text-main-blue w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
-                    />
-                  </div>
-                  <div className="flex flex-col justify-between items-end min-[600px]:items-start gap-1 flex-1 min-h-[132px]">
-                    <span className="text-primary text-lg font-semibold">
-                      {selectedDate &&
-                      format(selectedDate, "yyyy-MM-dd") !==
-                        format(new Date(), "yyyy-MM-dd")
-                        ? "ยอดขายวันที่เลือก"
-                        : "ยอดขายวันนี้"}
-                    </span>
-                    <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
-                      <span className={`${outfit.className}`}>
-                        {(kpi?.todaySales || 0).toLocaleString()}
-                      </span>{" "}
-                      บาท
-                    </h3>
-                    <span className="text-muted-foreground text-xs mt-1 font-medium">
-                      {kpi?.todayBills || 0} บิล
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4 min-h-[210px]">
-                <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-emerald-50 dark:bg-background/50 shrink-0">
-                    <TrendingUp
-                      strokeWidth={2.5}
-                      className="text-main-green w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
-                    />
-                  </div>
-                  <div className="flex flex-col justify-between items-end min-[600px]:items-start gap-1 flex-1 min-h-[132px]">
-                    <span className="text-primary text-lg font-semibold">
-                      {selectedDate &&
-                      format(selectedDate, "yyyy-MM-dd") !==
-                        format(new Date(), "yyyy-MM-dd")
-                        ? "กำไรวันที่เลือก"
-                        : "กำไรวันนี้"}
-                    </span>
-                    <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
-                      <span className={`${outfit.className}`}>
-                        {(kpi?.todayProfit || 0).toLocaleString()}
-                      </span>{" "}
-                      บาท
-                    </h3>
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4 min-h-[210px]">
-                <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-purple-50 dark:bg-background/50 shrink-0">
-                    <ShoppingCart
-                      strokeWidth={2.5}
-                      className="text-purple-600 w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
-                    />
-                  </div>
-                  <div className="flex flex-col justify-between items-end min-[600px]:items-start gap-1 flex-1 min-h-[132px]">
-                    <span className="text-primary text-lg font-semibold">
-                      ยอดขายเดือนนี้
-                    </span>
-                    <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
-                      <span className={`${outfit.className}`}>
-                        {(kpi?.monthSales || 0).toLocaleString()}
-                      </span>{" "}
-                      บาท
-                    </h3>
-                    <span className="text-muted-foreground text-xs mt-1 font-medium">
-                      {kpi?.monthBills || 0} บิล
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4 min-h-[210px]">
-                <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-orange-50 dark:bg-background/50 shrink-0">
-                    <CalendarIcon
-                      strokeWidth={2.5}
-                      className="text-main-orange w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
-                    />
-                  </div>
-                  <div className="flex flex-col justify-between items-end min-[600px]:items-start gap-1 flex-1 min-h-[132px]">
-                    <span className="text-primary text-lg font-semibold">
-                      อัตรากำไรขั้นต้น
-                    </span>
-                    <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
-                      <span className={`${outfit.className}`}>
-                        {(kpi?.profitMargin || 0).toFixed(2)}
-                      </span>{" "}
-                      %
-                    </h3>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Payment Method Cards */}
-            <div className="grid min-[600px]:grid-cols-2 gap-4 mt-4">
-              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4 min-h-[190px]">
-                <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-blue-50 dark:bg-background/50 shrink-0">
-                    <Wallet
-                      strokeWidth={2.5}
-                      className="text-main-blue w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
-                    />
-                  </div>
-                  <div className="flex flex-col justify-between items-end min-[600px]:items-start gap-1 flex-1 min-h-[112px]">
-                    <span className="text-primary text-lg font-semibold">
-                      {selectedDate &&
-                      format(selectedDate, "yyyy-MM-dd") !==
-                        format(new Date(), "yyyy-MM-dd")
-                        ? "เงินสดวันที่เลือก"
-                        : "เงินสดวันนี้"}
-                    </span>
-                    <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
-                      <span className={`${outfit.className}`}>
-                        {(kpi?.todayCash || 0).toLocaleString()}
-                      </span>{" "}
-                      บาท
-                    </h3>
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4 min-h-[190px]">
-                <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-blue-50 dark:bg-background/50 shrink-0">
-                    <CreditCard
-                      strokeWidth={2.5}
-                      className="text-main-blue w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
-                    />
-                  </div>
-                  <div className="flex flex-col justify-between items-end min-[600px]:items-start gap-1 flex-1 min-h-[112px]">
-                    <span className="text-primary text-lg font-semibold">
-                      {selectedDate &&
-                      format(selectedDate, "yyyy-MM-dd") !==
-                        format(new Date(), "yyyy-MM-dd")
-                        ? "เงินโอนวันที่เลือก"
-                        : "เงินโอนวันนี้"}
-                    </span>
-                    <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
-                      <span className={`${outfit.className}`}>
-                        {(kpi?.todayTransfer || 0).toLocaleString()}
-                      </span>{" "}
-                      บาท
-                    </h3>
-                  </div>
-                </div>
-              </div>
+            <div className="transition-all duration-1000 min-[798px]:mt-0">
+              <DatePicker
+                date={selectedDate}
+                onDateChange={setSelectedDate}
+                placeholder="เลือกวันที่"
+              />
             </div>
           </div>
 
-          {/* Sales Chart */}
-          <SalesChart data={dailySales} />
-
-          {/* Top Products and Loss Alert */}
-          <div className="grid gap-6 lg:grid-cols-2">
-            <TopProductsTable products={topProducts} />
-            <LossAlertTable products={lossProducts} />
+          {/* KPI Cards */}
+          <div className="grid gap-4 min-[600px]:grid-cols-2 min-[1280px]:grid-cols-4">
+            <KPICard
+              title={`ยอดขาย${dateLabel}`}
+              value={kpi?.todaySales || 0}
+              subtitle={`${(kpi?.todayBills || 0).toLocaleString()} บิล`}
+              icon={Banknote}
+              variant="blue"
+              format="currency"
+            />
+            <KPICard
+              title={`กำไร${dateLabel}`}
+              value={kpi?.todayProfit || 0}
+              icon={TrendingUp}
+              variant="emerald"
+              format="currency"
+            />
+            <KPICard
+              title="ยอดขายเดือนนี้"
+              value={kpi?.monthSales || 0}
+              subtitle={`${(kpi?.monthBills || 0).toLocaleString()} บิล`}
+              icon={ShoppingCart}
+              variant="purple"
+              format="currency"
+            />
+            <KPICard
+              title="อัตรากำไรขั้นต้น"
+              value={kpi?.profitMargin || 0}
+              icon={CalendarIcon}
+              variant="orange"
+              format="percent"
+            />
           </div>
 
-          {/* Footer */}
-          <div className="text-center text-sm text-muted-foreground mt-8">
-            <p>
-              ข้อมูลอัพเดทอัตโนมัติทุก 30 วินาที · Last updated:{" "}
-              {new Date().toLocaleTimeString("th-TH")}
-            </p>
+          {/* Payment Method Cards */}
+          <div className="mt-4 grid gap-4 min-[600px]:grid-cols-2">
+            <KPICard
+              title={`เงินสด${dateLabel}`}
+              value={kpi?.todayCash || 0}
+              icon={Wallet}
+              variant="blue"
+              format="currency"
+            />
+            <KPICard
+              title={`เงินโอน${dateLabel}`}
+              value={kpi?.todayTransfer || 0}
+              icon={CreditCard}
+              variant="purple"
+              format="currency"
+            />
           </div>
         </div>
+
+        {/* Sales Chart */}
+        <SalesChart data={dailySales} />
+
+        {/* Top Products and Loss Alert */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <TopProductsTable products={topProducts} />
+          <LossAlertTable products={lossProducts} />
+        </div>
+
+        {/* Footer */}
+        <div className="mt-8 text-center text-sm text-muted-foreground">
+          <p>
+            ข้อมูลอัพเดทอัตโนมัติทุก 30 วินาที · Last updated:{" "}
+            {new Date().toLocaleTimeString("th-TH")}
+          </p>
+        </div>
       </div>
-    </>
+    </div>
   );
 }

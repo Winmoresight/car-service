@@ -5,8 +5,9 @@
  * ตารางแสดงสินค้าขายดี/กำไรดี
  */
 
-import React from "react";
-import { cn } from "@/lib/utils";
+import { Trophy } from "lucide-react";
+import { outfit } from "@/components/fonts/fonts";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -15,14 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import type { TopProduct } from "@/types/api";
 
 interface TopProductsTableProps {
@@ -42,126 +36,246 @@ export function TopProductsTable({
       currency: "THB",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(value);
+    }).format(value || 0);
   };
 
   const formatNumber = (value: number) => {
-    return new Intl.NumberFormat("th-TH").format(value);
+    return new Intl.NumberFormat("th-TH").format(value || 0);
+  };
+
+  const getRankTone = (rank: number) => {
+    if (rank === 1) {
+      return {
+        className:
+          "border-amber-100 bg-amber-50 text-main-orange dark:border-amber-500/20 dark:bg-amber-500/10",
+        rowClassName:
+          "hover:bg-amber-50/40 dark:hover:bg-amber-500/5 min-[760px]:bg-amber-50/20",
+      };
+    }
+
+    if (rank === 2) {
+      return {
+        className:
+          "border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-500/20 dark:bg-slate-500/10 dark:text-slate-300",
+        rowClassName:
+          "hover:bg-slate-50/60 dark:hover:bg-slate-500/5 min-[760px]:bg-slate-50/30",
+      };
+    }
+
+    if (rank === 3) {
+      return {
+        className:
+          "border-orange-100 bg-orange-50 text-main-orange dark:border-orange-500/20 dark:bg-orange-500/10",
+        rowClassName:
+          "hover:bg-orange-50/30 dark:hover:bg-orange-500/5 min-[760px]:bg-orange-50/20",
+      };
+    }
+
+    return {
+      className:
+        "border-blue-100 bg-blue-50 text-main-blue dark:border-blue-500/20 dark:bg-blue-500/10",
+      rowClassName: "hover:bg-blue-50/30 dark:hover:bg-blue-500/5",
+    };
+  };
+
+  const getProfitMarginMeta = (margin: number) => {
+    if (margin >= 20) {
+      return {
+        className:
+          "border-emerald-100 bg-emerald-50 text-main-green dark:border-emerald-500/20 dark:bg-emerald-500/10",
+        barClassName: "bg-main-green",
+      };
+    }
+
+    if (margin >= 10) {
+      return {
+        className:
+          "border-blue-100 bg-blue-50 text-main-blue dark:border-blue-500/20 dark:bg-blue-500/10",
+        barClassName: "bg-main-blue",
+      };
+    }
+
+    if (margin >= 5) {
+      return {
+        className:
+          "border-orange-100 bg-orange-50 text-main-orange dark:border-orange-500/20 dark:bg-orange-500/10",
+        barClassName: "bg-main-orange",
+      };
+    }
+
+    return {
+      className:
+        "border-red-100 bg-red-50 text-main-red dark:border-red-500/20 dark:bg-red-500/10",
+      barClassName: "bg-main-red",
+    };
   };
 
   return (
-    <Card className="border-none shadow-sm bg-card overflow-hidden">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6 pt-6">
-        <div className="space-y-1">
-          {title && <CardTitle className="text-xl font-bold text-card-foreground">{title}</CardTitle>}
-          {description && <CardDescription className="text-sm font-medium text-muted-foreground">{description}</CardDescription>}
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="px-3 py-1.5 bg-secondary rounded-xl text-[11px] font-bold text-muted-foreground border border-border uppercase tracking-wider">
-            30 Days
+    <div className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm">
+      <div className="mb-4 flex flex-col justify-between gap-4 min-[720px]:flex-row min-[720px]:items-center">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-100 bg-amber-50 dark:border-amber-500/20 dark:bg-amber-500/10">
+            <Trophy className="h-6 w-6 text-main-orange" />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-xl font-bold text-card-foreground">
+              {title}
+            </span>
+            <p className="text-sm font-medium text-muted-foreground">
+              {description}
+            </p>
           </div>
         </div>
-      </CardHeader>
-      <CardContent className="p-0">
-        <div className="overflow-x-auto">
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge className="h-8 rounded-full bg-amber-50 px-4 text-sm font-bold text-main-orange dark:bg-amber-500/10">
+            Top {formatNumber(products.length)}
+          </Badge>
+          <Badge
+            variant="outline"
+            className="h-8 rounded-full px-4 text-sm font-bold text-card-foreground shadow-none"
+          >
+            30 Days
+          </Badge>
+        </div>
+      </div>
+
+      {products.length === 0 ? (
+        <div className="rounded-2xl border bg-white px-4 py-12 text-center dark:bg-card">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
+            <Trophy className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-bold text-card-foreground">
+            ไม่มีข้อมูลสินค้าขายดีในขณะนี้
+          </h3>
+          <p className="mt-1 text-sm font-medium text-muted-foreground">
+            ระบบจะแสดงรายการเมื่อมีข้อมูลยอดขาย
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border bg-white dark:bg-card">
           <Table>
-            <TableHeader className="bg-secondary/50">
-              <TableRow className="hover:bg-transparent border-border">
-                <TableHead className="w-[60px] text-center font-bold text-muted-foreground text-[11px] uppercase tracking-wider">#</TableHead>
-                <TableHead className="font-bold text-muted-foreground text-[11px] uppercase tracking-wider">สินค้า</TableHead>
-                <TableHead className="text-right font-bold text-muted-foreground text-[11px] uppercase tracking-wider">ยอดขาย</TableHead>
-                <TableHead className="text-right font-bold text-muted-foreground text-[11px] uppercase tracking-wider">กำไร</TableHead>
-                <TableHead className="text-right font-bold text-muted-foreground text-[11px] uppercase tracking-wider">จำนวน</TableHead>
-                <TableHead className="text-right font-bold text-muted-foreground text-[11px] uppercase tracking-wider">% กำไร</TableHead>
+            <TableHeader className="bg-secondary/70">
+              <TableRow className="border-border/60 hover:bg-transparent">
+                <TableHead className="w-[44%] px-4 text-base font-bold text-card-foreground min-[500px]:text-lg">
+                  สินค้า
+                </TableHead>
+                <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
+                  ยอดขาย
+                </TableHead>
+                <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[760px]:table-cell">
+                  กำไร
+                </TableHead>
+                <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
+                  Margin
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {products.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={6}
-                    className="h-32 text-center text-muted-foreground"
-                  >
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <p className="font-medium">ไม่มีข้อมูลสินค้าขายดีในขณะนี้</p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                products.map((product, index) => (
+              {products.map((product, index) => {
+                const rank = index + 1;
+                const rankTone = getRankTone(rank);
+                const marginMeta = getProfitMarginMeta(product.profitMargin);
+                const marginWidth = Math.max(
+                  8,
+                  Math.min(product.profitMargin * 2, 100),
+                );
+
+                return (
                   <TableRow
                     key={`${product.name}-${index}`}
-                    className="hover:bg-secondary/50 transition-all duration-200 group border-border/50"
+                    className={cn(
+                      "group border-border/60 transition-colors duration-200",
+                      rankTone.rowClassName,
+                    )}
                   >
-                    <TableCell className="text-center">
-                      <div className={cn(
-                        "inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold mx-auto",
-                        index < 3 ? "bg-main-blue text-white shadow-sm" : "bg-secondary text-muted-foreground"
-                      )}>
-                        {index + 1}
+                    <TableCell className="px-4 py-4 font-medium">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={cn(
+                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-sm font-bold select-none min-[550px]:h-12 min-[550px]:w-12",
+                            rankTone.className,
+                          )}
+                        >
+                          {rank}
+                        </div>
+                        <div className="flex min-w-0 flex-col">
+                          <span className="max-w-[130px] truncate text-base font-bold text-card-foreground transition-colors group-hover:text-main-orange min-[420px]:max-w-[200px] min-[1180px]:max-w-[300px]">
+                            {product.name || "ไม่ระบุสินค้า"}
+                          </span>
+                          <span className="text-xs font-semibold text-muted-foreground">
+                            {formatNumber(product.quantity)} ชิ้น
+                          </span>
+                        </div>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <div className="font-bold text-card-foreground group-hover:text-main-blue transition-colors">
-                        {product.name}
+
+                    <TableCell className="text-right align-middle">
+                      <div className="flex flex-col items-end gap-1">
+                        <span
+                          className={cn(
+                            outfit.className,
+                            "text-sm font-bold text-card-foreground min-[500px]:text-base",
+                          )}
+                        >
+                          {formatCurrency(product.sales)}
+                        </span>
+                        <span
+                          className={cn(
+                            "text-xs font-semibold min-[760px]:hidden",
+                            product.profit >= 0
+                              ? "text-main-green"
+                              : "text-main-red",
+                          )}
+                        >
+                          กำไร {formatCurrency(product.profit)}
+                        </span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="font-bold text-card-foreground">
-                        {formatCurrency(product.sales)}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div
+
+                    <TableCell className="hidden text-right align-middle min-[760px]:table-cell">
+                      <span
                         className={cn(
+                          outfit.className,
                           "font-bold",
                           product.profit >= 0
                             ? "text-main-green"
-                            : "text-main-red"
+                            : "text-main-red",
                         )}
                       >
                         {formatCurrency(product.profit)}
-                      </div>
+                      </span>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="text-sm font-medium text-muted-foreground">
-                        {formatNumber(product.quantity)}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-3">
-                        <div className="w-16 h-1.5 bg-secondary rounded-full overflow-hidden hidden sm:block">
-                          <div 
-                            className={cn(
-                              "h-full rounded-full transition-all duration-500",
-                              product.profitMargin >= 20 ? "bg-main-green" : 
-                              product.profitMargin >= 10 ? "bg-main-blue" : "bg-main-orange"
-                            )}
-                            style={{ width: `${Math.min(product.profitMargin * 2, 100)}%` }}
-                          />
-                        </div>
+
+                    <TableCell className="text-right align-middle">
+                      <div className="flex flex-col items-end gap-2">
                         <Badge
                           variant="outline"
                           className={cn(
-                            "font-bold text-[10px] px-2 py-0.5 min-w-[50px] justify-center shadow-none border-none rounded-lg",
-                            product.profitMargin >= 20
-                              ? "bg-emerald-50 text-main-green"
-                              : product.profitMargin >= 10
-                                ? "bg-blue-50 text-main-blue"
-                                : "bg-orange-50 text-main-orange",
+                            "h-7 rounded-full px-3 text-xs font-bold shadow-none",
+                            marginMeta.className,
                           )}
                         >
                           {product.profitMargin.toFixed(1)}%
                         </Badge>
+                        <div className="hidden h-1.5 w-20 overflow-hidden rounded-full bg-secondary min-[900px]:block">
+                          <div
+                            className={cn(
+                              "h-full rounded-full transition-all duration-500",
+                              marginMeta.barClassName,
+                            )}
+                            style={{ width: `${marginWidth}%` }}
+                          />
+                        </div>
                       </div>
                     </TableCell>
                   </TableRow>
-                ))
-              )}
+                );
+              })}
             </TableBody>
           </Table>
         </div>
-      </CardContent>
-    </Card>
+      )}
+    </div>
   );
 }

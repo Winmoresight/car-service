@@ -19,13 +19,14 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { outfit } from "@/components/fonts/fonts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   LargeDialog,
@@ -120,6 +121,7 @@ const segmentOptions: Array<{
 ];
 
 export default function CustomersPage() {
+  const [searchInput, setSearchInput] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(0);
   const [filterSegment, setFilterSegment] = useState<CustomerSegment | "all">(
@@ -147,27 +149,38 @@ export default function CustomersPage() {
 
   const apiUrl = `/api/customers?${params.toString()}`;
 
-  const { data, error, isLoading } = useSWR<CustomersApiResponse>(
+  const { data, error, isLoading, isValidating } = useSWR<CustomersApiResponse>(
     apiUrl,
     async (url) => {
       const response = await fetch(url);
       return response.json();
     },
     {
+      keepPreviousData: true,
       refreshInterval: 60000,
     },
   );
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setSearchTerm(searchInput.trim());
+      setPage(0);
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchInput]);
 
   const customers =
     data?.success && data?.data?.customers ? data.data.customers : [];
   const total = data?.success && data?.data?.total ? data.data.total : 0;
   const summary = data?.summary || null;
   const totalPages = Math.ceil(total / limit);
-  const hasActiveFilters = Boolean(searchTerm || filterSegment !== "all");
+  const hasActiveFilters = Boolean(searchInput || filterSegment !== "all");
+  const showInitialLoading = isLoading && !data;
+  const isRefreshing = isValidating && Boolean(data);
 
   const handleSearch = (value: string) => {
-    setSearchTerm(value);
-    setPage(0);
+    setSearchInput(value);
   };
 
   const handleFilterSegment = (segment: CustomerSegment | "all") => {
@@ -176,6 +189,7 @@ export default function CustomersPage() {
   };
 
   const handleClearFilters = () => {
+    setSearchInput("");
     setSearchTerm("");
     setFilterSegment("all");
     setPage(0);
@@ -328,7 +342,7 @@ export default function CustomersPage() {
     return `${daysSinceLastOrder.toLocaleString("th-TH")} วันก่อน`;
   };
 
-  if (isLoading) {
+  if (showInitialLoading) {
     return (
       <div className="p-6 pb-16">
         <div className="flex h-96 items-center justify-center rounded-3xl border bg-card">
@@ -341,7 +355,7 @@ export default function CustomersPage() {
     );
   }
 
-  if (error || (data && !data.success)) {
+  if ((error && !data) || (data && !data.success)) {
     return (
       <div className="p-6 pb-16">
         <DashboardBreadcrumb label="ลูกค้า" href="/customers" />
@@ -424,6 +438,74 @@ export default function CustomersPage() {
           </div>
         </div>
 
+        <Card className="rounded-3xl border bg-card shadow-sm">
+          <CardContent className="pt-2">
+            <div className="flex flex-col gap-3 min-[780px]:flex-row min-[780px]:items-center">
+              <div className="relative flex-1">
+                <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="ค้นหาชื่อ, รหัส, เบอร์โทร, ทะเบียนรถ..."
+                  value={searchInput}
+                  onChange={(event) => handleSearch(event.target.value)}
+                  className="h-11 rounded-2xl pl-10 font-medium"
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {segmentOptions.map((option) => (
+                  <Button
+                    key={option.value}
+                    variant={
+                      filterSegment === option.value ? "default" : "outline"
+                    }
+                    size="sm"
+                    onClick={() => handleFilterSegment(option.value)}
+                    className="h-11 rounded-2xl px-4 font-bold"
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+                {hasActiveFilters && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleClearFilters}
+                    className="h-11 gap-2 rounded-2xl px-4 font-bold"
+                  >
+                    <X className="h-4 w-4" />
+                    ล้างตัวกรอง
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {(hasActiveFilters || isRefreshing) && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm font-medium text-muted-foreground">
+                {hasActiveFilters && <span>ตัวกรองที่เปิดใช้งาน:</span>}
+                {searchInput && (
+                  <Badge variant="secondary" className="font-bold">
+                    ค้นหา: {searchInput}
+                  </Badge>
+                )}
+                {filterSegment !== "all" && (
+                  <Badge variant="secondary" className="font-bold">
+                    กลุ่ม: {getFilterLabel()}
+                  </Badge>
+                )}
+                {isRefreshing && (
+                  <Badge
+                    variant="outline"
+                    className="h-7 rounded-full px-3 text-xs font-bold shadow-none"
+                  >
+                    <Activity className="h-3.5 w-3.5 animate-spin" />
+                    กำลังอัปเดต
+                  </Badge>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <div className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm">
           <div className="mb-4 flex flex-col justify-between gap-4 min-[720px]:flex-row min-[720px]:items-center">
             <div className="flex items-center gap-3">
@@ -451,63 +533,6 @@ export default function CustomersPage() {
                 ทั้งหมด {total.toLocaleString("th-TH")} คน
               </Badge>
             </div>
-          </div>
-
-          <div className="mb-4 flex flex-col gap-3 rounded-2xl border bg-white p-4 dark:bg-card">
-            <div className="flex flex-col gap-3 min-[780px]:flex-row min-[780px]:items-center min-[780px]:justify-between">
-              <div className="relative max-w-xl flex-1">
-                <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="ค้นหาชื่อ, รหัส, เบอร์โทร, ทะเบียนรถ..."
-                  value={searchTerm}
-                  onChange={(event) => handleSearch(event.target.value)}
-                  className="pl-10 font-medium"
-                />
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {segmentOptions.map((option) => (
-                  <Button
-                    key={option.value}
-                    variant={
-                      filterSegment === option.value ? "default" : "outline"
-                    }
-                    size="sm"
-                    onClick={() => handleFilterSegment(option.value)}
-                    className="h-9 font-bold"
-                  >
-                    {option.label}
-                  </Button>
-                ))}
-                {hasActiveFilters && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleClearFilters}
-                    className="h-9 gap-2 font-bold"
-                  >
-                    <X className="h-4 w-4" />
-                    ล้างตัวกรอง
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {hasActiveFilters && (
-              <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-muted-foreground">
-                <span>ตัวกรองที่เปิดใช้งาน:</span>
-                {searchTerm && (
-                  <Badge variant="secondary" className="font-bold">
-                    ค้นหา: {searchTerm}
-                  </Badge>
-                )}
-                {filterSegment !== "all" && (
-                  <Badge variant="secondary" className="font-bold">
-                    กลุ่ม: {getFilterLabel()}
-                  </Badge>
-                )}
-              </div>
-            )}
           </div>
 
           {customers.length === 0 ? (
