@@ -16,8 +16,6 @@ import { useState } from "react";
 import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { KPICard } from "@/components/dashboard/kpi-card";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -29,6 +27,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ApiResponse } from "@/types/api";
+import { outfit } from "@/components/fonts/fonts";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -151,164 +150,192 @@ export default function StockPage() {
           </TabsList>
 
           {/* Summary Tab */}
-          <TabsContent value="summary" className="w-full">
-            <Card>
-              <CardHeader>
-                <CardTitle>สรุปสต็อกสินค้า</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {summaryLoading ? (
-                  <div className="space-y-3">
-                    {[...Array(10)].map((_, index) => (
-                      <Skeleton key={index} className="h-12 w-full" />
-                    ))}
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
+          <TabsContent value="summary" className="w-full mt-0">
+            <div className="rounded-3xl border bg-white p-4">
+              <div className="mb-4 px-2">
+                <h3 className="text-charcoal text-lg font-bold min-[500px]:text-xl">สรุปสต็อกสินค้า</h3>
+              </div>
+              {summaryLoading ? (
+                <div className="space-y-3">
+                  {[...Array(10)].map((_, index) => (
+                    <Skeleton key={index} className="h-12 w-full rounded-xl" />
+                  ))}
+                </div>
+              ) : (
+                <Table className="overflow-hidden rounded-2xl">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-charcoal w-[120px] text-base font-bold min-[500px]:text-lg">บาร์โค้ด</TableHead>
+                      <TableHead className="text-charcoal text-base font-bold min-[500px]:text-lg">ชื่อสินค้า</TableHead>
+                      <TableHead className="text-charcoal text-right text-base font-bold min-[500px]:text-lg">สต็อกปัจจุบัน</TableHead>
+                      <TableHead className="text-charcoal hidden text-right text-base font-bold min-[798px]:table-cell min-[500px]:text-lg">การเคลื่อนไหว</TableHead>
+                      <TableHead className="text-charcoal hidden text-base font-bold min-[1024px]:table-cell min-[500px]:text-lg">อัปเดตล่าสุด</TableHead>
+                      <TableHead className="text-charcoal text-right text-base font-bold min-[500px]:text-lg">สถานะ</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {stockItems.length === 0 ? (
                       <TableRow>
-                        <TableHead>บาร์โค้ด</TableHead>
-                        <TableHead>ชื่อสินค้า</TableHead>
-                        <TableHead className="text-right">
-                          สต็อกปัจจุบัน
-                        </TableHead>
-                        <TableHead className="text-right">
-                          การเคลื่อนไหว
-                        </TableHead>
-                        <TableHead>อัปเดตล่าสุด</TableHead>
-                        <TableHead>สถานะ</TableHead>
+                        <TableCell colSpan={6} className="text-center py-8">
+                          <p className="text-muted-foreground font-medium text-base">ไม่พบข้อมูล</p>
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {stockItems.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={6} className="text-center py-8">
-                            <p className="text-muted-foreground">ไม่พบข้อมูล</p>
+                    ) : (
+                      stockItems.map((item, index) => (
+                        <TableRow key={index}>
+                          <TableCell className={`${outfit.className} text-charcoal font-semibold text-sm min-[500px]:text-base`}>
+                            {item.barCode}
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-charcoal max-w-[120px] truncate text-sm font-semibold min-[400px]:max-w-[150px] min-[500px]:max-w-[200px] min-[500px]:text-base block">
+                              {item.name}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span className={`${outfit.className} text-charcoal text-right text-sm font-semibold min-[500px]:text-base`}>
+                              {item.currentStock}
+                            </span>
+                          </TableCell>
+                          <TableCell className="hidden text-right min-[798px]:table-cell">
+                            <span className={`${outfit.className} text-charcoal/80 text-sm font-medium`}>
+                              {item.movements} ครั้ง
+                            </span>
+                          </TableCell>
+                          <TableCell className="hidden text-sm text-charcoal/80 font-medium min-[1024px]:table-cell">
+                            {formatDate(item.lastUpdate)}
+                          </TableCell>
+                          <TableCell className="text-right align-middle">
+                            {item.currentStock < 5 ? (
+                              <>
+                                <div className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-600/80 p-1 min-[650px]:hidden">
+                                  <AlertCircle size={16} strokeWidth={2.5} className="text-white" />
+                                </div>
+                                <div className="hidden items-center justify-center rounded-full bg-red-100 px-4 py-1 min-[650px]:inline-flex">
+                                  <span className="font-semibold text-red-700">สต็อกต่ำ</span>
+                                </div>
+                              </>
+                            ) : item.currentStock < 20 ? (
+                              <>
+                                <div className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-orange-500/80 p-1 min-[650px]:hidden">
+                                  <AlertCircle size={16} strokeWidth={2.5} className="text-white" />
+                                </div>
+                                <div className="hidden items-center justify-center rounded-full bg-orange-100 px-4 py-1 min-[650px]:inline-flex">
+                                  <span className="font-semibold text-orange-700">ใกล้หมด</span>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-green-600/80 p-1 min-[650px]:hidden">
+                                  <Package size={16} strokeWidth={2.5} className="text-white" />
+                                </div>
+                                <div className="hidden items-center justify-center rounded-full bg-green-100 px-4 py-1 min-[650px]:inline-flex">
+                                  <span className="font-semibold text-green-700">ปกติ</span>
+                                </div>
+                              </>
+                            )}
                           </TableCell>
                         </TableRow>
-                      ) : (
-                        stockItems.map((item, index) => (
-                          <TableRow key={index}>
-                            <TableCell className="font-mono text-sm">
-                              {item.barCode}
-                            </TableCell>
-                            <TableCell className="font-medium">
-                              {item.name}
-                            </TableCell>
-                            <TableCell className="text-right font-bold">
-                              {item.currentStock}
-                            </TableCell>
-                            <TableCell className="text-right text-muted-foreground">
-                              {item.movements} ครั้ง
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {formatDate(item.lastUpdate)}
-                            </TableCell>
-                            <TableCell>
-                              {item.currentStock < 5 ? (
-                                <Badge variant="destructive">สต็อกต่ำ</Badge>
-                              ) : item.currentStock < 20 ? (
-                                <Badge variant="secondary">ใกล้หมด</Badge>
-                              ) : (
-                                <Badge variant="default">ปกติ</Badge>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
           </TabsContent>
 
           {/* Movements Tab */}
-          <TabsContent value="movements" className="w-full">
-            <Card>
-              <CardHeader>
-                <CardTitle>การเคลื่อนไหวสต็อก</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {movementsLoading ? (
-                  <div className="space-y-3">
-                    {[...Array(10)].map((_, index) => (
-                      <Skeleton key={index} className="h-12 w-full" />
-                    ))}
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
+          <TabsContent value="movements" className="w-full mt-0">
+            <div className="rounded-3xl border bg-white p-4">
+              <div className="mb-4 px-2">
+                <h3 className="text-charcoal text-lg font-bold min-[500px]:text-xl">การเคลื่อนไหวสต็อก</h3>
+              </div>
+              {movementsLoading ? (
+                <div className="space-y-3">
+                  {[...Array(10)].map((_, index) => (
+                    <Skeleton key={index} className="h-12 w-full rounded-xl" />
+                  ))}
+                </div>
+              ) : (
+                <Table className="overflow-hidden rounded-2xl">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-charcoal text-base font-bold min-[500px]:text-lg">วันที่</TableHead>
+                      <TableHead className="text-charcoal hidden text-base font-bold min-[1024px]:table-cell min-[500px]:text-lg">บาร์โค้ด</TableHead>
+                      <TableHead className="text-charcoal text-base font-bold min-[500px]:text-lg">ชื่อสินค้า</TableHead>
+                      <TableHead className="text-charcoal hidden text-center text-base font-bold min-[650px]:table-cell min-[500px]:text-lg">ประเภท</TableHead>
+                      <TableHead className="text-charcoal text-right text-base font-bold min-[500px]:text-lg">จำนวน</TableHead>
+                      <TableHead className="text-charcoal hidden text-right text-base font-bold min-[798px]:table-cell min-[500px]:text-lg">คงเหลือ</TableHead>
+                      <TableHead className="text-charcoal hidden text-base font-bold min-[1024px]:table-cell min-[500px]:text-lg">บริษัท</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {movements.length === 0 ? (
                       <TableRow>
-                        <TableHead>วันที่</TableHead>
-                        <TableHead>บาร์โค้ด</TableHead>
-                        <TableHead>ชื่อสินค้า</TableHead>
-                        <TableHead>ประเภท</TableHead>
-                        <TableHead className="text-right">จำนวน</TableHead>
-                        <TableHead className="text-right">
-                          สต็อกคงเหลือ
-                        </TableHead>
-                        <TableHead>บริษัท</TableHead>
+                        <TableCell colSpan={7} className="text-center py-8">
+                          <p className="text-muted-foreground font-medium text-base">ไม่พบข้อมูล</p>
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {movements.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={7} className="text-center py-8">
-                            <p className="text-muted-foreground">ไม่พบข้อมูล</p>
+                    ) : (
+                      movements.map((movement, index) => (
+                        <TableRow key={`${movement.barCode}-${index}`}>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="text-charcoal text-sm font-semibold min-[500px]:text-base">
+                                {formatDate(movement.date).split(' ')[0]}
+                              </span>
+                              <span className="text-charcoal/60 text-xs font-medium">
+                                {formatDate(movement.date).split(' ').slice(1).join(' ')}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden font-mono text-sm min-[1024px]:table-cell text-charcoal/80 font-medium">
+                            {movement.barCode}
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-charcoal max-w-[100px] truncate text-sm font-semibold min-[400px]:max-w-[150px] min-[500px]:max-w-[200px] min-[500px]:text-base block">
+                              {movement.name}
+                            </span>
+                            <div className="mt-1 flex items-center min-[650px]:hidden">
+                               {movement.type === "in" ? (
+                                  <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full">เข้า</span>
+                               ) : (
+                                  <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">ออก</span>
+                               )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden text-center align-middle min-[650px]:table-cell">
+                            {movement.type === "in" ? (
+                              <div className="inline-flex items-center justify-center rounded-full bg-green-100 px-4 py-1">
+                                <span className="font-semibold text-green-700">เข้า</span>
+                              </div>
+                            ) : (
+                              <div className="inline-flex items-center justify-center rounded-full bg-blue-100 px-4 py-1">
+                                <span className="font-semibold text-blue-700">ออก</span>
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span className={`${outfit.className} text-sm font-bold min-[500px]:text-base ${
+                              movement.type === "in" ? "text-green-600" : "text-blue-600"
+                            }`}>
+                              {movement.type === "in" ? "+" : "-"}{movement.quantity}
+                            </span>
+                          </TableCell>
+                          <TableCell className="hidden text-right min-[798px]:table-cell">
+                            <span className={`${outfit.className} text-charcoal text-sm font-semibold min-[500px]:text-base`}>
+                              {movement.stock}
+                            </span>
+                          </TableCell>
+                          <TableCell className="hidden text-sm text-charcoal/80 font-medium min-[1024px]:table-cell">
+                            {movement.company || "-"}
                           </TableCell>
                         </TableRow>
-                      ) : (
-                        movements.map((movement, index) => (
-                          <TableRow key={`${movement.barCode}-${index}`}>
-                            <TableCell className="text-sm">
-                              <div className="flex items-center gap-1">
-                                <Clock className="h-3 w-3 text-muted-foreground" />
-                                {formatDate(movement.date)}
-                              </div>
-                            </TableCell>
-                            <TableCell className="font-mono text-sm">
-                              {movement.barCode}
-                            </TableCell>
-                            <TableCell className="font-medium">
-                              {movement.name}
-                            </TableCell>
-                            <TableCell>
-                              {movement.type === "in" ? (
-                                <Badge
-                                  variant="default"
-                                  className="bg-green-600"
-                                >
-                                  เข้า
-                                </Badge>
-                              ) : (
-                                <Badge variant="secondary">ออก</Badge>
-                              )}
-                            </TableCell>
-                            <TableCell
-                              className={`text-right font-medium ${
-                                movement.type === "in"
-                                  ? "text-green-600"
-                                  : "text-blue-600"
-                              }`}
-                            >
-                              {movement.type === "in" ? "+" : "-"}
-                              {movement.quantity}
-                            </TableCell>
-                            <TableCell className="text-right font-bold">
-                              {movement.stock}
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {movement.company || "-"}
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       </div>
