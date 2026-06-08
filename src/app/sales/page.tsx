@@ -22,7 +22,6 @@ import { outfit } from "@/components/fonts/fonts";
 import { SaleDetailDialog } from "@/components/sales/sale-detail-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -122,6 +121,36 @@ export default function SalesPage() {
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  const formatProfitMargin = (sale: SaleItem) => {
+    if (sale.totalPrice <= 0) {
+      return "0.0%";
+    }
+
+    return `${((sale.totalProfit / sale.totalPrice) * 100).toFixed(1)}%`;
+  };
+
+  const getPaymentMethods = (sale: SaleItem) => {
+    const methods = [];
+
+    if (sale.cash > 0) {
+      methods.push({
+        label: "สด",
+        className:
+          "bg-emerald-50 text-main-green border-emerald-100 dark:bg-emerald-500/10 dark:border-emerald-500/20",
+      });
+    }
+
+    if (sale.transfer > 0) {
+      methods.push({
+        label: "โอน",
+        className:
+          "bg-blue-50 text-main-blue border-blue-100 dark:bg-blue-500/10 dark:border-blue-500/20",
+      });
+    }
+
+    return methods;
   };
 
   const handleSearch = (value: string) => {
@@ -312,185 +341,274 @@ export default function SalesPage() {
         </div>
 
         {/* Sales Table */}
-        <Card className="border-none shadow-sm ring-1 ring-border/50 overflow-hidden">
-          <CardHeader className="bg-muted/5 border-b border-border/40">
-            <CardTitle className="text-xl font-bold tracking-tight">
-              รายการบิลขาย
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {isLoading ? (
-              <div className="p-4 space-y-3">
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((row) => (
-                  <Skeleton key={row} className="h-12 w-full" />
-                ))}
+        <div className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm">
+          <div className="mb-4 flex flex-col justify-between gap-4 min-[720px]:flex-row min-[720px]:items-center">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50 dark:border-blue-500/20 dark:bg-blue-500/10">
+                <FileText className="h-6 w-6 text-main-blue" />
               </div>
-            ) : error || (data && !data.success) ? (
-              <div className="text-center py-12">
-                <p className="text-red-600 font-bold text-lg">
-                  เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง
-                </p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  {error?.message || "Unknown error"}
+              <div className="flex flex-col">
+                <span className="text-xl font-bold text-card-foreground">
+                  รายการบิลขาย
+                </span>
+                <p className="text-sm font-medium text-muted-foreground">
+                  คลิกที่บิลเพื่อดูรายละเอียดสินค้าและการชำระเงิน
                 </p>
               </div>
-            ) : (
-              <>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader className="bg-muted/30">
-                      <TableRow className="hover:bg-transparent border-none">
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">
-                          เลขที่บิล
-                        </TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">
-                          วันที่
-                        </TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">
-                          ลูกค้า
-                        </TableHead>
-                        <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
-                          รายการ
-                        </TableHead>
-                        <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
-                          ยอดขาย
-                        </TableHead>
-                        <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
-                          กำไร
-                        </TableHead>
-                        <TableHead className="text-center font-bold text-xs uppercase tracking-wider">
-                          การชำระ
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {sales.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={7} className="text-center py-16">
-                            <p className="text-muted-foreground font-medium">
-                              ไม่พบข้อมูลบิลขาย
-                            </p>
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        sales.map((sale) => (
-                          <TableRow
-                            key={sale.id}
-                            className="cursor-pointer hover:bg-muted/20 transition-all duration-200 group border-border/40"
-                            onClick={() => handleViewSale(sale.id)}
-                          >
-                            <TableCell className="font-mono font-bold text-primary group-hover:underline">
-                              {sale.id}
-                            </TableCell>
-                            <TableCell className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                              {formatDate(sale.date)}
-                            </TableCell>
-                            <TableCell>
-                              <div>
-                                <p className="font-bold text-foreground">
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="h-8 rounded-full bg-blue-50 px-4 text-sm font-bold text-main-blue dark:bg-blue-500/10">
+                {sales.length} รายการในหน้านี้
+              </Badge>
+              <Badge
+                variant="outline"
+                className="h-8 rounded-full px-4 text-sm font-bold text-card-foreground"
+              >
+                ทั้งหมด {total.toLocaleString()} บิล
+              </Badge>
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="space-y-3 rounded-2xl border bg-white p-4 dark:bg-card">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((row) => (
+                <Skeleton key={row} className="h-14 w-full rounded-xl" />
+              ))}
+            </div>
+          ) : error || (data && !data.success) ? (
+            <div className="rounded-2xl border border-red-100 bg-red-50/50 px-4 py-12 text-center dark:border-red-500/20 dark:bg-red-500/10">
+              <p className="text-lg font-bold text-main-red">
+                เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง
+              </p>
+              <p className="mt-2 text-sm font-medium text-muted-foreground">
+                {error?.message || "Unknown error"}
+              </p>
+            </div>
+          ) : sales.length === 0 ? (
+            <div className="rounded-2xl border bg-white px-4 py-12 text-center dark:bg-card">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
+                <Search className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-bold text-card-foreground">
+                ไม่พบข้อมูลบิลขาย
+              </h3>
+              <p className="mt-1 text-sm font-medium text-muted-foreground">
+                ลองปรับคำค้นหาหรือช่วงวันที่ใหม่อีกครั้ง
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="overflow-hidden rounded-2xl border bg-white dark:bg-card">
+                <Table>
+                  <TableHeader className="bg-secondary/70">
+                    <TableRow className="border-border/60 hover:bg-transparent">
+                      <TableHead className="w-[42%] px-4 text-base font-bold text-card-foreground min-[500px]:text-lg">
+                        บิล/ลูกค้า
+                      </TableHead>
+                      <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[760px]:table-cell">
+                        วันที่
+                      </TableHead>
+                      <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[620px]:table-cell">
+                        รายการ
+                      </TableHead>
+                      <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
+                        ยอดขาย
+                      </TableHead>
+                      <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[700px]:table-cell">
+                        กำไร
+                      </TableHead>
+                      <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
+                        การชำระ
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sales.map((sale, index) => {
+                      const paymentMethods = getPaymentMethods(sale);
+
+                      return (
+                        <TableRow
+                          key={sale.id}
+                          className="group cursor-pointer border-border/60 transition-colors duration-200 hover:bg-blue-50/30 dark:hover:bg-blue-500/5"
+                          onClick={() => handleViewSale(sale.id)}
+                        >
+                          <TableCell className="px-4 py-4 font-medium">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-sm font-bold text-main-blue select-none dark:border-blue-500/20 dark:bg-blue-500/10 min-[550px]:h-12 min-[550px]:w-12">
+                                {page * limit + index + 1}
+                              </div>
+                              <div className="flex min-w-0 flex-col">
+                                <span
+                                  className={cn(
+                                    outfit.className,
+                                    "max-w-[120px] truncate text-sm font-bold text-card-foreground transition-colors group-hover:text-main-blue min-[420px]:max-w-[180px] min-[550px]:max-w-[260px] min-[550px]:text-base min-[1100px]:max-w-[420px]",
+                                  )}
+                                >
+                                  {sale.id}
+                                </span>
+                                <p className="max-w-[120px] truncate text-sm font-semibold text-muted-foreground min-[420px]:max-w-[180px] min-[550px]:max-w-[260px] min-[1100px]:max-w-[420px]">
                                   {sale.customerName}
                                 </p>
-                                {sale.customerPhone && (
-                                  <p className="text-[10px] text-muted-foreground font-medium">
-                                    {sale.customerPhone}
-                                  </p>
-                                )}
+                                <p className="hidden text-xs font-medium text-muted-foreground min-[560px]:block min-[760px]:hidden">
+                                  {formatDate(sale.date)}
+                                </p>
                               </div>
-                            </TableCell>
-                            <TableCell className="text-right font-bold text-muted-foreground">
-                              {sale.itemCount}
-                            </TableCell>
-                            <TableCell className="text-right font-bold text-foreground">
-                              {formatCurrency(sale.totalPrice)}
-                            </TableCell>
-                            <TableCell className="text-right">
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="hidden text-right align-middle min-[760px]:table-cell">
+                            <div className="flex flex-col items-end">
+                              <span className="text-sm font-semibold text-card-foreground">
+                                {formatDate(sale.date)}
+                              </span>
+                              <span className="text-xs font-medium text-muted-foreground">
+                                คลิกเพื่อดูรายละเอียด
+                              </span>
+                            </div>
+                          </TableCell>
+
+                          <TableCell
+                            className={cn(
+                              outfit.className,
+                              "hidden text-right font-semibold text-muted-foreground min-[620px]:table-cell",
+                            )}
+                          >
+                            {sale.itemCount}
+                          </TableCell>
+
+                          <TableCell className="text-right align-middle">
+                            <div className="flex flex-col items-end">
                               <span
                                 className={cn(
+                                  outfit.className,
+                                  "text-sm font-bold text-card-foreground min-[500px]:text-base",
+                                )}
+                              >
+                                {formatCurrency(sale.totalPrice)}
+                              </span>
+                              <span
+                                className={cn(
+                                  "text-xs font-semibold min-[700px]:hidden",
+                                  sale.totalProfit >= 0
+                                    ? "text-main-green"
+                                    : "text-main-red",
+                                )}
+                              >
+                                กำไร {formatCurrency(sale.totalProfit)}
+                              </span>
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="hidden text-right align-middle min-[700px]:table-cell">
+                            <div className="flex flex-col items-end gap-1">
+                              <span
+                                className={cn(
+                                  outfit.className,
                                   "font-bold",
                                   sale.totalProfit >= 0
-                                    ? "text-emerald-600"
-                                    : "text-destructive",
+                                    ? "text-main-green"
+                                    : "text-main-red",
                                 )}
                               >
                                 {formatCurrency(sale.totalProfit)}
                               </span>
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <div className="flex gap-1.5 justify-center">
-                                {sale.cash > 0 && (
+                              <span className="text-xs font-semibold text-muted-foreground">
+                                {formatProfitMargin(sale)} margin
+                              </span>
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="text-right align-middle">
+                            <div className="flex flex-col items-end gap-1">
+                              <div className="flex flex-wrap justify-end gap-1.5">
+                                {paymentMethods.length > 0 ? (
+                                  paymentMethods.map((method) => (
+                                    <Badge
+                                      key={method.label}
+                                      variant="outline"
+                                      className={cn(
+                                        "h-7 rounded-full px-3 text-xs font-bold shadow-none",
+                                        method.className,
+                                      )}
+                                    >
+                                      {method.label}
+                                    </Badge>
+                                  ))
+                                ) : (
                                   <Badge
                                     variant="outline"
-                                    className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold shadow-none"
+                                    className="h-7 rounded-full px-3 text-xs font-bold text-muted-foreground shadow-none"
                                   >
-                                    สด
-                                  </Badge>
-                                )}
-                                {sale.transfer > 0 && (
-                                  <Badge
-                                    variant="outline"
-                                    className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] font-bold shadow-none"
-                                  >
-                                    โอน
+                                    ไม่ระบุ
                                   </Badge>
                                 )}
                               </div>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
+                              <span className="hidden text-xs font-semibold text-muted-foreground min-[900px]:block">
+                                {sale.itemCount} รายการ
+                              </span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
 
-                {/* Pagination */}
-                {totalPages > 1 && (
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-muted/5 border-t border-border/40">
-                    <p className="text-sm text-muted-foreground font-medium">
-                      แสดง{" "}
-                      <span className="text-foreground font-bold">
-                        {page * limit + 1}
-                      </span>
-                      -
-                      <span className="text-foreground font-bold">
-                        {Math.min((page + 1) * limit, total)}
-                      </span>{" "}
-                      จาก{" "}
-                      <span className="text-foreground font-bold">
-                        {total.toLocaleString()}
-                      </span>{" "}
-                      บิล
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setPage(Math.max(0, page - 1))}
-                        disabled={page === 0}
-                        className="font-bold h-8"
-                      >
-                        ← ก่อนหน้า
-                      </Button>
-                      <div className="flex items-center gap-1 px-4 text-sm font-bold">
-                        Page {page + 1} of {totalPages}
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          setPage(Math.min(totalPages - 1, page + 1))
-                        }
-                        disabled={page >= totalPages - 1}
-                        className="font-bold h-8"
-                      >
-                        ถัดไป →
-                      </Button>
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="mt-4 flex flex-col items-center justify-between gap-4 rounded-2xl border bg-white p-4 dark:bg-card sm:flex-row">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    แสดง{" "}
+                    <span className="font-bold text-card-foreground">
+                      {page * limit + 1}
+                    </span>
+                    -
+                    <span className="font-bold text-card-foreground">
+                      {Math.min((page + 1) * limit, total)}
+                    </span>{" "}
+                    จาก{" "}
+                    <span className="font-bold text-card-foreground">
+                      {total.toLocaleString()}
+                    </span>{" "}
+                    บิล
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage(Math.max(0, page - 1))}
+                      disabled={page === 0}
+                      className="h-8 font-bold"
+                    >
+                      ก่อนหน้า
+                    </Button>
+                    <div
+                      className={cn(
+                        outfit.className,
+                        "flex h-8 items-center rounded-full bg-secondary px-4 text-sm font-bold text-card-foreground",
+                      )}
+                    >
+                      {page + 1} / {totalPages}
                     </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setPage(Math.min(totalPages - 1, page + 1))
+                      }
+                      disabled={page >= totalPages - 1}
+                      className="h-8 font-bold"
+                    >
+                      ถัดไป
+                    </Button>
                   </div>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
+                </div>
+              )}
+            </>
+          )}
+        </div>
 
         {/* Sale Detail Dialog */}
         <SaleDetailDialog

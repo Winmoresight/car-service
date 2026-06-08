@@ -46,6 +46,11 @@ export interface LossProduct {
   sales: number;
   profit: number; // จะเป็นค่าลบ
   quantity: number;
+  imageUrl?: string | null;
+  imageURL?: string | null;
+  thumbnailUrl?: string | null;
+  thumbnailURL?: string | null;
+  productImage?: string | null;
 }
 
 // API Response wrapper - Success
