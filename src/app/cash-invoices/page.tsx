@@ -190,7 +190,7 @@ export default function CashInvoicesPage() {
   return (
     <div className="p-6 pb-16">
       <DashboardBreadcrumb label="ใบกำกับเงินสด" href="/cash-invoices" />
-      <hr className="my-4 hidden w-full min-[1025px]:block" />
+      <hr className="my-4 mb-6 hidden w-full min-[1025px]:block" />
 
       <div className="space-y-6">
         <div className="dark:bg-background mt-2 flex w-full flex-col rounded-2xl border bg-white px-4 py-6 pb-4 shadow-sm">
@@ -205,7 +205,8 @@ export default function CashInvoicesPage() {
                   ใบกำกับภาษีเงินสดหน้าร้าน (PSC)
                 </span>
                 <p className="text-foreground hidden font-medium min-[798px]:block">
-                  รายการใบกำกับภาษีเงินสดทั้งหมด ({total.toLocaleString()} รายการ)
+                  รายการใบกำกับภาษีเงินสดทั้งหมด ({total.toLocaleString()}{" "}
+                  รายการ)
                 </p>
               </div>
             </div>

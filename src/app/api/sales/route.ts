@@ -19,6 +19,11 @@ interface SaleItem {
   itemCount: number;
 }
 
+interface SalesSummary {
+  totalSales: number;
+  totalProfit: number;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -45,21 +50,23 @@ export async function GET(request: NextRequest) {
 
     // Build WHERE clause
     const conditions: string[] = [];
-    
+
     if (search) {
-      conditions.push(`(NumberPrintSalePost LIKE @search OR NameCustomer LIKE @search)`);
+      conditions.push(
+        `(NumberPrintSalePost LIKE @search OR NameCustomer LIKE @search)`,
+      );
     }
-    
+
     if (startDate) {
       conditions.push(`CONVERT(date, DateSalePost) >= @startDate`);
     }
-    
+
     if (endDate) {
       conditions.push(`CONVERT(date, DateSalePost) <= @endDate`);
     }
-    
+
     if (conditions.length > 0) {
-      query += ` WHERE ${conditions.join(' AND ')}`;
+      query += ` WHERE ${conditions.join(" AND ")}`;
     }
 
     query += `
@@ -101,27 +108,47 @@ export async function GET(request: NextRequest) {
 
     // Get total count
     let countQuery = `SELECT COUNT(*) as total FROM dbo.MasterSalePost`;
-    
+
     // Build WHERE clause for count query
     const countConditions: string[] = [];
-    
+
     if (search) {
-      countConditions.push(`(NumberPrintSalePost LIKE @search OR NameCustomer LIKE @search)`);
+      countConditions.push(
+        `(NumberPrintSalePost LIKE @search OR NameCustomer LIKE @search)`,
+      );
     }
-    
+
     if (startDate) {
       countConditions.push(`CONVERT(date, DateSalePost) >= @startDate`);
     }
-    
+
     if (endDate) {
       countConditions.push(`CONVERT(date, DateSalePost) <= @endDate`);
     }
-    
+
     if (countConditions.length > 0) {
-      countQuery += ` WHERE ${countConditions.join(' AND ')}`;
+      countQuery += ` WHERE ${countConditions.join(" AND ")}`;
     }
 
     const [countResult] = await executeQuery<{ total: number }>(countQuery, {
+      search: `%${search}%`,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+    });
+
+    // Get sales summary with the same filters as the list above
+    let summaryQuery = `
+      SELECT
+        ISNULL(SUM(m.TotalPrice), 0) as totalSales,
+        ISNULL(SUM(m.TotalProfit), 0) as totalProfit
+      FROM dbo.MasterSalePost m
+    `;
+
+    if (conditions.length > 0) {
+      summaryQuery += ` WHERE ${conditions.join(" AND ")}`;
+    }
+
+    const [summaryResult] = await executeQuery<SalesSummary>(summaryQuery, {
       search: `%${search}%`,
       startDate: startDate || undefined,
       endDate: endDate || undefined,
@@ -132,6 +159,7 @@ export async function GET(request: NextRequest) {
       total: number;
       limit: number;
       offset: number;
+      summary: SalesSummary;
     }> = {
       success: true,
       data: {
@@ -139,6 +167,10 @@ export async function GET(request: NextRequest) {
         total: countResult.total,
         limit,
         offset,
+        summary: {
+          totalSales: summaryResult.totalSales,
+          totalProfit: summaryResult.totalProfit,
+        },
       },
       timestamp: new Date().toISOString(),
     };

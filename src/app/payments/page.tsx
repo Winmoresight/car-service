@@ -103,7 +103,7 @@ export default function PaymentsPage() {
   return (
     <div className="p-6 pb-16">
       <DashboardBreadcrumb label="จ่ายเงิน" href="/payments" />
-      <hr className="my-4 hidden w-full min-[1025px]:block" />
+      <hr className="mt-4 mb-6 hidden w-full min-[1025px]:block" />
 
       <div className="space-y-6">
         <div className="dark:bg-background flex w-full flex-col rounded-2xl border bg-white px-4 py-6 shadow-sm">
@@ -232,7 +232,9 @@ export default function PaymentsPage() {
                         </TableCell>
                         <TableCell className="font-medium">
                           {payment.NameExpensesORIncome || (
-                            <span className="text-muted-foreground">ไม่ระบุ</span>
+                            <span className="text-muted-foreground">
+                              ไม่ระบุ
+                            </span>
                           )}
                         </TableCell>
                         <TableCell>

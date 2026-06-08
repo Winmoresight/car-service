@@ -228,7 +228,7 @@ export default function CustomersPage() {
   return (
     <div className="p-6 pb-16">
       <DashboardBreadcrumb label="ลูกค้า" href="/customers" />
-      <hr className="my-4 hidden w-full min-[1025px]:block" />
+      <hr className="my-4 mb-6 hidden w-full min-[1025px]:block" />
 
       <div className="space-y-6">
         <div className="dark:bg-background flex w-full flex-col rounded-2xl border bg-white px-4 py-6 shadow-sm">
@@ -471,19 +471,25 @@ export default function CustomersPage() {
 
                     <div className="space-y-3">
                       <div className="text-base">
-                        <span className="text-muted-foreground">ยอดซื้อรวม:</span>
+                        <span className="text-muted-foreground">
+                          ยอดซื้อรวม:
+                        </span>
                         <span className="font-bold text-2xl ml-2">
                           {formatCurrency(selectedCustomer.stats.totalSpent)}
                         </span>
                       </div>
                       <div className="text-base">
-                        <span className="text-muted-foreground">จำนวนครั้ง:</span>
+                        <span className="text-muted-foreground">
+                          จำนวนครั้ง:
+                        </span>
                         <span className="font-semibold text-lg ml-2">
                           {selectedCustomer.stats.totalOrders} ครั้ง
                         </span>
                       </div>
                       <div className="text-base">
-                        <span className="text-muted-foreground">เฉลี่ย/ครั้ง:</span>
+                        <span className="text-muted-foreground">
+                          เฉลี่ย/ครั้ง:
+                        </span>
                         <span className="font-semibold text-lg ml-2">
                           {formatCurrency(
                             selectedCustomer.stats.averageOrderValue,
@@ -491,7 +497,9 @@ export default function CustomersPage() {
                         </span>
                       </div>
                       <div className="text-base">
-                        <span className="text-muted-foreground">ซื้อล่าสุด:</span>
+                        <span className="text-muted-foreground">
+                          ซื้อล่าสุด:
+                        </span>
                         <span className="font-semibold text-lg ml-2">
                           {formatDate(selectedCustomer.stats.lastOrderDate)}
                         </span>
@@ -503,14 +511,17 @@ export default function CustomersPage() {
                   <div>
                     <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
                       <Receipt className="h-5 w-5" />
-                      ประวัติการซื้อ ({selectedCustomer.purchases.length} รายการ)
+                      ประวัติการซื้อ ({selectedCustomer.purchases.length}{" "}
+                      รายการ)
                     </h3>
                     <div className="rounded-md border">
                       <Table>
                         <TableHeader>
                           <TableRow>
                             <TableHead className="text-base">วันที่</TableHead>
-                            <TableHead className="text-base">เลขที่บิล</TableHead>
+                            <TableHead className="text-base">
+                              เลขที่บิล
+                            </TableHead>
                             <TableHead className="text-base">
                               ทะเบียนรถ
                             </TableHead>

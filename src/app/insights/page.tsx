@@ -54,7 +54,7 @@ export default function InsightsPage() {
   return (
     <div className="p-6 pb-16">
       <DashboardBreadcrumb label="Insights & Alerts" href="/insights" />
-      <hr className="my-4 hidden w-full min-[1025px]:block" />
+      <hr className="my-4 mb-6 hidden w-full min-[1025px]:block" />
 
       <div className="space-y-6">
         <div className="dark:bg-background flex w-full flex-col rounded-2xl border bg-white px-4 py-6 shadow-sm">
@@ -186,7 +186,9 @@ export default function InsightsPage() {
                 <li className="flex items-center justify-between py-2 border-b">
                   <div>
                     <p className="font-medium">ภาษี</p>
-                    <p className="text-sm text-muted-foreground">ยอดขายสูงสุด</p>
+                    <p className="text-sm text-muted-foreground">
+                      ยอดขายสูงสุด
+                    </p>
                   </div>
                   <div className="text-right">
                     <p className="font-medium text-green-600">+463K</p>
@@ -217,7 +219,9 @@ export default function InsightsPage() {
               <ul className="space-y-3 text-sm">
                 <li className="flex gap-2">
                   <span className="text-blue-600">•</span>
-                  <span>พิจารณาปรับราคาสินค้าที่ขาดทุน หรือหยุดขายชั่วคราว</span>
+                  <span>
+                    พิจารณาปรับราคาสินค้าที่ขาดทุน หรือหยุดขายชั่วคราว
+                  </span>
                 </li>
                 <li className="flex gap-2">
                   <span className="text-blue-600">•</span>

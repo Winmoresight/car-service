@@ -125,7 +125,7 @@ export default function EmployeesPage() {
   return (
     <div className="p-6 pb-16">
       <DashboardBreadcrumb label="พนักงาน" href="/employees" />
-      <hr className="my-4 hidden w-full min-[1025px]:block" />
+      <hr className="my-4 mb-6 hidden w-full min-[1025px]:block" />
 
       <div className="space-y-6">
         <div className="dark:bg-background flex w-full flex-col rounded-2xl border bg-white px-4 py-6 shadow-sm">

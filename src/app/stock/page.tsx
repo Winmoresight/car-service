@@ -88,7 +88,7 @@ export default function StockPage() {
     <div className="p-6 pb-16">
       <DashboardBreadcrumb label="สต็อก" href="/stock" />
 
-      <hr className="my-4 hidden w-full min-[1025px]:block" />
+      <hr className="my-4 mb-6 hidden w-full min-[1025px]:block" />
 
       <div className="space-y-6">
         <div className="dark:bg-background flex w-full flex-col rounded-2xl border bg-white px-4 py-6 shadow-sm">
@@ -140,14 +140,18 @@ export default function StockPage() {
         </div>
 
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="flex w-full flex-col gap-4"
+        >
+          <TabsList className="w-full justify-start">
             <TabsTrigger value="summary">สรุปสต็อก</TabsTrigger>
             <TabsTrigger value="movements">การเคลื่อนไหว</TabsTrigger>
           </TabsList>
 
           {/* Summary Tab */}
-          <TabsContent value="summary">
+          <TabsContent value="summary" className="w-full">
             <Card>
               <CardHeader>
                 <CardTitle>สรุปสต็อกสินค้า</CardTitle>
@@ -165,7 +169,9 @@ export default function StockPage() {
                       <TableRow>
                         <TableHead>บาร์โค้ด</TableHead>
                         <TableHead>ชื่อสินค้า</TableHead>
-                        <TableHead className="text-right">สต็อกปัจจุบัน</TableHead>
+                        <TableHead className="text-right">
+                          สต็อกปัจจุบัน
+                        </TableHead>
                         <TableHead className="text-right">
                           การเคลื่อนไหว
                         </TableHead>
@@ -218,7 +224,7 @@ export default function StockPage() {
           </TabsContent>
 
           {/* Movements Tab */}
-          <TabsContent value="movements">
+          <TabsContent value="movements" className="w-full">
             <Card>
               <CardHeader>
                 <CardTitle>การเคลื่อนไหวสต็อก</CardTitle>
@@ -239,7 +245,9 @@ export default function StockPage() {
                         <TableHead>ชื่อสินค้า</TableHead>
                         <TableHead>ประเภท</TableHead>
                         <TableHead className="text-right">จำนวน</TableHead>
-                        <TableHead className="text-right">สต็อกคงเหลือ</TableHead>
+                        <TableHead className="text-right">
+                          สต็อกคงเหลือ
+                        </TableHead>
                         <TableHead>บริษัท</TableHead>
                       </TableRow>
                     </TableHeader>
