@@ -5,7 +5,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
-import { maskName, maskPhone } from "@/lib/privacy";
+import { maskPhone } from "@/lib/privacy";
 import type { ApiResponse } from "@/types/api";
 
 interface SaleDetail {
@@ -18,7 +18,7 @@ interface SaleDetail {
   cash: number;
   transfer: number;
 
-  // Customer (masked)
+  // Customer
   customer: {
     name: string;
     phone: string;
@@ -111,7 +111,7 @@ export async function GET(
       profit: number;
     }>(itemsQuery, { id });
 
-    // Build response with masked data
+    // Build response with full customer name for internal sale detail view.
     const saleDetail: SaleDetail = {
       id: header.id,
       date: new Date(header.date).toISOString(),
@@ -121,7 +121,7 @@ export async function GET(
       cash: header.cash,
       transfer: header.transfer,
       customer: {
-        name: maskName(header.customerName),
+        name: header.customerName,
         phone: maskPhone(header.customerPhone),
         address: header.customerAddress
           ? `${header.customerAddress.substring(0, 20)}...`
