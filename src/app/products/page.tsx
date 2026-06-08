@@ -11,15 +11,18 @@ import {
   Search,
   TrendingDown,
   TrendingUp,
+  X,
 } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { KPICard } from "@/components/dashboard/kpi-card";
+import { outfit } from "@/components/fonts/fonts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -29,16 +32,23 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import type { ApiResponse, TopProduct } from "@/types/api";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
+type ProductTab = "all" | "top" | "profit" | "low-margin";
+
 export default function ProductsPage() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState("all");
+  const [activeTab, setActiveTab] = useState<ProductTab>("all");
 
   // Fetch top products
-  const { data: topProductsData } = useSWR<ApiResponse<TopProduct[]>>(
+  const {
+    data: topProductsData,
+    error,
+    isLoading,
+  } = useSWR<ApiResponse<TopProduct[]>>(
     "/api/products/top?limit=50&sortBy=sales",
     fetcher,
     { refreshInterval: 60000 },
@@ -54,17 +64,33 @@ export default function ProductsPage() {
       style: "currency",
       currency: "THB",
       minimumFractionDigits: 0,
-    }).format(value);
+    }).format(value || 0);
   };
 
   const formatNumber = (value: number) => {
-    return new Intl.NumberFormat("th-TH").format(value);
+    return new Intl.NumberFormat("th-TH").format(value || 0);
   };
 
   // Filter products
-  const filteredProducts = products.filter((product) =>
+  const searchedProducts = products.filter((product) =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
+
+  const displayedProducts = searchedProducts.filter((product) => {
+    if (activeTab === "top") {
+      return product.sales > 100000;
+    }
+
+    if (activeTab === "profit") {
+      return product.profit > 10000;
+    }
+
+    if (activeTab === "low-margin") {
+      return product.profitMargin < 5;
+    }
+
+    return true;
+  });
 
   // Calculate stats
   const totalProducts = products.length;
@@ -72,24 +98,74 @@ export default function ProductsPage() {
     products.reduce((sum, p) => sum + p.profitMargin, 0) / totalProducts || 0;
   const highMarginCount = products.filter((p) => p.profitMargin >= 10).length;
   const lowMarginCount = products.filter((p) => p.profitMargin < 5).length;
+  const topSalesCount = products.filter((p) => p.sales > 100000).length;
+  const highProfitCount = products.filter((p) => p.profit > 10000).length;
+
+  const getProfitMarginMeta = (margin: number) => {
+    if (margin >= 10) {
+      return {
+        label: "กำไรดี",
+        description: "margin แข็งแรง",
+        className:
+          "border-emerald-100 bg-emerald-50 text-main-green dark:border-emerald-500/20 dark:bg-emerald-500/10",
+        dotClassName: "bg-main-green",
+        barClassName: "bg-main-green",
+        rowClassName: "hover:bg-emerald-50/30 dark:hover:bg-emerald-500/5",
+      };
+    }
+
+    if (margin >= 5) {
+      return {
+        label: "ปกติ",
+        description: "ยังอยู่ในเกณฑ์",
+        className:
+          "border-blue-100 bg-blue-50 text-main-blue dark:border-blue-500/20 dark:bg-blue-500/10",
+        dotClassName: "bg-main-blue",
+        barClassName: "bg-main-blue",
+        rowClassName: "hover:bg-blue-50/30 dark:hover:bg-blue-500/5",
+      };
+    }
+
+    if (margin >= 0) {
+      return {
+        label: "Margin ต่ำ",
+        description: "ควรตรวจราคา",
+        className:
+          "border-orange-100 bg-orange-50 text-main-orange dark:border-orange-500/20 dark:bg-orange-500/10",
+        dotClassName: "bg-main-orange",
+        barClassName: "bg-main-orange",
+        rowClassName: "hover:bg-orange-50/40 dark:hover:bg-orange-500/5",
+      };
+    }
+
+    return {
+      label: "ขาดทุน",
+      description: "ต้องตรวจสอบ",
+      className:
+        "border-red-100 bg-red-50 text-main-red dark:border-red-500/20 dark:bg-red-500/10",
+      dotClassName: "bg-main-red",
+      barClassName: "bg-main-red",
+      rowClassName: "hover:bg-red-50/40 dark:hover:bg-red-500/5",
+    };
+  };
 
   return (
     <div className="p-6 pb-16">
       <DashboardBreadcrumb label="สินค้า" href="/products" />
-      <hr className="my-4 mb-6 hidden w-full min-[1025px]:block" />
+      <hr className="my-4 hidden w-full min-[1025px]:block" />
 
       <div className="space-y-6">
-        <div className="dark:bg-background flex w-full flex-col rounded-2xl border bg-white px-4 py-6 shadow-sm">
-          <div className="flex flex-col justify-between gap-6 min-[798px]:flex-row min-[798px]:items-center mb-6">
+        <div className="dark:bg-background mt-2 flex w-full flex-col rounded-2xl border bg-white px-4 py-6 pb-4 shadow-sm md:mt-6">
+          <div className="mb-6 flex flex-col justify-between gap-6 min-[798px]:flex-row min-[798px]:items-center">
             <div className="flex items-center gap-3">
-              <div className="bg-background dark:bg-secondary flex min-h-12 min-w-12 items-center justify-center rounded-[8px] border min-[798px]:h-14 min-[798px]:w-14">
-                <Package className="text-primary" />
+              <div className="bg-background dark:bg-secondary flex h-12 w-12 items-center justify-center rounded-[8px] border min-[798px]:h-14 min-[798px]:w-14">
+                <Package className="h-6 w-6 text-primary" />
               </div>
               <div className="flex flex-col">
                 <span className="text-primary text-2xl font-bold tracking-tight">
                   สินค้า
                 </span>
-                <p className="text-foreground font-medium">
+                <p className="text-foreground hidden font-medium min-[798px]:block">
                   จัดการและติดตามสินค้าทั้งหมด
                 </p>
               </div>
@@ -97,7 +173,7 @@ export default function ProductsPage() {
           </div>
 
           {/* Summary Cards */}
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 min-[600px]:grid-cols-2 min-[1100px]:grid-cols-4">
             <KPICard
               title="สินค้าทั้งหมด"
               value={totalProducts}
@@ -129,119 +205,309 @@ export default function ProductsPage() {
         </div>
 
         {/* Filters & Search */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Card className="rounded-3xl border bg-card shadow-sm">
+          <CardContent className="pt-2">
+            <div className="flex flex-col gap-3 min-[760px]:flex-row min-[760px]:items-center">
+              <div className="relative flex-1">
+                <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="ค้นหาชื่อสินค้า..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  className="h-11 rounded-2xl pl-10 font-medium"
                 />
               </div>
+
+              {searchTerm ? (
+                <Button
+                  variant="outline"
+                  className="h-11 gap-2 rounded-2xl font-bold"
+                  onClick={() => setSearchTerm("")}
+                >
+                  <X className="h-4 w-4" />
+                  ล้างคำค้นหา
+                </Button>
+              ) : null}
             </div>
           </CardContent>
         </Card>
 
         {/* Products Table with Tabs */}
-        <Card>
-          <CardHeader>
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList>
-                <TabsTrigger value="all">ทั้งหมด</TabsTrigger>
-                <TabsTrigger value="top">ขายดี</TabsTrigger>
-                <TabsTrigger value="profit">กำไรสูง</TabsTrigger>
-                <TabsTrigger value="low-margin">Margin ต่ำ</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[40px]">#</TableHead>
-                  <TableHead>สินค้า</TableHead>
-                  <TableHead className="text-right">ยอดขาย</TableHead>
-                  <TableHead className="text-right">กำไร</TableHead>
-                  <TableHead className="text-right">จำนวน</TableHead>
-                  <TableHead className="text-right">% กำไร</TableHead>
-                  <TableHead className="text-right">สถานะ</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredProducts.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
-                      <p className="text-muted-foreground">ไม่พบข้อมูล</p>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredProducts
-                    .filter((product) => {
-                      if (activeTab === "top") return product.sales > 100000;
-                      if (activeTab === "profit") return product.profit > 10000;
-                      if (activeTab === "low-margin")
-                        return product.profitMargin < 5;
-                      return true;
-                    })
-                    .map((product, index) => (
-                      <TableRow key={`${product.name}-${index}`}>
-                        <TableCell className="font-medium">
-                          {index + 1}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {product.name}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(product.sales)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <span
-                            className={
-                              product.profit >= 0
-                                ? "text-green-600"
-                                : "text-red-600"
-                            }
-                          >
-                            {formatCurrency(product.profit)}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatNumber(product.quantity)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Badge
-                            variant={
-                              product.profitMargin >= 10
-                                ? "default"
-                                : product.profitMargin >= 5
-                                  ? "secondary"
-                                  : "destructive"
-                            }
-                          >
-                            {product.profitMargin.toFixed(1)}%
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Badge
-                            variant={
-                              product.profitMargin >= 10
-                                ? "default"
-                                : "secondary"
-                            }
-                          >
-                            {product.profitMargin >= 10 ? "ดีมาก" : "ปกติ"}
-                          </Badge>
-                        </TableCell>
+        <div className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm">
+          <div className="mb-4 flex flex-col justify-between gap-4 min-[720px]:flex-row min-[720px]:items-center">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50 dark:border-blue-500/20 dark:bg-blue-500/10">
+                <Package className="h-6 w-6 text-main-blue" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xl font-bold text-card-foreground">
+                  รายการสินค้า
+                </span>
+                <p className="text-sm font-medium text-muted-foreground">
+                  เรียงจากยอดขายสูงสุด พร้อมดู margin และกำไรของสินค้า
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="h-8 rounded-full bg-blue-50 px-4 text-sm font-bold text-main-blue dark:bg-blue-500/10">
+                {formatNumber(displayedProducts.length)} รายการ
+              </Badge>
+              <Badge
+                variant="outline"
+                className="h-8 rounded-full px-4 text-sm font-bold text-card-foreground shadow-none"
+              >
+                จากทั้งหมด {formatNumber(totalProducts)}
+              </Badge>
+            </div>
+          </div>
+
+          <Tabs
+            value={activeTab}
+            onValueChange={(value) => setActiveTab(value as ProductTab)}
+            className="flex w-full flex-col gap-4"
+          >
+            <TabsList className="h-auto w-full justify-start rounded-2xl border bg-white p-1 shadow-sm min-[720px]:w-fit dark:bg-card">
+              <TabsTrigger
+                value="all"
+                className="rounded-xl px-4 py-2 font-bold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              >
+                ทั้งหมด
+              </TabsTrigger>
+              <TabsTrigger
+                value="top"
+                className="rounded-xl px-4 py-2 font-bold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              >
+                ขายดี
+              </TabsTrigger>
+              <TabsTrigger
+                value="profit"
+                className="rounded-xl px-4 py-2 font-bold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              >
+                กำไรสูง
+              </TabsTrigger>
+              <TabsTrigger
+                value="low-margin"
+                className="rounded-xl px-4 py-2 font-bold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              >
+                Margin ต่ำ
+              </TabsTrigger>
+            </TabsList>
+
+            <div className="flex flex-wrap gap-2">
+              <Badge
+                variant="outline"
+                className="h-7 rounded-full border-blue-100 bg-blue-50 px-3 text-xs font-bold text-main-blue shadow-none dark:border-blue-500/20 dark:bg-blue-500/10"
+              >
+                ขายดี {formatNumber(topSalesCount)}
+              </Badge>
+              <Badge
+                variant="outline"
+                className="h-7 rounded-full border-emerald-100 bg-emerald-50 px-3 text-xs font-bold text-main-green shadow-none dark:border-emerald-500/20 dark:bg-emerald-500/10"
+              >
+                กำไรสูง {formatNumber(highProfitCount)}
+              </Badge>
+              <Badge
+                variant="outline"
+                className="h-7 rounded-full border-orange-100 bg-orange-50 px-3 text-xs font-bold text-main-orange shadow-none dark:border-orange-500/20 dark:bg-orange-500/10"
+              >
+                Margin ต่ำ {formatNumber(lowMarginCount)}
+              </Badge>
+            </div>
+
+            <TabsContent value={activeTab} className="mt-0">
+              {isLoading ? (
+                <div className="space-y-3 rounded-2xl border bg-white p-4 dark:bg-card">
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((row) => (
+                    <Skeleton key={row} className="h-14 w-full rounded-xl" />
+                  ))}
+                </div>
+              ) : error || (topProductsData && !topProductsData.success) ? (
+                <div className="rounded-2xl border border-red-100 bg-red-50/50 px-4 py-12 text-center dark:border-red-500/20 dark:bg-red-500/10">
+                  <p className="text-lg font-bold text-main-red">
+                    เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง
+                  </p>
+                  <p className="mt-2 text-sm font-medium text-muted-foreground">
+                    {error?.message || "Unknown error"}
+                  </p>
+                </div>
+              ) : displayedProducts.length === 0 ? (
+                <div className="rounded-2xl border bg-white px-4 py-12 text-center dark:bg-card">
+                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
+                    <Package className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-lg font-bold text-card-foreground">
+                    ไม่พบข้อมูลสินค้า
+                  </h3>
+                  <p className="mt-1 text-sm font-medium text-muted-foreground">
+                    ลองเปลี่ยนคำค้นหาหรือแท็บตัวกรองใหม่อีกครั้ง
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-2xl border bg-white dark:bg-card">
+                  <Table>
+                    <TableHeader className="bg-secondary/70">
+                      <TableRow className="border-border/60 hover:bg-transparent">
+                        <TableHead className="w-[38%] px-4 text-base font-bold text-card-foreground min-[500px]:text-lg">
+                          สินค้า
+                        </TableHead>
+                        <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
+                          ยอดขาย
+                        </TableHead>
+                        <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[760px]:table-cell">
+                          กำไร
+                        </TableHead>
+                        <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[620px]:table-cell">
+                          จำนวน
+                        </TableHead>
+                        <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
+                          Margin
+                        </TableHead>
+                        <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[900px]:table-cell">
+                          สถานะ
+                        </TableHead>
                       </TableRow>
-                    ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {displayedProducts.map((product, index) => {
+                        const marginMeta = getProfitMarginMeta(
+                          product.profitMargin,
+                        );
+                        const marginWidth = Math.max(
+                          6,
+                          Math.min(Math.abs(product.profitMargin) * 4, 100),
+                        );
+
+                        return (
+                          <TableRow
+                            key={`${product.name}-${index}`}
+                            className={cn(
+                              "group border-border/60 transition-colors duration-200",
+                              marginMeta.rowClassName,
+                            )}
+                          >
+                            <TableCell className="px-4 py-4 font-medium">
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className={cn(
+                                    outfit.className,
+                                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-sm font-bold text-main-blue select-none min-[550px]:h-12 min-[550px]:w-12 dark:border-blue-500/20 dark:bg-blue-500/10",
+                                  )}
+                                >
+                                  {index + 1}
+                                </div>
+                                <div className="flex min-w-0 flex-col">
+                                  <span className="max-w-[150px] truncate text-base font-bold text-card-foreground transition-colors group-hover:text-main-blue min-[420px]:max-w-[220px] min-[550px]:max-w-[330px] min-[1180px]:max-w-[520px]">
+                                    {product.name || "ไม่ระบุสินค้า"}
+                                  </span>
+                                  <span className="text-xs font-semibold text-muted-foreground min-[620px]:hidden">
+                                    {formatNumber(product.quantity)} ชิ้น
+                                  </span>
+                                </div>
+                              </div>
+                            </TableCell>
+
+                            <TableCell className="text-right align-middle">
+                              <div className="flex flex-col items-end gap-1">
+                                <span
+                                  className={cn(
+                                    outfit.className,
+                                    "text-sm font-bold text-card-foreground min-[500px]:text-base",
+                                  )}
+                                >
+                                  {formatCurrency(product.sales)}
+                                </span>
+                                <span
+                                  className={cn(
+                                    "text-xs font-semibold min-[760px]:hidden",
+                                    product.profit >= 0
+                                      ? "text-main-green"
+                                      : "text-main-red",
+                                  )}
+                                >
+                                  กำไร {formatCurrency(product.profit)}
+                                </span>
+                              </div>
+                            </TableCell>
+
+                            <TableCell className="hidden text-right align-middle min-[760px]:table-cell">
+                              <span
+                                className={cn(
+                                  outfit.className,
+                                  "font-bold",
+                                  product.profit >= 0
+                                    ? "text-main-green"
+                                    : "text-main-red",
+                                )}
+                              >
+                                {formatCurrency(product.profit)}
+                              </span>
+                            </TableCell>
+
+                            <TableCell
+                              className={cn(
+                                outfit.className,
+                                "hidden text-right text-sm font-bold text-muted-foreground min-[620px]:table-cell",
+                              )}
+                            >
+                              {formatNumber(product.quantity)}
+                            </TableCell>
+
+                            <TableCell className="text-right align-middle">
+                              <div className="flex flex-col items-end gap-2">
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    "h-7 rounded-full px-3 text-xs font-bold shadow-none",
+                                    marginMeta.className,
+                                  )}
+                                >
+                                  {product.profitMargin.toFixed(1)}%
+                                </Badge>
+                                <div className="hidden h-1.5 w-20 overflow-hidden rounded-full bg-secondary min-[900px]:block">
+                                  <div
+                                    className={cn(
+                                      "h-full rounded-full transition-all duration-500",
+                                      marginMeta.barClassName,
+                                    )}
+                                    style={{ width: `${marginWidth}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </TableCell>
+
+                            <TableCell className="hidden text-right align-middle min-[900px]:table-cell">
+                              <div className="flex flex-col items-end gap-1">
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    "h-7 rounded-full px-3 text-xs font-bold shadow-none",
+                                    marginMeta.className,
+                                  )}
+                                >
+                                  <span
+                                    className={cn(
+                                      "h-2 w-2 rounded-full",
+                                      marginMeta.dotClassName,
+                                    )}
+                                  />
+                                  {marginMeta.label}
+                                </Badge>
+                                <span className="text-xs font-semibold text-muted-foreground">
+                                  {marginMeta.description}
+                                </span>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
     </div>
   );
