@@ -43,26 +43,28 @@ export async function GET(request: NextRequest) {
         ISNULL(NameSave, '') as userName,
         ISNULL(TypeSale, '') as typeSale
       FROM dbo.DetailSalePost
-      WHERE NumberPrintSalePost LIKE 'psc%' OR NumberPrintSalePost LIKE 'PSC%'
+      WHERE (NumberPrintSalePost LIKE 'psc%' OR NumberPrintSalePost LIKE 'PSC%')
     `;
 
     // Build additional WHERE conditions
     const conditions: string[] = [];
-    
+
     if (search) {
-      conditions.push(`(NumberPrintSalePost LIKE @search OR CodeCustomer LIKE @search OR NameProduct LIKE @search)`);
+      conditions.push(
+        `(NumberPrintSalePost LIKE @search OR CodeCustomer LIKE @search OR NameProduct LIKE @search)`,
+      );
     }
-    
+
     if (startDate) {
       conditions.push(`CONVERT(date, DateSalePost) >= @startDate`);
     }
-    
+
     if (endDate) {
       conditions.push(`CONVERT(date, DateSalePost) <= @endDate`);
     }
-    
+
     if (conditions.length > 0) {
-      query += ` AND ${conditions.join(' AND ')}`;
+      query += ` AND ${conditions.join(" AND ")}`;
     }
 
     query += `
@@ -107,25 +109,27 @@ export async function GET(request: NextRequest) {
     let countQuery = `
       SELECT COUNT(*) as total 
       FROM dbo.DetailSalePost
-      WHERE NumberPrintSalePost LIKE 'psc%' OR NumberPrintSalePost LIKE 'PSC%'
+      WHERE (NumberPrintSalePost LIKE 'psc%' OR NumberPrintSalePost LIKE 'PSC%')
     `;
-    
+
     const countConditions: string[] = [];
-    
+
     if (search) {
-      countConditions.push(`(NumberPrintSalePost LIKE @search OR CodeCustomer LIKE @search OR NameProduct LIKE @search)`);
+      countConditions.push(
+        `(NumberPrintSalePost LIKE @search OR CodeCustomer LIKE @search OR NameProduct LIKE @search)`,
+      );
     }
-    
+
     if (startDate) {
       countConditions.push(`CONVERT(date, DateSalePost) >= @startDate`);
     }
-    
+
     if (endDate) {
       countConditions.push(`CONVERT(date, DateSalePost) <= @endDate`);
     }
-    
+
     if (countConditions.length > 0) {
-      countQuery += ` AND ${countConditions.join(' AND ')}`;
+      countQuery += ` AND ${countConditions.join(" AND ")}`;
     }
 
     const [countResult] = await executeQuery<{ total: number }>(countQuery, {
@@ -141,28 +145,30 @@ export async function GET(request: NextRequest) {
         COUNT(DISTINCT NumberPrintSalePost) as totalInvoices,
         SUM(ISNULL(NumProduct, 0)) as totalQuantity
       FROM dbo.DetailSalePost
-      WHERE NumberPrintSalePost LIKE 'psc%' OR NumberPrintSalePost LIKE 'PSC%'
+      WHERE (NumberPrintSalePost LIKE 'psc%' OR NumberPrintSalePost LIKE 'PSC%')
     `;
 
     const summaryConditions: string[] = [];
-    
+
     if (search) {
-      summaryConditions.push(`(NumberPrintSalePost LIKE @search OR CodeCustomer LIKE @search OR NameProduct LIKE @search)`);
+      summaryConditions.push(
+        `(NumberPrintSalePost LIKE @search OR CodeCustomer LIKE @search OR NameProduct LIKE @search)`,
+      );
     }
-    
+
     if (startDate) {
       summaryConditions.push(`CONVERT(date, DateSalePost) >= @startDate`);
     }
-    
+
     if (endDate) {
       summaryConditions.push(`CONVERT(date, DateSalePost) <= @endDate`);
     }
-    
+
     if (summaryConditions.length > 0) {
-      summaryQuery += ` AND ${summaryConditions.join(' AND ')}`;
+      summaryQuery += ` AND ${summaryConditions.join(" AND ")}`;
     }
 
-    const [summaryResult] = await executeQuery<{ 
+    const [summaryResult] = await executeQuery<{
       totalAmount: number;
       totalInvoices: number;
       totalQuantity: number;

@@ -471,134 +471,196 @@ export default function BillEditHistoryPage() {
 
         {/* Alert Analysis */}
         {summary && totalSummary && (
-          <Card className="border-amber-200 bg-amber-50">
-            <CardContent className="pt-6">
-              <div className="space-y-3">
-                <div className="flex gap-3">
-                  <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                  <div className="text-sm text-amber-800 flex-1">
-                    <p className="font-bold text-lg">📊 การวิเคราะห์การแก้ไข</p>
+          <Card className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm">
+            <CardContent className="p-0">
+              <div className="mb-4 flex flex-col justify-between gap-4 min-[720px]:flex-row min-[720px]:items-center">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50 dark:border-blue-500/20 dark:bg-blue-500/10">
+                    <AlertCircle className="h-6 w-6 text-main-blue" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xl font-bold text-card-foreground">
+                      การวิเคราะห์การแก้ไข
+                    </span>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      แยกประเภทการเปลี่ยนแปลง เพื่อดูรูปแบบการแก้ไขบิล
+                    </p>
                   </div>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-2 pl-8">
-                  <div className="bg-white p-3 rounded-lg border border-amber-200">
-                    <p className="text-xs text-amber-700 font-medium">
+                <Badge
+                  variant="outline"
+                  className="h-8 w-fit rounded-full border-blue-100 bg-blue-50 px-4 text-sm font-bold text-main-blue shadow-none dark:border-blue-500/20 dark:bg-blue-500/10"
+                >
+                  {totalSummary.totalEdits.toLocaleString()} รายการ
+                </Badge>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid gap-3 min-[600px]:grid-cols-2 min-[1180px]:grid-cols-4">
+                  <div className="rounded-2xl border bg-white p-4 dark:bg-card">
+                    <p className="text-sm font-semibold text-muted-foreground">
                       แก้ไขเงินสด
                     </p>
-                    <p className="text-2xl font-bold text-amber-900">
+                    <p
+                      className={cn(
+                        outfit.className,
+                        "mt-2 text-2xl font-bold text-card-foreground",
+                      )}
+                    >
                       {totalSummary.totalCashChanges}
                     </p>
-                    <p className="text-[10px] text-amber-600 mt-1">
+                    <Badge
+                      variant="outline"
+                      className="mt-3 h-7 rounded-full border-blue-100 bg-blue-50 px-3 text-xs font-bold text-main-blue shadow-none dark:border-blue-500/20 dark:bg-blue-500/10"
+                    >
                       {(
                         (summary.totalCashChanges / summary.totalEdits) *
                         100
                       ).toFixed(1)}
                       % ของทั้งหมด
-                    </p>
+                    </Badge>
                   </div>
 
-                  <div className="bg-white p-3 rounded-lg border border-amber-200">
-                    <p className="text-xs text-amber-700 font-medium">
+                  <div className="rounded-2xl border bg-white p-4 dark:bg-card">
+                    <p className="text-sm font-semibold text-muted-foreground">
                       แก้ไขเงินโอน
                     </p>
-                    <p className="text-2xl font-bold text-amber-900">
+                    <p
+                      className={cn(
+                        outfit.className,
+                        "mt-2 text-2xl font-bold text-card-foreground",
+                      )}
+                    >
                       {totalSummary.totalTransferChanges}
                     </p>
-                    <p className="text-[10px] text-amber-600 mt-1">
+                    <Badge
+                      variant="outline"
+                      className="mt-3 h-7 rounded-full border-emerald-100 bg-emerald-50 px-3 text-xs font-bold text-main-green shadow-none dark:border-emerald-500/20 dark:bg-emerald-500/10"
+                    >
                       {(
                         (summary.totalTransferChanges / summary.totalEdits) *
                         100
                       ).toFixed(1)}
                       % ของทั้งหมด
-                    </p>
+                    </Badge>
                   </div>
 
-                  <div className="bg-white p-3 rounded-lg border border-amber-200">
-                    <p className="text-xs text-amber-700 font-medium">
+                  <div className="rounded-2xl border bg-white p-4 dark:bg-card">
+                    <p className="text-sm font-semibold text-muted-foreground">
                       แก้ไขธนาคาร
                     </p>
-                    <p className="text-2xl font-bold text-amber-900">
+                    <p
+                      className={cn(
+                        outfit.className,
+                        "mt-2 text-2xl font-bold text-card-foreground",
+                      )}
+                    >
                       {totalSummary.totalBankChanges}
                     </p>
-                    <p className="text-[10px] text-amber-600 mt-1">
+                    <Badge
+                      variant="outline"
+                      className="mt-3 h-7 rounded-full border-orange-100 bg-orange-50 px-3 text-xs font-bold text-main-orange shadow-none dark:border-orange-500/20 dark:bg-orange-500/10"
+                    >
                       {(
                         (summary.totalBankChanges / summary.totalEdits) *
                         100
                       ).toFixed(1)}
                       % ของทั้งหมด
-                    </p>
+                    </Badge>
                   </div>
 
-                  <div className="bg-white p-3 rounded-lg border border-red-200">
-                    <p className="text-xs text-red-700 font-medium">
+                  <div className="rounded-2xl border border-red-100 bg-red-50/40 p-4 dark:border-red-500/20 dark:bg-red-500/10">
+                    <p className="text-sm font-semibold text-main-red">
                       ส่วนต่างรวม (Absolute)
                     </p>
-                    <p className="text-2xl font-bold text-red-900">
+                    <p
+                      className={cn(
+                        outfit.className,
+                        "mt-2 text-2xl font-bold text-main-red",
+                      )}
+                    >
                       {formatCurrency(summary.totalAmountDifference)}
                     </p>
-                    <p className="text-[10px] text-red-600 mt-1">
+                    <p className="mt-3 text-xs font-semibold text-muted-foreground">
                       ผลรวมของส่วนต่างทั้งหมด
                     </p>
                   </div>
                 </div>
 
-                <div className="bg-blue-100 p-3 rounded-lg border border-blue-200 mt-3">
-                  <p className="text-xs text-blue-800 font-medium mb-2">
-                    💡 สรุป:
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 dark:border-blue-500/20 dark:bg-blue-500/10">
+                  <p className="mb-3 text-sm font-bold text-main-blue">
+                    สรุปภาพรวม
                   </p>
-                  <ul className="text-xs text-blue-900 space-y-1 pl-4">
-                    <li className="list-disc">
-                      <strong>{totalSummary.totalAmountChanges}</strong> รายการ
-                      (
-                      {(
-                        (totalSummary.totalAmountChanges /
-                          totalSummary.totalEdits) *
-                        100
-                      ).toFixed(1)}
-                      %) มีการเปลี่ยนแปลงจำนวนเงินจริง
+                  <ul className="space-y-2 text-sm font-medium text-card-foreground">
+                    <li className="flex gap-2">
+                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-main-blue" />
+                      <span>
+                        <strong>{totalSummary.totalAmountChanges}</strong>{" "}
+                        รายการ (
+                        {(
+                          (totalSummary.totalAmountChanges /
+                            totalSummary.totalEdits) *
+                          100
+                        ).toFixed(1)}
+                        %) มีการเปลี่ยนแปลงจำนวนเงินจริง
+                      </span>
                     </li>
-                    <li className="list-disc">
-                      <strong>{totalSummary.totalPaymentMethodChanges}</strong>{" "}
-                      รายการ (
-                      {(
-                        (totalSummary.totalPaymentMethodChanges /
-                          totalSummary.totalEdits) *
-                        100
-                      ).toFixed(1)}
-                      %) เปลี่ยนวิธีการชำระเงิน (สด↔โอน)
+                    <li className="flex gap-2">
+                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-main-blue" />
+                      <span>
+                        <strong>
+                          {totalSummary.totalPaymentMethodChanges}
+                        </strong>{" "}
+                        รายการ (
+                        {(
+                          (totalSummary.totalPaymentMethodChanges /
+                            totalSummary.totalEdits) *
+                          100
+                        ).toFixed(1)}
+                        %) เปลี่ยนวิธีการชำระเงิน (สด↔โอน)
+                      </span>
                     </li>
-                    <li className="list-disc">
-                      <strong>{totalSummary.totalBankAdded}</strong> รายการ (
-                      {(
-                        (totalSummary.totalBankAdded /
-                          totalSummary.totalEdits) *
-                        100
-                      ).toFixed(1)}
-                      %) เพิ่มบัญชีธนาคาร (ไม่มีผลต่อยอดเงิน)
+                    <li className="flex gap-2">
+                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-main-blue" />
+                      <span>
+                        <strong>{totalSummary.totalBankAdded}</strong> รายการ (
+                        {(
+                          (totalSummary.totalBankAdded /
+                            totalSummary.totalEdits) *
+                          100
+                        ).toFixed(1)}
+                        %) เพิ่มบัญชีธนาคาร (ไม่มีผลต่อยอดเงิน)
+                      </span>
                     </li>
-                    <li className="list-disc">
-                      <strong>
-                        {totalSummary.totalBankOnlyChanges -
-                          totalSummary.totalBankAdded}
-                      </strong>{" "}
-                      รายการ (
-                      {(
-                        ((totalSummary.totalBankOnlyChanges -
-                          totalSummary.totalBankAdded) /
-                          totalSummary.totalEdits) *
-                        100
-                      ).toFixed(1)}
-                      %) แก้ไขชื่อธนาคาร
+                    <li className="flex gap-2">
+                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-main-blue" />
+                      <span>
+                        <strong>
+                          {totalSummary.totalBankOnlyChanges -
+                            totalSummary.totalBankAdded}
+                        </strong>{" "}
+                        รายการ (
+                        {(
+                          ((totalSummary.totalBankOnlyChanges -
+                            totalSummary.totalBankAdded) /
+                            totalSummary.totalEdits) *
+                          100
+                        ).toFixed(1)}
+                        %) แก้ไขชื่อธนาคาร
+                      </span>
                     </li>
-                    <li className="list-disc text-gray-600">
-                      <strong>{totalSummary.totalNoChanges}</strong> รายการ (
-                      {(
-                        (totalSummary.totalNoChanges /
-                          totalSummary.totalEdits) *
-                        100
-                      ).toFixed(1)}
-                      %) ไม่มีการเปลี่ยนแปลงเลย (อาจเป็น bug ของระบบเก่า)
+                    <li className="flex gap-2 text-muted-foreground">
+                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground" />
+                      <span>
+                        <strong>{totalSummary.totalNoChanges}</strong> รายการ (
+                        {(
+                          (totalSummary.totalNoChanges /
+                            totalSummary.totalEdits) *
+                          100
+                        ).toFixed(1)}
+                        %) ไม่มีการเปลี่ยนแปลงเลย (อาจเป็น bug ของระบบเก่า)
+                      </span>
                     </li>
                   </ul>
                 </div>
