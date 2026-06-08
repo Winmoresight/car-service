@@ -22,7 +22,6 @@ import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { outfit } from "@/components/fonts/fonts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,6 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import type { ApiResponse } from "@/types/api";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -114,11 +114,21 @@ export default function CashInvoicesPage() {
       style: "currency",
       currency: "THB",
       minimumFractionDigits: 2,
-    }).format(value);
+    }).format(value || 0);
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("th-TH", {
+    if (!dateString) {
+      return "-";
+    }
+
+    const date = new Date(dateString);
+
+    if (Number.isNaN(date.getTime())) {
+      return "-";
+    }
+
+    return date.toLocaleDateString("th-TH", {
       year: "numeric",
       month: "short",
       day: "numeric",
@@ -147,45 +157,58 @@ export default function CashInvoicesPage() {
 
   const getStatusBadge = (typeSale: string) => {
     // TypeSale: '1' = ตรอ, '2' = พรบ, '3' = ภาษี, '4' = บริการ, '25' = อะไหล่
-    const typeMap: Record<string, { label: string; color: string }> = {
-      "1": { label: "ตรอ", color: "bg-blue-100 text-blue-700 border-blue-300" },
+    const typeMap: Record<string, { label: string; className: string }> = {
+      "1": {
+        label: "ตรอ",
+        className:
+          "border-blue-100 bg-blue-50 text-main-blue dark:border-blue-500/20 dark:bg-blue-500/10",
+      },
       "2": {
         label: "พรบ",
-        color: "bg-purple-100 text-purple-700 border-purple-300",
+        className:
+          "border-purple-100 bg-purple-50 text-purple-600 dark:border-purple-500/20 dark:bg-purple-500/10",
       },
       "3": {
         label: "ภาษี",
-        color: "bg-orange-100 text-orange-700 border-orange-300",
+        className:
+          "border-orange-100 bg-orange-50 text-main-orange dark:border-orange-500/20 dark:bg-orange-500/10",
       },
       "4": {
         label: "บริการ",
-        color: "bg-emerald-100 text-emerald-700 border-emerald-300",
+        className:
+          "border-emerald-100 bg-emerald-50 text-main-green dark:border-emerald-500/20 dark:bg-emerald-500/10",
       },
       "25": {
         label: "อะไหล่",
-        color: "bg-cyan-100 text-cyan-700 border-cyan-300",
+        className:
+          "border-cyan-100 bg-cyan-50 text-cyan-700 dark:border-cyan-500/20 dark:bg-cyan-500/10",
       },
     };
 
     const type = typeMap[typeSale];
     if (type) {
-      return <Badge className={type.color}>{type.label}</Badge>;
+      return (
+        <Badge
+          variant="outline"
+          className={cn(
+            "h-7 rounded-full px-3 text-xs font-bold shadow-none",
+            type.className,
+          )}
+        >
+          {type.label}
+        </Badge>
+      );
     }
 
-    return <Badge variant="outline">{typeSale || "-"}</Badge>;
+    return (
+      <Badge
+        variant="outline"
+        className="h-7 rounded-full px-3 text-xs font-bold text-muted-foreground shadow-none"
+      >
+        {typeSale || "-"}
+      </Badge>
+    );
   };
-
-  // Group by invoice number for better display
-  const groupedInvoices = cashInvoices.reduce(
-    (acc, invoice) => {
-      if (!acc[invoice.invoiceNo]) {
-        acc[invoice.invoiceNo] = [];
-      }
-      acc[invoice.invoiceNo].push(invoice);
-      return acc;
-    },
-    {} as Record<string, CashInvoice[]>,
-  );
 
   return (
     <div className="p-6 pb-16">
@@ -205,8 +228,7 @@ export default function CashInvoicesPage() {
                   ใบกำกับภาษีเงินสดหน้าร้าน (PSC)
                 </span>
                 <p className="text-foreground hidden font-medium min-[798px]:block">
-                  รายการใบกำกับภาษีเงินสดทั้งหมด ({total.toLocaleString()}{" "}
-                  รายการ)
+                  รายการใบกำกับภาษีเงินสดทั้งหมด ({total.toLocaleString()} รายการ)
                 </p>
               </div>
             </div>
@@ -365,166 +387,265 @@ export default function CashInvoicesPage() {
         </div>
 
         {/* Cash Invoices Table */}
-        <Card className="border-none shadow-sm ring-1 ring-border/50 overflow-hidden">
-          <CardHeader className="bg-muted/5 border-b border-border/40">
-            <CardTitle className="text-xl font-bold tracking-tight">
-              รายการใบกำกับภาษีเงินสด (PSC)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {isLoading ? (
-              <div className="p-4 space-y-3">
-                {[...Array(10)].map((_, i) => (
-                  <Skeleton key={i} className="h-12 w-full" />
-                ))}
+        <div className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm">
+          <div className="mb-4 flex flex-col justify-between gap-4 min-[720px]:flex-row min-[720px]:items-center">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50 dark:border-blue-500/20 dark:bg-blue-500/10">
+                <FileText className="h-6 w-6 text-main-blue" />
               </div>
-            ) : error || (data && !data.success) ? (
-              <div className="text-center py-12">
-                <p className="text-red-600 font-bold text-lg">
-                  เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง
+              <div className="flex flex-col">
+                <span className="text-xl font-bold text-card-foreground">
+                  รายการใบกำกับภาษีเงินสด (PSC)
+                </span>
+                <p className="text-sm font-medium text-muted-foreground">
+                  เลขที่บิลแสดงเป็นข้อความปกติ เพื่อรองรับรหัส PSC ที่ยาว
                 </p>
               </div>
-            ) : (
-              <>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader className="bg-muted/30">
-                      <TableRow className="hover:bg-transparent border-none">
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">
-                          เลขที่บิล
-                        </TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">
-                          วันที่/เวลา
-                        </TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">
-                          รหัสลูกค้า
-                        </TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">
-                          สินค้า/บริการ
-                        </TableHead>
-                        <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
-                          จำนวน
-                        </TableHead>
-                        <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
-                          ราคา/หน่วย
-                        </TableHead>
-                        <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
-                          ส่วนลด
-                        </TableHead>
-                        <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
-                          ยอดรวม
-                        </TableHead>
-                        <TableHead className="text-center font-bold text-xs uppercase tracking-wider">
-                          ประเภท
-                        </TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">
-                          ผู้บันทึก
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {cashInvoices.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={10} className="text-center py-16">
-                            <p className="text-muted-foreground font-medium">
-                              ไม่พบข้อมูลใบกำกับภาษีเงินสด
-                            </p>
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        cashInvoices.map((invoice, index) => (
-                          <TableRow
-                            key={`${invoice.invoiceNo}-${index}`}
-                            className="hover:bg-muted/20 transition-all duration-200 border-border/40"
-                          >
-                            <TableCell className="font-mono font-bold text-primary">
-                              {invoice.invoiceNo}
-                            </TableCell>
-                            <TableCell className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                              {formatDate(invoice.dateSalePost)}
-                            </TableCell>
-                            <TableCell className="font-medium text-sm">
-                              {invoice.customerCode || "-"}
-                            </TableCell>
-                            <TableCell className="text-sm">
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="h-8 rounded-full bg-blue-50 px-4 text-sm font-bold text-main-blue dark:bg-blue-500/10">
+                {cashInvoices.length} รายการในหน้านี้
+              </Badge>
+              <Badge
+                variant="outline"
+                className="h-8 rounded-full px-4 text-sm font-bold text-card-foreground"
+              >
+                ทั้งหมด {total.toLocaleString()} รายการ
+              </Badge>
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="space-y-3 rounded-2xl border bg-white p-4 dark:bg-card">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((row) => (
+                <Skeleton key={row} className="h-14 w-full rounded-xl" />
+              ))}
+            </div>
+          ) : error || (data && !data.success) ? (
+            <div className="rounded-2xl border border-red-100 bg-red-50/50 px-4 py-12 text-center dark:border-red-500/20 dark:bg-red-500/10">
+              <p className="text-lg font-bold text-main-red">
+                เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง
+              </p>
+              <p className="mt-2 text-sm font-medium text-muted-foreground">
+                {error?.message || "Unknown error"}
+              </p>
+            </div>
+          ) : cashInvoices.length === 0 ? (
+            <div className="rounded-2xl border bg-white px-4 py-12 text-center dark:bg-card">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
+                <Search className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-bold text-card-foreground">
+                ไม่พบข้อมูลใบกำกับภาษีเงินสด
+              </h3>
+              <p className="mt-1 text-sm font-medium text-muted-foreground">
+                ลองปรับคำค้นหาหรือช่วงวันที่ใหม่อีกครั้ง
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="overflow-hidden rounded-2xl border bg-white dark:bg-card">
+                <Table>
+                  <TableHeader className="bg-secondary/70">
+                    <TableRow className="border-border/60 hover:bg-transparent">
+                      <TableHead className="w-[30%] px-4 text-base font-bold text-card-foreground min-[500px]:text-lg">
+                        เลขที่บิล
+                      </TableHead>
+                      <TableHead className="hidden text-base font-bold text-card-foreground min-[640px]:table-cell min-[500px]:text-lg">
+                        สินค้า/บริการ
+                      </TableHead>
+                      <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[760px]:table-cell">
+                        วันที่
+                      </TableHead>
+                      <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[900px]:table-cell">
+                        รหัสลูกค้า
+                      </TableHead>
+                      <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[620px]:table-cell">
+                        จำนวน
+                      </TableHead>
+                      <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[980px]:table-cell">
+                        ราคา/หน่วย
+                      </TableHead>
+                      <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
+                        ยอดรวม
+                      </TableHead>
+                      <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
+                        ประเภท
+                      </TableHead>
+                      <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[1180px]:table-cell">
+                        ผู้บันทึก
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {cashInvoices.map((invoice, index) => (
+                      <TableRow
+                        key={`${invoice.invoiceNo}-${index}`}
+                        className="group border-border/60 transition-colors duration-200 hover:bg-blue-50/30 dark:hover:bg-blue-500/5"
+                      >
+                        <TableCell className="px-4 py-4 font-medium">
+                          <div className="flex min-w-0 flex-col">
+                            <span
+                              className={cn(
+                                outfit.className,
+                                "block max-w-[170px] truncate text-sm font-bold text-card-foreground transition-colors group-hover:text-main-blue min-[420px]:max-w-[240px] min-[550px]:max-w-[320px] min-[550px]:text-base min-[1100px]:max-w-[460px]",
+                              )}
+                            >
+                              {invoice.invoiceNo || "-"}
+                            </span>
+                            <p className="max-w-[170px] truncate text-sm font-semibold text-muted-foreground min-[420px]:max-w-[240px] min-[550px]:max-w-[320px] min-[640px]:hidden">
                               {invoice.productName || "-"}
-                            </TableCell>
-                            <TableCell className="text-right font-bold text-foreground">
-                              {invoice.quantity.toLocaleString()}
-                            </TableCell>
-                            <TableCell className="text-right font-medium text-muted-foreground">
-                              {formatCurrency(invoice.unitPrice)}
-                            </TableCell>
-                            <TableCell className="text-right font-medium text-orange-600">
+                            </p>
+                            <p className="hidden text-xs font-medium text-muted-foreground min-[560px]:block min-[760px]:hidden">
+                              {formatDate(invoice.dateSalePost)}
+                            </p>
+                            <p
+                              className={cn(
+                                outfit.className,
+                                "text-xs font-semibold text-muted-foreground min-[900px]:hidden",
+                              )}
+                            >
+                              ลูกค้า {invoice.customerCode || "-"}
+                            </p>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="hidden align-middle min-[640px]:table-cell">
+                          <div className="flex min-w-0 flex-col">
+                            <span className="max-w-[180px] truncate text-base font-bold text-card-foreground transition-colors group-hover:text-main-blue min-[900px]:max-w-[260px] min-[1200px]:max-w-[380px]">
+                              {invoice.productName || "-"}
+                            </span>
+                            <span
+                              className={cn(
+                                outfit.className,
+                                "text-xs font-semibold text-muted-foreground",
+                              )}
+                            >
+                              ส่วนลด{" "}
                               {invoice.discount > 0
                                 ? formatCurrency(invoice.discount)
                                 : "-"}
-                            </TableCell>
-                            <TableCell className="text-right font-bold text-lg text-foreground">
-                              {formatCurrency(invoice.totalAmount)}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              {getStatusBadge(invoice.typeSale)}
-                            </TableCell>
-                            <TableCell className="text-sm font-medium">
-                              {invoice.userName}
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
+                            </span>
+                          </div>
+                        </TableCell>
 
-                {/* Pagination */}
-                {totalPages > 1 && (
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-muted/5 border-t border-border/40">
-                    <p className="text-sm text-muted-foreground font-medium">
-                      แสดง{" "}
-                      <span className="text-foreground font-bold">
-                        {page * limit + 1}
-                      </span>
-                      -
-                      <span className="text-foreground font-bold">
-                        {Math.min((page + 1) * limit, total)}
-                      </span>{" "}
-                      จาก{" "}
-                      <span className="text-foreground font-bold">
-                        {total.toLocaleString()}
-                      </span>{" "}
-                      รายการ
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setPage(Math.max(0, page - 1))}
-                        disabled={page === 0}
-                        className="font-bold h-8"
-                      >
-                        ← ก่อนหน้า
-                      </Button>
-                      <div className="flex items-center gap-1 px-4 text-sm font-bold">
-                        Page {page + 1} of {totalPages}
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          setPage(Math.min(totalPages - 1, page + 1))
-                        }
-                        disabled={page >= totalPages - 1}
-                        className="font-bold h-8"
-                      >
-                        ถัดไป →
-                      </Button>
+                        <TableCell className="hidden text-right align-middle min-[760px]:table-cell">
+                          <span className="text-sm font-semibold text-card-foreground">
+                            {formatDate(invoice.dateSalePost)}
+                          </span>
+                        </TableCell>
+
+                        <TableCell
+                          className={cn(
+                            outfit.className,
+                            "hidden text-right text-sm font-semibold text-muted-foreground min-[900px]:table-cell",
+                          )}
+                        >
+                          {invoice.customerCode || "-"}
+                        </TableCell>
+
+                        <TableCell
+                          className={cn(
+                            outfit.className,
+                            "hidden text-right text-sm font-bold text-muted-foreground min-[620px]:table-cell",
+                          )}
+                        >
+                          {invoice.quantity.toLocaleString()}
+                        </TableCell>
+
+                        <TableCell
+                          className={cn(
+                            outfit.className,
+                            "hidden text-right text-sm font-semibold text-muted-foreground min-[980px]:table-cell",
+                          )}
+                        >
+                          {formatCurrency(invoice.unitPrice)}
+                        </TableCell>
+
+                        <TableCell className="text-right align-middle">
+                          <div className="flex flex-col items-end gap-1">
+                            <span
+                              className={cn(
+                                outfit.className,
+                                "text-sm font-bold text-card-foreground min-[500px]:text-base",
+                              )}
+                            >
+                              {formatCurrency(invoice.totalAmount)}
+                            </span>
+                            <span className="text-xs font-semibold text-muted-foreground min-[620px]:hidden">
+                              {invoice.quantity.toLocaleString()} ชิ้น
+                            </span>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="text-right align-middle">
+                          {getStatusBadge(invoice.typeSale)}
+                        </TableCell>
+
+                        <TableCell className="hidden text-right align-middle min-[1180px]:table-cell">
+                          <span className="text-sm font-semibold text-card-foreground">
+                            {invoice.userName || "-"}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {totalPages > 1 && (
+                <div className="mt-4 flex flex-col items-center justify-between gap-4 rounded-2xl border bg-white p-4 dark:bg-card sm:flex-row">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    แสดง{" "}
+                    <span className="font-bold text-card-foreground">
+                      {page * limit + 1}
+                    </span>
+                    -
+                    <span className="font-bold text-card-foreground">
+                      {Math.min((page + 1) * limit, total)}
+                    </span>{" "}
+                    จาก{" "}
+                    <span className="font-bold text-card-foreground">
+                      {total.toLocaleString()}
+                    </span>{" "}
+                    รายการ
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage(Math.max(0, page - 1))}
+                      disabled={page === 0}
+                      className="h-8 font-bold"
+                    >
+                      ก่อนหน้า
+                    </Button>
+                    <div
+                      className={cn(
+                        outfit.className,
+                        "flex h-8 items-center rounded-full bg-secondary px-4 text-sm font-bold text-card-foreground",
+                      )}
+                    >
+                      {page + 1} / {totalPages}
                     </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setPage(Math.min(totalPages - 1, page + 1))
+                      }
+                      disabled={page >= totalPages - 1}
+                      className="h-8 font-bold"
+                    >
+                      ถัดไป
+                    </Button>
                   </div>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
