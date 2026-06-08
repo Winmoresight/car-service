@@ -8,11 +8,14 @@
 import { format } from "date-fns";
 import {
   AlertCircle,
+  Banknote,
+  Building2,
+  CreditCard,
   Download,
   Edit,
-  Eye,
   Filter,
   History,
+  type LucideIcon,
   Search,
   TrendingUp,
   X,
@@ -23,9 +26,10 @@ import type { DateRange } from "react-day-picker";
 import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { KPICard } from "@/components/dashboard/kpi-card";
+import { outfit } from "@/components/fonts/fonts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Input } from "@/components/ui/input";
 import {
@@ -161,15 +165,26 @@ export default function BillEditHistoryPage() {
       style: "currency",
       currency: "THB",
       minimumFractionDigits: 0,
-    }).format(value);
+    }).format(value || 0);
   };
 
   const formatDateTime = (dateString: string, timeString: string) => {
-    const date = new Date(dateString).toLocaleDateString("th-TH", {
+    if (!dateString) {
+      return timeString || "-";
+    }
+
+    const parsedDate = new Date(dateString);
+
+    if (Number.isNaN(parsedDate.getTime())) {
+      return timeString || "-";
+    }
+
+    const date = parsedDate.toLocaleDateString("th-TH", {
       year: "numeric",
       month: "short",
       day: "numeric",
     });
+
     return `${date} ${timeString}`;
   };
 
@@ -193,54 +208,66 @@ export default function BillEditHistoryPage() {
   const hasActiveFilters =
     searchTerm || dateRange?.from || dateRange?.to || filterType !== "all";
 
-  const getChangeTypeBadge = (changeType: string) => {
+  const getChangeTypeMeta = (changeType: string) => {
     switch (changeType) {
       case "amount_change":
-        return (
-          <Badge className="bg-red-50 text-red-700 border-red-300 text-[10px]">
-            แก้ไขยอดเงิน
-          </Badge>
-        );
+        return {
+          label: "แก้ไขยอดเงิน",
+          description: "ยอดชำระเปลี่ยน",
+          className:
+            "border-red-100 bg-red-50 text-main-red dark:border-red-500/20 dark:bg-red-500/10",
+        };
       case "payment_method_change":
-        return (
-          <Badge className="bg-orange-50 text-orange-700 border-orange-300 text-[10px]">
-            เปลี่ยนวิธีชำระเงิน
-          </Badge>
-        );
+        return {
+          label: "เปลี่ยนวิธีชำระ",
+          description: "สด/โอนเปลี่ยน",
+          className:
+            "border-orange-100 bg-orange-50 text-main-orange dark:border-orange-500/20 dark:bg-orange-500/10",
+        };
       case "bank_added":
-        return (
-          <Badge
-            variant="outline"
-            className="bg-green-50 text-green-700 border-green-300 text-[10px]"
-          >
-            เพิ่มบัญชีธนาคาร
-          </Badge>
-        );
+        return {
+          label: "เพิ่มธนาคาร",
+          description: "เพิ่มบัญชีรับโอน",
+          className:
+            "border-emerald-100 bg-emerald-50 text-main-green dark:border-emerald-500/20 dark:bg-emerald-500/10",
+        };
       case "bank_change":
-        return (
-          <Badge
-            variant="outline"
-            className="bg-blue-50 text-blue-700 border-blue-300 text-[10px]"
-          >
-            แก้ไขธนาคาร
-          </Badge>
-        );
+        return {
+          label: "แก้ไขธนาคาร",
+          description: "ชื่อธนาคารเปลี่ยน",
+          className:
+            "border-blue-100 bg-blue-50 text-main-blue dark:border-blue-500/20 dark:bg-blue-500/10",
+        };
       case "no_change":
-        return (
-          <Badge
-            variant="outline"
-            className="bg-gray-50 text-gray-500 border-gray-300 text-[10px]"
-          >
-            ไม่มีการเปลี่ยนแปลง
-          </Badge>
-        );
+        return {
+          label: "ไม่เปลี่ยน",
+          description: "ไม่มีผลต่าง",
+          className:
+            "border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-500/20 dark:bg-slate-500/10 dark:text-slate-300",
+        };
       default:
-        return (
-          <Badge variant="outline" className="text-[10px]">
-            อื่นๆ
-          </Badge>
-        );
+        return {
+          label: "อื่นๆ",
+          description: "ไม่ระบุประเภท",
+          className: "text-muted-foreground",
+        };
     }
+  };
+
+  const getChangeTypeBadge = (changeType: string) => {
+    const changeTypeMeta = getChangeTypeMeta(changeType);
+
+    return (
+      <Badge
+        variant="outline"
+        className={cn(
+          "h-7 rounded-full px-3 text-xs font-bold shadow-none",
+          changeTypeMeta.className,
+        )}
+      >
+        {changeTypeMeta.label}
+      </Badge>
+    );
   };
 
   const renderChange = (oldValue: number, newValue: number) => {
@@ -252,21 +279,141 @@ export default function BillEditHistoryPage() {
     const isIncrease = diff > 0;
 
     return (
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground line-through">
+      <div className="flex flex-col items-start gap-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span
+            className={cn(
+              outfit.className,
+              "text-xs font-semibold text-muted-foreground line-through",
+            )}
+          >
             {formatCurrency(oldValue)}
           </span>
           <span className="text-xs text-muted-foreground">→</span>
-          <span className="font-bold">{formatCurrency(newValue)}</span>
+          <span
+            className={cn(
+              outfit.className,
+              "text-sm font-bold text-card-foreground",
+            )}
+          >
+            {formatCurrency(newValue)}
+          </span>
         </div>
         <Badge
-          variant={isIncrease ? "default" : "destructive"}
-          className="text-[10px] w-fit"
+          variant="outline"
+          className={cn(
+            "h-6 w-fit rounded-full px-2 text-[10px] font-bold shadow-none",
+            isIncrease
+              ? "border-emerald-100 bg-emerald-50 text-main-green"
+              : "border-red-100 bg-red-50 text-main-red",
+          )}
         >
           {isIncrease ? "+" : ""}
           {formatCurrency(diff)}
         </Badge>
+      </div>
+    );
+  };
+
+  const renderAmountDetailCard = ({
+    title,
+    icon: Icon,
+    oldValue,
+    newValue,
+    accentClass,
+  }: {
+    title: string;
+    icon: LucideIcon;
+    oldValue: number;
+    newValue: number;
+    accentClass: string;
+  }) => {
+    const diff = newValue - oldValue;
+    const hasChange = oldValue !== newValue;
+
+    return (
+      <div className="rounded-2xl border bg-white p-4 dark:bg-card">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div
+              className={cn(
+                "flex h-11 w-11 items-center justify-center rounded-xl border",
+                accentClass,
+              )}
+            >
+              <Icon className="h-5 w-5" />
+            </div>
+            <div className="flex flex-col">
+              <span className="font-bold text-card-foreground">{title}</span>
+              <span className="text-xs font-medium text-muted-foreground">
+                ก่อนแก้ไข → หลังแก้ไข
+              </span>
+            </div>
+          </div>
+          {hasChange ? (
+            <Badge
+              variant="outline"
+              className="h-7 rounded-full border-red-100 bg-red-50 px-3 text-xs font-bold text-main-red shadow-none"
+            >
+              มีการเปลี่ยนแปลง
+            </Badge>
+          ) : (
+            <Badge
+              variant="outline"
+              className="h-7 rounded-full px-3 text-xs font-bold text-muted-foreground shadow-none"
+            >
+              คงเดิม
+            </Badge>
+          )}
+        </div>
+
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+          <div className="rounded-xl bg-secondary/70 p-3 text-center">
+            <p className="mb-1 text-xs font-medium text-muted-foreground">
+              ก่อนแก้ไข
+            </p>
+            <p
+              className={cn(
+                outfit.className,
+                "text-base font-bold text-card-foreground",
+              )}
+            >
+              {formatCurrency(oldValue)}
+            </p>
+          </div>
+          <span className="text-sm font-bold text-muted-foreground">→</span>
+          <div className="rounded-xl bg-secondary/70 p-3 text-center">
+            <p className="mb-1 text-xs font-medium text-muted-foreground">
+              หลังแก้ไข
+            </p>
+            <p
+              className={cn(
+                outfit.className,
+                "text-base font-bold text-card-foreground",
+              )}
+            >
+              {formatCurrency(newValue)}
+            </p>
+          </div>
+        </div>
+
+        {hasChange ? (
+          <div className="mt-3 flex items-center justify-between rounded-xl border bg-card px-3 py-2">
+            <span className="text-sm font-medium text-muted-foreground">
+              ส่วนต่าง
+            </span>
+            <span
+              className={cn(
+                outfit.className,
+                "text-lg font-bold",
+                diff > 0 ? "text-main-green" : "text-main-red",
+              )}
+            >
+              {diff > 0 && "+"}
+              {formatCurrency(diff)}
+            </span>
+          </div>
+        ) : null}
       </div>
     );
   };
@@ -591,535 +738,499 @@ export default function BillEditHistoryPage() {
         </Card>
 
         {/* Edit History Table */}
-        <Card className="border-none shadow-sm ring-1 ring-border/50 overflow-hidden">
-          <CardHeader className="bg-blue-50 border-b border-blue-100">
-            <CardTitle className="text-xl font-bold tracking-tight text-blue-900">
-              รายการแก้ไขบิล
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {isLoading ? (
-              <div className="p-4 space-y-3">
-                {[...Array(10)].map((_, i) => (
-                  <Skeleton key={i} className="h-16 w-full" />
-                ))}
+        <div className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm">
+          <div className="mb-4 flex flex-col justify-between gap-4 min-[720px]:flex-row min-[720px]:items-center">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50 dark:border-blue-500/20 dark:bg-blue-500/10">
+                <History className="h-6 w-6 text-main-blue" />
               </div>
-            ) : error || (data && !data.success) ? (
-              <div className="text-center py-12">
-                <p className="text-red-600 font-bold text-lg">
-                  เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง
+              <div className="flex flex-col">
+                <span className="text-xl font-bold text-card-foreground">
+                  รายการแก้ไขบิล
+                </span>
+                <p className="text-sm font-medium text-muted-foreground">
+                  คลิกที่รายการเพื่อดูรายละเอียดก่อนและหลังแก้ไข
                 </p>
               </div>
-            ) : (
-              <>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader className="bg-muted/30">
-                      <TableRow className="hover:bg-transparent border-none">
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">
-                          เลขที่บิล
-                        </TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">
-                          วันที่/เวลาแก้ไข
-                        </TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">
-                          เงินสด
-                        </TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">
-                          เงินโอน
-                        </TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">
-                          ธนาคาร
-                        </TableHead>
-                        <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
-                          ส่วนต่าง
-                        </TableHead>
-                        <TableHead className="text-center font-bold text-xs uppercase tracking-wider">
-                          ประเภท
-                        </TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">
-                          ผู้แก้ไข
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {displayedEdits.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={8} className="text-center py-16">
-                            <History className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                            <p className="text-muted-foreground font-medium">
-                              {filterType !== "all"
-                                ? "ไม่พบรายการที่ตรงกับตัวกรอง"
-                                : "ไม่พบประวัติการแก้ไข"}
-                            </p>
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        displayedEdits.map((edit, index) => (
-                          <TableRow
-                            key={`${edit.numberPrint}-${index}`}
-                            className="hover:bg-blue-50/50 transition-all duration-200 border-border/40 cursor-pointer"
-                            onClick={() => setSelectedEdit(edit)}
-                          >
-                            <TableCell className="font-mono font-bold text-blue-600">
-                              {edit.numberPrint}
-                            </TableCell>
-                            <TableCell className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                              {formatDateTime(edit.editDate, edit.editTime)}
-                            </TableCell>
-                            <TableCell>
-                              {renderChange(
-                                edit.changes.cash.old,
-                                edit.changes.cash.new,
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {renderChange(
-                                edit.changes.transfer.old,
-                                edit.changes.transfer.new,
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-col gap-1">
-                                {edit.changes.bank.old ===
-                                edit.changes.bank.new ? (
-                                  <span className="text-sm font-medium">
-                                    {edit.changes.bank.new || "-"}
-                                  </span>
-                                ) : (
-                                  <>
-                                    <span className="text-xs text-muted-foreground line-through">
-                                      {edit.changes.bank.old || "ไม่ระบุ"}
-                                    </span>
-                                    <span className="text-xs">→</span>
-                                    <span className="text-sm font-bold text-foreground">
-                                      {edit.changes.bank.new || "ไม่ระบุ"}
-                                    </span>
-                                  </>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-right">
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="h-8 rounded-full bg-blue-50 px-4 text-sm font-bold text-main-blue dark:bg-blue-500/10">
+                {totalDisplayed} รายการในหน้านี้
+              </Badge>
+              <Badge
+                variant="outline"
+                className="h-8 rounded-full px-4 text-sm font-bold text-card-foreground"
+              >
+                ทั้งหมด {(summary?.totalEdits || 0).toLocaleString()} รายการ
+              </Badge>
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="space-y-3 rounded-2xl border bg-white p-4 dark:bg-card">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((row) => (
+                <Skeleton key={row} className="h-14 w-full rounded-xl" />
+              ))}
+            </div>
+          ) : error || (data && !data.success) ? (
+            <div className="rounded-2xl border border-red-100 bg-red-50/50 px-4 py-12 text-center dark:border-red-500/20 dark:bg-red-500/10">
+              <p className="text-lg font-bold text-main-red">
+                เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง
+              </p>
+              <p className="mt-2 text-sm font-medium text-muted-foreground">
+                {error?.message || "Unknown error"}
+              </p>
+            </div>
+          ) : displayedEdits.length === 0 ? (
+            <div className="rounded-2xl border bg-white px-4 py-12 text-center dark:bg-card">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
+                <History className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-bold text-card-foreground">
+                {filterType !== "all"
+                  ? "ไม่พบรายการที่ตรงกับตัวกรอง"
+                  : "ไม่พบประวัติการแก้ไข"}
+              </h3>
+              <p className="mt-1 text-sm font-medium text-muted-foreground">
+                ลองปรับคำค้นหา ตัวกรอง หรือช่วงวันที่ใหม่อีกครั้ง
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="overflow-hidden rounded-2xl border bg-white dark:bg-card">
+                <Table>
+                  <TableHeader className="bg-secondary/70">
+                    <TableRow className="border-border/60 hover:bg-transparent">
+                      <TableHead className="w-[28%] px-4 text-base font-bold text-card-foreground min-[500px]:text-lg">
+                        เลขที่บิล
+                      </TableHead>
+                      <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[760px]:table-cell">
+                        วันที่แก้ไข
+                      </TableHead>
+                      <TableHead className="hidden text-base font-bold text-card-foreground min-[900px]:table-cell">
+                        เงินสด
+                      </TableHead>
+                      <TableHead className="hidden text-base font-bold text-card-foreground min-[1020px]:table-cell">
+                        เงินโอน
+                      </TableHead>
+                      <TableHead className="hidden text-base font-bold text-card-foreground min-[1180px]:table-cell">
+                        ธนาคาร
+                      </TableHead>
+                      <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
+                        ส่วนต่าง
+                      </TableHead>
+                      <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
+                        ประเภท
+                      </TableHead>
+                      <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[860px]:table-cell">
+                        ผู้แก้ไข
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {displayedEdits.map((edit, index) => {
+                      const changeTypeMeta = getChangeTypeMeta(edit.changeType);
+
+                      return (
+                        <TableRow
+                          key={`${edit.numberPrint}-${index}`}
+                          className="group cursor-pointer border-border/60 transition-colors duration-200 hover:bg-blue-50/30 dark:hover:bg-blue-500/5"
+                          onClick={() => setSelectedEdit(edit)}
+                        >
+                          <TableCell className="px-4 py-4 font-medium">
+                            <div className="flex min-w-0 flex-col">
                               <span
                                 className={cn(
-                                  "font-bold text-lg",
+                                  outfit.className,
+                                  "block max-w-[150px] truncate text-sm font-bold text-card-foreground transition-colors group-hover:text-main-blue min-[420px]:max-w-[220px] min-[550px]:max-w-[300px] min-[550px]:text-base min-[1100px]:max-w-[420px]",
+                                )}
+                              >
+                                {edit.numberPrint || "-"}
+                              </span>
+                              <p className="text-xs font-medium text-muted-foreground min-[760px]:hidden">
+                                {formatDateTime(edit.editDate, edit.editTime)}
+                              </p>
+                              <p className="text-xs font-semibold text-muted-foreground min-[860px]:hidden">
+                                แก้ไขโดย {edit.editedBy || "-"}
+                              </p>
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="hidden text-right align-middle min-[760px]:table-cell">
+                            <span className="text-sm font-semibold text-card-foreground">
+                              {formatDateTime(edit.editDate, edit.editTime)}
+                            </span>
+                          </TableCell>
+
+                          <TableCell className="hidden align-middle min-[900px]:table-cell">
+                            {renderChange(
+                              edit.changes.cash.old,
+                              edit.changes.cash.new,
+                            )}
+                          </TableCell>
+
+                          <TableCell className="hidden align-middle min-[1020px]:table-cell">
+                            {renderChange(
+                              edit.changes.transfer.old,
+                              edit.changes.transfer.new,
+                            )}
+                          </TableCell>
+
+                          <TableCell className="hidden align-middle min-[1180px]:table-cell">
+                            <div className="flex flex-col gap-1">
+                              {edit.changes.bank.old ===
+                              edit.changes.bank.new ? (
+                                <span className="text-sm font-semibold text-card-foreground">
+                                  {edit.changes.bank.new || "-"}
+                                </span>
+                              ) : (
+                                <>
+                                  <span className="text-xs font-medium text-muted-foreground line-through">
+                                    {edit.changes.bank.old || "ไม่ระบุ"}
+                                  </span>
+                                  <span className="text-xs font-bold text-muted-foreground">
+                                    →
+                                  </span>
+                                  <span className="text-sm font-bold text-card-foreground">
+                                    {edit.changes.bank.new || "ไม่ระบุ"}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="text-right align-middle">
+                            <div className="flex flex-col items-end gap-1">
+                              <span
+                                className={cn(
+                                  outfit.className,
+                                  "text-sm font-bold min-[500px]:text-base",
                                   edit.totalChange > 0
-                                    ? "text-emerald-600"
+                                    ? "text-main-green"
                                     : edit.totalChange < 0
-                                      ? "text-red-600"
+                                      ? "text-main-red"
                                       : "text-muted-foreground",
                                 )}
                               >
                                 {edit.totalChange > 0 && "+"}
                                 {formatCurrency(edit.totalChange)}
                               </span>
-                            </TableCell>
-                            <TableCell className="text-center">
+                              <span className="text-xs font-semibold text-muted-foreground min-[900px]:hidden">
+                                สด {formatCurrency(edit.changes.cash.new)}
+                              </span>
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="text-right align-middle">
+                            <div className="flex flex-col items-end gap-1">
                               {getChangeTypeBadge(edit.changeType)}
-                            </TableCell>
-                            <TableCell className="font-medium">
-                              <Badge variant="outline" className="font-medium">
-                                {edit.editedBy}
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        ))
+                              <span className="hidden text-xs font-semibold text-muted-foreground min-[1100px]:block">
+                                {changeTypeMeta.description}
+                              </span>
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="hidden text-right align-middle min-[860px]:table-cell">
+                            <Badge
+                              variant="outline"
+                              className="h-7 rounded-full px-3 text-xs font-bold text-card-foreground shadow-none"
+                            >
+                              {edit.editedBy || "-"}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {totalPages > 1 && (
+                <div className="mt-4 flex flex-col items-center justify-between gap-4 rounded-2xl border bg-white p-4 dark:bg-card sm:flex-row">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    แสดง{" "}
+                    <span className="font-bold text-card-foreground">
+                      {page * limit + 1}
+                    </span>
+                    -
+                    <span className="font-bold text-card-foreground">
+                      {Math.min((page + 1) * limit, summary?.totalEdits || 0)}
+                    </span>{" "}
+                    จาก{" "}
+                    <span className="font-bold text-card-foreground">
+                      {(summary?.totalEdits || 0).toLocaleString()}
+                    </span>{" "}
+                    รายการ
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage(Math.max(0, page - 1))}
+                      disabled={page === 0}
+                      className="h-8 font-bold"
+                    >
+                      ก่อนหน้า
+                    </Button>
+                    <div
+                      className={cn(
+                        outfit.className,
+                        "flex h-8 items-center rounded-full bg-secondary px-4 text-sm font-bold text-card-foreground",
                       )}
-                    </TableBody>
-                  </Table>
+                    >
+                      {page + 1} / {totalPages}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setPage(Math.min(totalPages - 1, page + 1))
+                      }
+                      disabled={page >= totalPages - 1}
+                      className="h-8 font-bold"
+                    >
+                      ถัดไป
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <AnimatePresence>
+          {selectedEdit && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            >
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                onClick={() => setSelectedEdit(null)}
+              />
+
+              <motion.div
+                initial={{ scale: 0.96, opacity: 0, y: 12 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.96, opacity: 0, y: 12 }}
+                className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border bg-card shadow-2xl"
+              >
+                <div className="flex items-start justify-between gap-4 border-b bg-secondary/50 px-6 py-5">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50 dark:border-blue-500/20 dark:bg-blue-500/10">
+                      <History className="h-6 w-6 text-main-blue" />
+                    </div>
+                    <div className="flex min-w-0 flex-col">
+                      <h2 className="text-xl font-bold text-card-foreground">
+                        รายละเอียดการแก้ไข
+                      </h2>
+                      <p
+                        className={cn(
+                          outfit.className,
+                          "truncate text-sm font-semibold text-muted-foreground",
+                        )}
+                      >
+                        บิลเลขที่ {selectedEdit.numberPrint}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEdit(null)}
+                    className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-background hover:text-card-foreground"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
                 </div>
 
-                {/* Detail Popup */}
-                <AnimatePresence>
-                  {selectedEdit && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-                    >
-                      {/* Backdrop */}
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-                        onClick={() => setSelectedEdit(null)}
-                      />
+                <div className="flex-1 overflow-y-auto p-6">
+                  <div className="space-y-6">
+                    <div className="grid gap-4 min-[760px]:grid-cols-[1.2fr_1fr_1fr]">
+                      <div className="rounded-2xl border bg-white p-4 dark:bg-card">
+                        <span className="text-sm font-semibold text-muted-foreground">
+                          วันที่/เวลาแก้ไข
+                        </span>
+                        <p className="mt-2 text-lg font-bold text-card-foreground">
+                          {formatDateTime(
+                            selectedEdit.editDate,
+                            selectedEdit.editTime,
+                          )}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border bg-white p-4 dark:bg-card">
+                        <span className="text-sm font-semibold text-muted-foreground">
+                          ผู้แก้ไข
+                        </span>
+                        <p className="mt-2 text-lg font-bold text-card-foreground">
+                          {selectedEdit.editedBy || "-"}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border bg-white p-4 dark:bg-card">
+                        <span className="text-sm font-semibold text-muted-foreground">
+                          ประเภท
+                        </span>
+                        <div className="mt-2">
+                          {getChangeTypeBadge(selectedEdit.changeType)}
+                        </div>
+                      </div>
+                    </div>
 
-                      {/* Popup Content */}
-                      <motion.div
-                        initial={{ scale: 0.95, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0.95, opacity: 0 }}
-                        className="relative bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden"
-                      >
-                        {/* Header */}
-                        <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 bg-white/20 rounded-lg">
-                              <Eye className="h-5 w-5 text-white" />
+                    <div className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm">
+                      <div className="mb-4 flex items-center gap-3">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50 dark:border-blue-500/20 dark:bg-blue-500/10">
+                          <Edit className="h-6 w-6 text-main-blue" />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-xl font-bold text-card-foreground">
+                            การเปลี่ยนแปลง
+                          </span>
+                          <p className="text-sm font-medium text-muted-foreground">
+                            เปรียบเทียบค่าก่อนและหลังการแก้ไข
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 min-[860px]:grid-cols-2">
+                        {renderAmountDetailCard({
+                          title: "เงินสด",
+                          icon: Banknote,
+                          oldValue: selectedEdit.changes.cash.old,
+                          newValue: selectedEdit.changes.cash.new,
+                          accentClass:
+                            "border-emerald-100 bg-emerald-50 text-main-green dark:border-emerald-500/20 dark:bg-emerald-500/10",
+                        })}
+
+                        {renderAmountDetailCard({
+                          title: "เงินโอน",
+                          icon: CreditCard,
+                          oldValue: selectedEdit.changes.transfer.old,
+                          newValue: selectedEdit.changes.transfer.new,
+                          accentClass:
+                            "border-blue-100 bg-blue-50 text-main-blue dark:border-blue-500/20 dark:bg-blue-500/10",
+                        })}
+
+                        <div className="rounded-2xl border bg-white p-4 dark:bg-card min-[860px]:col-span-2">
+                          <div className="mb-4 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-orange-100 bg-orange-50 text-main-orange dark:border-orange-500/20 dark:bg-orange-500/10">
+                                <Building2 className="h-5 w-5" />
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="font-bold text-card-foreground">
+                                  ธนาคาร
+                                </span>
+                                <span className="text-xs font-medium text-muted-foreground">
+                                  ก่อนแก้ไข → หลังแก้ไข
+                                </span>
+                              </div>
                             </div>
-                            <div>
-                              <h2 className="text-xl font-bold text-white">
-                                รายละเอียดการแก้ไข
-                              </h2>
-                              <p className="text-blue-100 text-sm">
-                                บิลเลขที่ {selectedEdit.numberPrint}
+                            {selectedEdit.changes.bank.old !==
+                            selectedEdit.changes.bank.new ? (
+                              <Badge
+                                variant="outline"
+                                className="h-7 rounded-full border-blue-100 bg-blue-50 px-3 text-xs font-bold text-main-blue shadow-none"
+                              >
+                                มีการเปลี่ยนแปลง
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="h-7 rounded-full px-3 text-xs font-bold text-muted-foreground shadow-none"
+                              >
+                                คงเดิม
+                              </Badge>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                            <div className="rounded-xl bg-secondary/70 p-3 text-center">
+                              <p className="mb-1 text-xs font-medium text-muted-foreground">
+                                ก่อนแก้ไข
+                              </p>
+                              <p className="text-sm font-bold text-card-foreground">
+                                {selectedEdit.changes.bank.old || "ไม่ระบุ"}
+                              </p>
+                            </div>
+                            <span className="text-sm font-bold text-muted-foreground">
+                              →
+                            </span>
+                            <div className="rounded-xl bg-secondary/70 p-3 text-center">
+                              <p className="mb-1 text-xs font-medium text-muted-foreground">
+                                หลังแก้ไข
+                              </p>
+                              <p className="text-sm font-bold text-card-foreground">
+                                {selectedEdit.changes.bank.new || "ไม่ระบุ"}
                               </p>
                             </div>
                           </div>
-                          <button
-                            onClick={() => setSelectedEdit(null)}
-                            className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-                          >
-                            <X className="h-5 w-5 text-white" />
-                          </button>
                         </div>
-
-                        {/* Content */}
-                        <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
-                          <div className="space-y-6">
-                            {/* Info Cards */}
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                                <p className="text-xs text-blue-600 font-medium mb-1">
-                                  วันที่แก้ไข
-                                </p>
-                                <p className="text-lg font-bold text-blue-900">
-                                  {new Date(
-                                    selectedEdit.editDate,
-                                  ).toLocaleDateString("th-TH", {
-                                    year: "numeric",
-                                    month: "long",
-                                    day: "numeric",
-                                  })}
-                                </p>
-                                <p className="text-sm text-blue-700 mt-1">
-                                  เวลา {selectedEdit.editTime}
-                                </p>
-                              </div>
-
-                              <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
-                                <p className="text-xs text-purple-600 font-medium mb-1">
-                                  ผู้แก้ไข
-                                </p>
-                                <p className="text-lg font-bold text-purple-900">
-                                  {selectedEdit.editedBy}
-                                </p>
-                              </div>
-                            </div>
-
-                            {/* Changes Detail */}
-                            <div className="space-y-4">
-                              <h3 className="font-bold text-lg text-gray-900 flex items-center gap-2">
-                                <Edit className="h-5 w-5 text-blue-600" />
-                                การเปลี่ยนแปลง
-                              </h3>
-
-                              {/* Cash Change */}
-                              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                                <div className="flex items-center justify-between mb-3">
-                                  <p className="font-semibold text-gray-700">
-                                    💵 เงินสด
-                                  </p>
-                                  {selectedEdit.changes.cash.old !==
-                                    selectedEdit.changes.cash.new && (
-                                    <Badge
-                                      variant="destructive"
-                                      className="text-xs"
-                                    >
-                                      มีการเปลี่ยนแปลง
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="grid grid-cols-3 gap-4 items-center">
-                                  <div className="text-center">
-                                    <p className="text-xs text-gray-500 mb-1">
-                                      ก่อนแก้ไข
-                                    </p>
-                                    <p className="text-lg font-bold text-gray-900">
-                                      {formatCurrency(
-                                        selectedEdit.changes.cash.old,
-                                      )}
-                                    </p>
-                                  </div>
-                                  <div className="text-center">
-                                    <span className="text-2xl">→</span>
-                                  </div>
-                                  <div className="text-center">
-                                    <p className="text-xs text-gray-500 mb-1">
-                                      หลังแก้ไข
-                                    </p>
-                                    <p className="text-lg font-bold text-blue-600">
-                                      {formatCurrency(
-                                        selectedEdit.changes.cash.new,
-                                      )}
-                                    </p>
-                                  </div>
-                                </div>
-                                {selectedEdit.changes.cash.old !==
-                                  selectedEdit.changes.cash.new && (
-                                  <div className="mt-3 pt-3 border-t border-gray-300">
-                                    <div className="flex items-center justify-between">
-                                      <span className="text-sm text-gray-600">
-                                        ส่วนต่าง:
-                                      </span>
-                                      <span
-                                        className={cn(
-                                          "font-bold text-lg",
-                                          selectedEdit.changes.cash.new -
-                                            selectedEdit.changes.cash.old >
-                                            0
-                                            ? "text-emerald-600"
-                                            : "text-red-600",
-                                        )}
-                                      >
-                                        {selectedEdit.changes.cash.new -
-                                          selectedEdit.changes.cash.old >
-                                          0 && "+"}
-                                        {formatCurrency(
-                                          selectedEdit.changes.cash.new -
-                                            selectedEdit.changes.cash.old,
-                                        )}
-                                      </span>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Transfer Change */}
-                              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                                <div className="flex items-center justify-between mb-3">
-                                  <p className="font-semibold text-gray-700">
-                                    🏦 เงินโอน
-                                  </p>
-                                  {selectedEdit.changes.transfer.old !==
-                                    selectedEdit.changes.transfer.new && (
-                                    <Badge
-                                      variant="destructive"
-                                      className="text-xs"
-                                    >
-                                      มีการเปลี่ยนแปลง
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="grid grid-cols-3 gap-4 items-center">
-                                  <div className="text-center">
-                                    <p className="text-xs text-gray-500 mb-1">
-                                      ก่อนแก้ไข
-                                    </p>
-                                    <p className="text-lg font-bold text-gray-900">
-                                      {formatCurrency(
-                                        selectedEdit.changes.transfer.old,
-                                      )}
-                                    </p>
-                                  </div>
-                                  <div className="text-center">
-                                    <span className="text-2xl">→</span>
-                                  </div>
-                                  <div className="text-center">
-                                    <p className="text-xs text-gray-500 mb-1">
-                                      หลังแก้ไข
-                                    </p>
-                                    <p className="text-lg font-bold text-blue-600">
-                                      {formatCurrency(
-                                        selectedEdit.changes.transfer.new,
-                                      )}
-                                    </p>
-                                  </div>
-                                </div>
-                                {selectedEdit.changes.transfer.old !==
-                                  selectedEdit.changes.transfer.new && (
-                                  <div className="mt-3 pt-3 border-t border-gray-300">
-                                    <div className="flex items-center justify-between">
-                                      <span className="text-sm text-gray-600">
-                                        ส่วนต่าง:
-                                      </span>
-                                      <span
-                                        className={cn(
-                                          "font-bold text-lg",
-                                          selectedEdit.changes.transfer.new -
-                                            selectedEdit.changes.transfer.old >
-                                            0
-                                            ? "text-emerald-600"
-                                            : "text-red-600",
-                                        )}
-                                      >
-                                        {selectedEdit.changes.transfer.new -
-                                          selectedEdit.changes.transfer.old >
-                                          0 && "+"}
-                                        {formatCurrency(
-                                          selectedEdit.changes.transfer.new -
-                                            selectedEdit.changes.transfer.old,
-                                        )}
-                                      </span>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Bank Change */}
-                              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                                <div className="flex items-center justify-between mb-3">
-                                  <p className="font-semibold text-gray-700">
-                                    🏛️ ธนาคาร
-                                  </p>
-                                  {selectedEdit.changes.bank.old !==
-                                    selectedEdit.changes.bank.new && (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-xs bg-blue-50 text-blue-700 border-blue-300"
-                                    >
-                                      มีการเปลี่ยนแปลง
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="grid grid-cols-3 gap-4 items-center">
-                                  <div className="text-center">
-                                    <p className="text-xs text-gray-500 mb-1">
-                                      ก่อนแก้ไข
-                                    </p>
-                                    <p className="text-sm font-bold text-gray-900">
-                                      {selectedEdit.changes.bank.old || "ไม่ระบุ"}
-                                    </p>
-                                  </div>
-                                  <div className="text-center">
-                                    <span className="text-2xl">→</span>
-                                  </div>
-                                  <div className="text-center">
-                                    <p className="text-xs text-gray-500 mb-1">
-                                      หลังแก้ไข
-                                    </p>
-                                    <p className="text-sm font-bold text-blue-600">
-                                      {selectedEdit.changes.bank.new || "ไม่ระบุ"}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Total Change Summary */}
-                            <div
-                              className={cn(
-                                "rounded-xl p-6 border-2",
-                                selectedEdit.totalChange > 0
-                                  ? "bg-emerald-50 border-emerald-300"
-                                  : selectedEdit.totalChange < 0
-                                    ? "bg-red-50 border-red-300"
-                                    : "bg-gray-50 border-gray-300",
-                              )}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <p className="text-sm font-medium text-gray-600 mb-1">
-                                    ส่วนต่างรวมทั้งหมด
-                                  </p>
-                                  <p
-                                    className={cn(
-                                      "text-3xl font-bold",
-                                      selectedEdit.totalChange > 0
-                                        ? "text-emerald-600"
-                                        : selectedEdit.totalChange < 0
-                                          ? "text-red-600"
-                                          : "text-gray-600",
-                                    )}
-                                  >
-                                    {selectedEdit.totalChange > 0 && "+"}
-                                    {formatCurrency(selectedEdit.totalChange)}
-                                  </p>
-                                </div>
-                                <div className="text-right">
-                                  {selectedEdit.totalChange === 0 ? (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-sm"
-                                    >
-                                      ไม่กระทบยอดเงิน
-                                    </Badge>
-                                  ) : selectedEdit.totalChange > 0 ? (
-                                    <Badge className="text-sm bg-emerald-600">
-                                      เพิ่มขึ้น
-                                    </Badge>
-                                  ) : (
-                                    <Badge
-                                      variant="destructive"
-                                      className="text-sm"
-                                    >
-                                      ลดลง
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Footer */}
-                        <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end">
-                          <Button
-                            onClick={() => setSelectedEdit(null)}
-                            variant="outline"
-                            className="gap-2"
-                          >
-                            <X className="h-4 w-4" />
-                            ปิด
-                          </Button>
-                        </div>
-                      </motion.div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {/* Pagination */}
-                {totalPages > 1 && (
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-muted/5 border-t border-border/40">
-                    <p className="text-sm text-muted-foreground font-medium">
-                      แสดง{" "}
-                      <span className="text-foreground font-bold">
-                        {page * limit + 1}
-                      </span>
-                      -
-                      <span className="text-foreground font-bold">
-                        {Math.min((page + 1) * limit, summary?.totalEdits || 0)}
-                      </span>{" "}
-                      จาก{" "}
-                      <span className="text-foreground font-bold">
-                        {summary?.totalEdits.toLocaleString()}
-                      </span>{" "}
-                      รายการ
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setPage(Math.max(0, page - 1))}
-                        disabled={page === 0}
-                        className="font-bold h-8"
-                      >
-                        ← ก่อนหน้า
-                      </Button>
-                      <div className="flex items-center gap-1 px-4 text-sm font-bold">
-                        Page {page + 1} of {totalPages}
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          setPage(Math.min(totalPages - 1, page + 1))
-                        }
-                        disabled={page >= totalPages - 1}
-                        className="font-bold h-8"
-                      >
-                        ถัดไป →
-                      </Button>
+                    </div>
+
+                    <div className="rounded-3xl border bg-card p-4 shadow-sm">
+                      <div className="flex flex-col justify-between gap-4 rounded-2xl border bg-white p-4 dark:bg-card min-[640px]:flex-row min-[640px]:items-center">
+                        <div>
+                          <span className="text-sm font-semibold text-muted-foreground">
+                            ส่วนต่างรวมทั้งหมด
+                          </span>
+                          <p
+                            className={cn(
+                              outfit.className,
+                              "mt-1 text-3xl font-bold",
+                              selectedEdit.totalChange > 0
+                                ? "text-main-green"
+                                : selectedEdit.totalChange < 0
+                                  ? "text-main-red"
+                                  : "text-muted-foreground",
+                            )}
+                          >
+                            {selectedEdit.totalChange > 0 && "+"}
+                            {formatCurrency(selectedEdit.totalChange)}
+                          </p>
+                        </div>
+
+                        {selectedEdit.totalChange === 0 ? (
+                          <Badge
+                            variant="outline"
+                            className="h-8 rounded-full px-4 text-sm font-bold text-muted-foreground shadow-none"
+                          >
+                            ไม่กระทบยอดเงิน
+                          </Badge>
+                        ) : selectedEdit.totalChange > 0 ? (
+                          <Badge className="h-8 rounded-full bg-emerald-50 px-4 text-sm font-bold text-main-green shadow-none">
+                            เพิ่มขึ้น
+                          </Badge>
+                        ) : (
+                          <Badge className="h-8 rounded-full bg-red-50 px-4 text-sm font-bold text-main-red shadow-none">
+                            ลดลง
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
+                </div>
+
+                <div className="flex justify-end border-t bg-secondary/40 px-6 py-4">
+                  <Button
+                    onClick={() => setSelectedEdit(null)}
+                    variant="outline"
+                    className="gap-2 font-bold"
+                  >
+                    <X className="h-4 w-4" />
+                    ปิด
+                  </Button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
