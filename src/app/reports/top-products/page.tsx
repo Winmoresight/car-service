@@ -16,9 +16,10 @@ import { useState } from "react";
 import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { KPICard } from "@/components/dashboard/kpi-card";
+import { outfit } from "@/components/fonts/fonts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -95,45 +96,82 @@ export default function TopProductsReportPage() {
       style: "currency",
       currency: "THB",
       minimumFractionDigits: 0,
-    }).format(value);
+    }).format(value || 0);
   };
 
   const formatNumber = (value: number) => {
-    return new Intl.NumberFormat("th-TH").format(value);
+    return new Intl.NumberFormat("th-TH").format(value || 0);
   };
 
-  const getRankBadge = (rank: number) => {
+  const getRankTone = (rank: number) => {
     if (rank === 1) {
-      return (
-        <Badge className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-white border-0">
-          🥇 อันดับ {rank}
-        </Badge>
-      );
-    } else if (rank === 2) {
-      return (
-        <Badge className="bg-gradient-to-r from-gray-300 to-gray-500 text-white border-0">
-          🥈 อันดับ {rank}
-        </Badge>
-      );
-    } else if (rank === 3) {
-      return (
-        <Badge className="bg-gradient-to-r from-orange-400 to-orange-600 text-white border-0">
-          🥉 อันดับ {rank}
-        </Badge>
-      );
+      return {
+        label: "อันดับ 1",
+        className:
+          "border-amber-100 bg-amber-50 text-main-orange dark:border-amber-500/20 dark:bg-amber-500/10",
+        rowClassName:
+          "hover:bg-amber-50/40 dark:hover:bg-amber-500/5 min-[760px]:bg-amber-50/20",
+      };
     }
-    return (
-      <Badge variant="outline" className="font-bold">
-        อันดับ {rank}
-      </Badge>
-    );
+
+    if (rank === 2) {
+      return {
+        label: "อันดับ 2",
+        className:
+          "border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-500/20 dark:bg-slate-500/10 dark:text-slate-300",
+        rowClassName:
+          "hover:bg-slate-50/60 dark:hover:bg-slate-500/5 min-[760px]:bg-slate-50/30",
+      };
+    }
+
+    if (rank === 3) {
+      return {
+        label: "อันดับ 3",
+        className:
+          "border-orange-100 bg-orange-50 text-main-orange dark:border-orange-500/20 dark:bg-orange-500/10",
+        rowClassName:
+          "hover:bg-orange-50/30 dark:hover:bg-orange-500/5 min-[760px]:bg-orange-50/20",
+      };
+    }
+
+    return {
+      label: `อันดับ ${rank}`,
+      className:
+        "border-blue-100 bg-blue-50 text-main-blue dark:border-blue-500/20 dark:bg-blue-500/10",
+      rowClassName: "hover:bg-blue-50/30 dark:hover:bg-blue-500/5",
+    };
   };
 
-  const getProfitMarginColor = (margin: number) => {
-    if (margin >= 20) return "text-green-600";
-    if (margin >= 10) return "text-emerald-600";
-    if (margin >= 5) return "text-yellow-600";
-    return "text-red-600";
+  const getProfitMarginMeta = (margin: number) => {
+    if (margin >= 20) {
+      return {
+        className:
+          "border-emerald-100 bg-emerald-50 text-main-green dark:border-emerald-500/20 dark:bg-emerald-500/10",
+        barClassName: "bg-main-green",
+      };
+    }
+
+    if (margin >= 10) {
+      return {
+        className:
+          "border-blue-100 bg-blue-50 text-main-blue dark:border-blue-500/20 dark:bg-blue-500/10",
+        barClassName: "bg-main-blue",
+      };
+    }
+
+    if (margin >= 5) {
+      return {
+        className:
+          "border-orange-100 bg-orange-50 text-main-orange dark:border-orange-500/20 dark:bg-orange-500/10",
+        barClassName: "bg-main-orange",
+      };
+    }
+
+    return {
+      className:
+        "border-red-100 bg-red-50 text-main-red dark:border-red-500/20 dark:bg-red-500/10",
+      barClassName: "bg-main-red",
+    };
   };
 
   // สร้าง options สำหรับเดือน
@@ -225,7 +263,7 @@ export default function TopProductsReportPage() {
           <CardContent className="pt-6">
             <div className="flex flex-col md:flex-row gap-4">
               <div className="flex-1">
-                <label className="text-sm font-medium mb-2 block">เดือน</label>
+                <span className="mb-2 block text-sm font-medium">เดือน</span>
                 <Select value={month} onValueChange={setMonth}>
                   <SelectTrigger>
                     <SelectValue />
@@ -241,7 +279,7 @@ export default function TopProductsReportPage() {
               </div>
 
               <div className="flex-1">
-                <label className="text-sm font-medium mb-2 block">ปี</label>
+                <span className="mb-2 block text-sm font-medium">ปี</span>
                 <Select value={year} onValueChange={setYear}>
                   <SelectTrigger>
                     <SelectValue />
@@ -257,7 +295,7 @@ export default function TopProductsReportPage() {
               </div>
 
               <div className="flex-1">
-                <label className="text-sm font-medium mb-2 block">จำนวน</label>
+                <span className="mb-2 block text-sm font-medium">จำนวน</span>
                 <Select
                   value={limit.toString()}
                   onValueChange={(v) => setLimit(Number(v))}
@@ -285,120 +323,214 @@ export default function TopProductsReportPage() {
         </Card>
 
         {/* Top Products Table */}
-        <Card className="border-none shadow-sm ring-1 ring-border/50 overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-yellow-50 to-orange-50 border-b border-yellow-100">
-            <CardTitle className="text-xl font-bold tracking-tight">
-              🏆 สินค้าขายดี {summary?.period}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {isLoading ? (
-              <div className="p-4 space-y-3">
-                {[...Array(10)].map((_, i) => (
-                  <Skeleton key={i} className="h-16 w-full" />
-                ))}
+        <div className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm">
+          <div className="mb-4 flex flex-col justify-between gap-4 min-[720px]:flex-row min-[720px]:items-center">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-100 bg-amber-50 dark:border-amber-500/20 dark:bg-amber-500/10">
+                <Trophy className="h-6 w-6 text-main-orange" />
               </div>
-            ) : error || (data && !data.success) ? (
-              <div className="text-center py-12">
-                <p className="text-red-600 font-bold text-lg">
-                  เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง
+              <div className="flex flex-col">
+                <span className="text-xl font-bold text-card-foreground">
+                  สินค้าขายดี {summary?.period}
+                </span>
+                <p className="text-sm font-medium text-muted-foreground">
+                  จัดอันดับตามยอดขายรวมของเดือนที่เลือก
                 </p>
               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader className="bg-muted/30">
-                    <TableRow className="hover:bg-transparent border-none">
-                      <TableHead className="font-bold text-xs uppercase tracking-wider w-[100px]">
-                        อันดับ
-                      </TableHead>
-                      <TableHead className="font-bold text-xs uppercase tracking-wider">
-                        สินค้า
-                      </TableHead>
-                      <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
-                        ขายได้
-                      </TableHead>
-                      <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
-                        จำนวน
-                      </TableHead>
-                      <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
-                        ยอดขาย
-                      </TableHead>
-                      <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
-                        กำไร
-                      </TableHead>
-                      <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
-                        % กำไร
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {products.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center py-16">
-                          <Trophy className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                          <p className="text-muted-foreground font-medium">
-                            ไม่พบข้อมูลสินค้าขายดี
-                          </p>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            ในเดือนที่เลือก
-                          </p>
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      products.map((product) => (
-                        <TableRow
-                          key={product.rank}
-                          className={cn(
-                            "transition-all duration-200 border-border/40",
-                            product.rank <= 3
-                              ? "bg-gradient-to-r from-yellow-50/50 to-transparent hover:from-yellow-100/50"
-                              : "hover:bg-muted/20",
-                          )}
-                        >
-                          <TableCell>{getRankBadge(product.rank)}</TableCell>
-                          <TableCell>
-                            <div>
-                              <p className="font-bold text-foreground">
-                                {product.productName}
-                              </p>
-                              <p className="text-[10px] text-muted-foreground font-mono">
-                                {product.barcode}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="h-8 rounded-full bg-amber-50 px-4 text-sm font-bold text-main-orange dark:bg-amber-500/10">
+                Top {products.length || limit}
+              </Badge>
+              <Badge
+                variant="outline"
+                className="h-8 rounded-full px-4 text-sm font-bold text-card-foreground"
+              >
+                {summary?.period || "ช่วงเวลาที่เลือก"}
+              </Badge>
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="space-y-3 rounded-2xl border bg-white p-4 dark:bg-card">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((row) => (
+                <Skeleton key={row} className="h-14 w-full rounded-xl" />
+              ))}
+            </div>
+          ) : error || (data && !data.success) ? (
+            <div className="rounded-2xl border border-red-100 bg-red-50/50 px-4 py-12 text-center dark:border-red-500/20 dark:bg-red-500/10">
+              <p className="text-lg font-bold text-main-red">
+                เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง
+              </p>
+              <p className="mt-2 text-sm font-medium text-muted-foreground">
+                {error?.message || "Unknown error"}
+              </p>
+            </div>
+          ) : products.length === 0 ? (
+            <div className="rounded-2xl border bg-white px-4 py-12 text-center dark:bg-card">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
+                <Trophy className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-bold text-card-foreground">
+                ไม่พบข้อมูลสินค้าขายดี
+              </h3>
+              <p className="mt-1 text-sm font-medium text-muted-foreground">
+                ลองเปลี่ยนเดือน ปี หรือจำนวนอันดับใหม่อีกครั้ง
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-2xl border bg-white dark:bg-card">
+              <Table>
+                <TableHeader className="bg-secondary/70">
+                  <TableRow className="border-border/60 hover:bg-transparent">
+                    <TableHead className="w-[38%] px-4 text-base font-bold text-card-foreground min-[500px]:text-lg">
+                      สินค้า
+                    </TableHead>
+                    <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[760px]:table-cell">
+                      ขายได้
+                    </TableHead>
+                    <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[620px]:table-cell">
+                      จำนวน
+                    </TableHead>
+                    <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
+                      ยอดขาย
+                    </TableHead>
+                    <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[760px]:table-cell">
+                      กำไร
+                    </TableHead>
+                    <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
+                      Margin
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {products.map((product) => {
+                    const rankTone = getRankTone(product.rank);
+                    const marginMeta = getProfitMarginMeta(
+                      product.profitMargin,
+                    );
+                    const marginWidth = Math.max(
+                      8,
+                      Math.min(product.profitMargin * 2, 100),
+                    );
+
+                    return (
+                      <TableRow
+                        key={`${product.barcode}-${product.rank}`}
+                        className={cn(
+                          "group border-border/60 transition-colors duration-200",
+                          rankTone.rowClassName,
+                        )}
+                      >
+                        <TableCell className="px-4 py-4 font-medium">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={cn(
+                                "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-sm font-bold select-none min-[550px]:h-12 min-[550px]:w-12",
+                                rankTone.className,
+                              )}
+                            >
+                              {product.rank}
+                            </div>
+                            <div className="flex min-w-0 flex-col">
+                              <span className="max-w-[150px] truncate text-base font-bold text-card-foreground transition-colors group-hover:text-main-orange min-[420px]:max-w-[220px] min-[550px]:max-w-[300px] min-[1100px]:max-w-[460px]">
+                                {product.productName || "ไม่ระบุสินค้า"}
+                              </span>
+                              <span
+                                className={cn(
+                                  outfit.className,
+                                  "text-xs font-semibold text-muted-foreground",
+                                )}
+                              >
+                                {product.barcode || "-"}
+                              </span>
+                              <p className="text-xs font-semibold text-muted-foreground min-[620px]:hidden">
+                                {formatNumber(product.totalQuantity)} ชิ้น ·{" "}
+                                {formatNumber(product.salesCount)} ครั้ง
                               </p>
                             </div>
-                          </TableCell>
-                          <TableCell className="text-right font-bold text-blue-600">
-                            {formatNumber(product.salesCount)} ครั้ง
-                          </TableCell>
-                          <TableCell className="text-right font-bold">
-                            {formatNumber(product.totalQuantity)}
-                          </TableCell>
-                          <TableCell className="text-right font-bold text-lg text-foreground">
-                            {formatCurrency(product.totalSales)}
-                          </TableCell>
-                          <TableCell className="text-right font-bold text-emerald-600">
+                          </div>
+                        </TableCell>
+
+                        <TableCell
+                          className={cn(
+                            outfit.className,
+                            "hidden text-right text-sm font-bold text-main-blue min-[760px]:table-cell",
+                          )}
+                        >
+                          {formatNumber(product.salesCount)} ครั้ง
+                        </TableCell>
+
+                        <TableCell
+                          className={cn(
+                            outfit.className,
+                            "hidden text-right text-sm font-bold text-muted-foreground min-[620px]:table-cell",
+                          )}
+                        >
+                          {formatNumber(product.totalQuantity)}
+                        </TableCell>
+
+                        <TableCell className="text-right align-middle">
+                          <div className="flex flex-col items-end gap-1">
+                            <span
+                              className={cn(
+                                outfit.className,
+                                "text-sm font-bold text-card-foreground min-[500px]:text-base",
+                              )}
+                            >
+                              {formatCurrency(product.totalSales)}
+                            </span>
+                            <span className="text-xs font-semibold text-main-green min-[760px]:hidden">
+                              กำไร {formatCurrency(product.totalProfit)}
+                            </span>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="hidden text-right align-middle min-[760px]:table-cell">
+                          <span
+                            className={cn(
+                              outfit.className,
+                              "font-bold",
+                              product.totalProfit >= 0
+                                ? "text-main-green"
+                                : "text-main-red",
+                            )}
+                          >
                             {formatCurrency(product.totalProfit)}
-                          </TableCell>
-                          <TableCell className="text-right">
+                          </span>
+                        </TableCell>
+
+                        <TableCell className="text-right align-middle">
+                          <div className="flex flex-col items-end gap-2">
                             <Badge
                               variant="outline"
                               className={cn(
-                                "font-bold text-sm",
-                                getProfitMarginColor(product.profitMargin),
+                                "h-7 rounded-full px-3 text-xs font-bold shadow-none",
+                                marginMeta.className,
                               )}
                             >
                               {product.profitMargin.toFixed(1)}%
                             </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                            <div className="hidden h-1.5 w-20 overflow-hidden rounded-full bg-secondary min-[900px]:block">
+                              <div
+                                className={cn(
+                                  "h-full rounded-full transition-all duration-500",
+                                  marginMeta.barClassName,
+                                )}
+                                style={{ width: `${marginWidth}%` }}
+                              />
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
