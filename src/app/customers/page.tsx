@@ -5,13 +5,34 @@
  * แสดงรายชื่อลูกค้าทั้งหมด พร้อมการจัดกลุ่มและประวัติการซื้อ
  */
 
+import {
+  Award,
+  Calendar,
+  Car,
+  MapPin,
+  Phone,
+  Receipt,
+  Search,
+  TrendingUp,
+  UserPlus,
+  Users,
+} from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
-import { Users, UserPlus, TrendingUp, Award, Search, Phone, Car, MapPin, Calendar, Receipt } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
+import { KPICard } from "@/components/dashboard/kpi-card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  LargeDialog,
+  LargeDialogBody,
+  LargeDialogContent,
+  LargeDialogDescription,
+  LargeDialogHeader,
+  LargeDialogTitle,
+} from "@/components/ui/large-dialog";
 import {
   Table,
   TableBody,
@@ -20,14 +41,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  LargeDialog,
-  LargeDialogContent,
-  LargeDialogHeader,
-  LargeDialogBody,
-  LargeDialogTitle,
-  LargeDialogDescription,
-} from "@/components/ui/large-dialog";
 
 type CustomerSegment = "VIP" | "Regular" | "New" | "Inactive";
 
@@ -83,11 +96,14 @@ interface CustomerDetail {
 export default function CustomersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(0);
-  const [filterSegment, setFilterSegment] = useState<CustomerSegment | "all">("all");
+  const [filterSegment, setFilterSegment] = useState<CustomerSegment | "all">(
+    "all",
+  );
   const limit = 50;
 
   // Modal state
-  const [selectedCustomer, setSelectedCustomer] = useState<CustomerDetail | null>(null);
+  const [selectedCustomer, setSelectedCustomer] =
+    useState<CustomerDetail | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
 
@@ -95,14 +111,19 @@ export default function CustomersPage() {
   const apiUrl = `/api/customers?limit=${limit}&offset=${page * limit}&search=${searchTerm}${filterSegment !== "all" ? `&segment=${filterSegment}` : ""}`;
 
   // Fetch customers using SWR
-  const { data, error, isLoading } = useSWR(apiUrl, async (url) => {
-    const response = await fetch(url);
-    return response.json();
-  }, {
-    refreshInterval: 60000,
-  });
+  const { data, error, isLoading } = useSWR(
+    apiUrl,
+    async (url) => {
+      const response = await fetch(url);
+      return response.json();
+    },
+    {
+      refreshInterval: 60000,
+    },
+  );
 
-  const customers = data?.success && data?.data?.customers ? data.data.customers : [];
+  const customers =
+    data?.success && data?.data?.customers ? data.data.customers : [];
   const total = data?.success && data?.data?.total ? data.data.total : 0;
   const summary = data?.summary || null;
   const totalPages = Math.ceil(total / limit);
@@ -193,7 +214,9 @@ export default function CustomersPage() {
     return (
       <div className="p-4 md:p-8 space-y-6">
         <div className="text-center py-12">
-          <p className="text-red-600 font-semibold">เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง</p>
+          <p className="text-red-600 font-semibold">
+            เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง
+          </p>
           <p className="text-sm text-muted-foreground mt-2">
             {error?.message || data?.error || "Unknown error"}
           </p>
@@ -203,372 +226,355 @@ export default function CustomersPage() {
   }
 
   return (
-    <div className="p-4 md:p-8 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">ลูกค้า</h1>
-        <p className="text-muted-foreground mt-1">
-          จัดการข้อมูลลูกค้าและประวัติการซื้อ
-        </p>
-      </div>
+    <div className="p-6 pb-16">
+      <DashboardBreadcrumb label="ลูกค้า" href="/customers" />
+      <hr className="my-4 hidden w-full min-[1025px]:block" />
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-5">
-        <Card
-          className="cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => handleFilterSegment("all")}
-        >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              ลูกค้าทั้งหมด
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{summary?.total.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">คน</p>
-          </CardContent>
-        </Card>
-
-        <Card
-          className="cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => handleFilterSegment("VIP")}
-        >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Award className="h-4 w-4" />
-              ลูกค้า VIP
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
-              {summary?.vip.toLocaleString()}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {summary?.total ? ((summary.vip / summary.total) * 100).toFixed(1) : 0}%
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card
-          className="cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => handleFilterSegment("Regular")}
-        >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
-              ลูกค้าปกติ
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
-              {summary?.regular.toLocaleString()}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {summary?.total ? ((summary.regular / summary.total) * 100).toFixed(1) : 0}%
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card
-          className="cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => handleFilterSegment("New")}
-        >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <UserPlus className="h-4 w-4" />
-              ลูกค้าใหม่
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {summary?.new.toLocaleString()}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">ยังไม่มีประวัติซื้อ</p>
-          </CardContent>
-        </Card>
-
-        <Card
-          className="cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => handleFilterSegment("Inactive")}
-        >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              ไม่ active
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-600">
-              {summary?.inactive.toLocaleString()}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">&gt;6 เดือน</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Search & Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>รายชื่อลูกค้า ({filteredCustomers.length} คน)</span>
-            {filterSegment !== "all" && (
-              <button
-                onClick={() => handleFilterSegment("all")}
-                className="text-sm font-normal text-blue-600 hover:underline"
-              >
-                ล้างตัวกรอง
-              </button>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="ค้นหาชื่อ, รหัส, เบอร์โทร, ทะเบียนรถ..."
-                value={searchTerm}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="pl-10"
-              />
+      <div className="space-y-6">
+        <div className="dark:bg-background flex w-full flex-col rounded-2xl border bg-white px-4 py-6 shadow-sm">
+          <div className="flex flex-col justify-between gap-6 min-[798px]:flex-row min-[798px]:items-center mb-6">
+            <div className="flex items-center gap-3">
+              <div className="bg-background dark:bg-secondary flex min-h-12 min-w-12 items-center justify-center rounded-[8px] border min-[798px]:h-14 min-[798px]:w-14">
+                <Users className="text-primary" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-primary text-2xl font-bold tracking-tight">
+                  ลูกค้า
+                </span>
+                <p className="text-foreground font-medium">
+                  จัดการข้อมูลลูกค้าและประวัติการซื้อ
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>รหัส</TableHead>
-                  <TableHead>ชื่อลูกค้า</TableHead>
-                  <TableHead>เบอร์โทร</TableHead>
-                  <TableHead>ทะเบียนรถ</TableHead>
-                  <TableHead>รุ่นรถ</TableHead>
-                  <TableHead className="text-right">ยอดซื้อรวม</TableHead>
-                  <TableHead className="text-center">ครั้ง</TableHead>
-                  <TableHead>ซื้อล่าสุด</TableHead>
-                  <TableHead className="text-center">กลุ่ม</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredCustomers.length === 0 ? (
+          {/* Summary Cards */}
+          <div className="grid gap-4 md:grid-cols-5">
+            <KPICard
+              title="ลูกค้าทั้งหมด"
+              value={summary?.total ?? 0}
+              subtitle="คน"
+              icon={Users}
+              variant="blue"
+              onClick={() => handleFilterSegment("all")}
+            />
+            <KPICard
+              title="ลูกค้า VIP"
+              value={summary?.vip ?? 0}
+              subtitle={`${summary?.total ? ((summary.vip / summary.total) * 100).toFixed(1) : 0}%`}
+              icon={Award}
+              variant="orange"
+              onClick={() => handleFilterSegment("VIP")}
+            />
+            <KPICard
+              title="ลูกค้าปกติ"
+              value={summary?.regular ?? 0}
+              subtitle={`${summary?.total ? ((summary.regular / summary.total) * 100).toFixed(1) : 0}%`}
+              icon={TrendingUp}
+              variant="blue"
+              onClick={() => handleFilterSegment("Regular")}
+            />
+            <KPICard
+              title="ลูกค้าใหม่"
+              value={summary?.new ?? 0}
+              subtitle="ยังไม่มีประวัติซื้อ"
+              icon={UserPlus}
+              variant="emerald"
+              onClick={() => handleFilterSegment("New")}
+            />
+            <KPICard
+              title="ไม่ active"
+              value={summary?.inactive ?? 0}
+              subtitle=">6 เดือน"
+              icon={Users}
+              variant="purple"
+              onClick={() => handleFilterSegment("Inactive")}
+            />
+          </div>
+        </div>
+
+        {/* Search & Filters */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>รายชื่อลูกค้า ({filteredCustomers.length} คน)</span>
+              {filterSegment !== "all" && (
+                <button
+                  onClick={() => handleFilterSegment("all")}
+                  className="text-sm font-normal text-blue-600 hover:underline"
+                >
+                  ล้างตัวกรอง
+                </button>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="ค้นหาชื่อ, รหัส, เบอร์โทร, ทะเบียนรถ..."
+                  value={searchTerm}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                      ไม่พบข้อมูลลูกค้า
-                    </TableCell>
+                    <TableHead>รหัส</TableHead>
+                    <TableHead>ชื่อลูกค้า</TableHead>
+                    <TableHead>เบอร์โทร</TableHead>
+                    <TableHead>ทะเบียนรถ</TableHead>
+                    <TableHead>รุ่นรถ</TableHead>
+                    <TableHead className="text-right">ยอดซื้อรวม</TableHead>
+                    <TableHead className="text-center">ครั้ง</TableHead>
+                    <TableHead>ซื้อล่าสุด</TableHead>
+                    <TableHead className="text-center">กลุ่ม</TableHead>
                   </TableRow>
-                ) : (
-                  filteredCustomers.map((customer: Customer) => (
-                    <TableRow
-                      key={customer.code}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => fetchCustomerDetail(customer.code)}
-                    >
-                      <TableCell className="font-mono text-xs">
-                        {customer.codeCustomer}
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {customer.nameCustomer}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {customer.phoneCustomer}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {customer.nameCar}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {customer.brandAndGenerate}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        {formatCurrency(customer.totalSpent)}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {customer.totalOrders}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {formatDate(customer.lastOrderDate)}
-                        {customer.daysSinceLastOrder !== null && (
-                          <span className="block text-xs">
-                            ({customer.daysSinceLastOrder} วัน)
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {getSegmentBadge(customer.segment)}
+                </TableHeader>
+                <TableBody>
+                  {filteredCustomers.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={9}
+                        className="text-center py-8 text-muted-foreground"
+                      >
+                        ไม่พบข้อมูลลูกค้า
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
-              <p className="text-sm text-muted-foreground">
-                แสดง {page * limit + 1}-
-                {Math.min((page + 1) * limit, total)} จาก {total.toLocaleString()} คน
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(Math.max(0, page - 1))}
-                  disabled={page === 0}
-                >
-                  ← ก่อนหน้า
-                </Button>
-                <div className="flex items-center gap-2 px-3">
-                  <span className="text-sm text-muted-foreground">
-                    หน้า {page + 1} / {totalPages}
-                  </span>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
-                  disabled={page >= totalPages - 1}
-                >
-                  ถัดไป →
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Customer Detail Modal */}
-      <LargeDialog open={modalOpen} onOpenChange={setModalOpen}>
-        <LargeDialogContent size="2xl">
-          <LargeDialogHeader>
-            <LargeDialogTitle>ข้อมูลลูกค้า</LargeDialogTitle>
-            <LargeDialogDescription>
-              ประวัติการซื้อและข้อมูลรายละเอียดทั้งหมด
-            </LargeDialogDescription>
-          </LargeDialogHeader>
-
-          <LargeDialogBody>
-
-          {modalLoading ? (
-            <div className="py-12 text-center text-muted-foreground text-base">
-              กำลังโหลด...
-            </div>
-          ) : selectedCustomer ? (
-            <div className="space-y-6">
-              {/* Customer Info */}
-              <div className="grid grid-cols-2 gap-6 p-6 bg-muted/30 rounded-lg">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-base">
-                    <Users className="h-5 w-5 text-muted-foreground" />
-                    <span className="font-semibold text-lg">
-                      {selectedCustomer.customer.nameCustomer}
-                    </span>
-                    {getSegmentBadge(selectedCustomer.customer.segment)}
-                  </div>
-                  <div className="flex items-center gap-2 text-base text-muted-foreground">
-                    <Phone className="h-5 w-5" />
-                    {selectedCustomer.customer.phoneCustomer}
-                  </div>
-                  <div className="flex items-center gap-2 text-base text-muted-foreground">
-                    <Car className="h-5 w-5" />
-                    {selectedCustomer.customer.nameCar} - {selectedCustomer.customer.brandAndGenerate}
-                  </div>
-                  <div className="flex items-center gap-2 text-base text-muted-foreground">
-                    <MapPin className="h-5 w-5" />
-                    {selectedCustomer.customer.province}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="text-base">
-                    <span className="text-muted-foreground">ยอดซื้อรวม:</span>
-                    <span className="font-bold text-2xl ml-2">
-                      {formatCurrency(selectedCustomer.stats.totalSpent)}
-                    </span>
-                  </div>
-                  <div className="text-base">
-                    <span className="text-muted-foreground">จำนวนครั้ง:</span>
-                    <span className="font-semibold text-lg ml-2">
-                      {selectedCustomer.stats.totalOrders} ครั้ง
-                    </span>
-                  </div>
-                  <div className="text-base">
-                    <span className="text-muted-foreground">เฉลี่ย/ครั้ง:</span>
-                    <span className="font-semibold text-lg ml-2">
-                      {formatCurrency(selectedCustomer.stats.averageOrderValue)}
-                    </span>
-                  </div>
-                  <div className="text-base">
-                    <span className="text-muted-foreground">ซื้อล่าสุด:</span>
-                    <span className="font-semibold text-lg ml-2">
-                      {formatDate(selectedCustomer.stats.lastOrderDate)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Purchase History */}
-              <div>
-                <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-                  <Receipt className="h-5 w-5" />
-                  ประวัติการซื้อ ({selectedCustomer.purchases.length} รายการ)
-                </h3>
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-base">วันที่</TableHead>
-                        <TableHead className="text-base">เลขที่บิล</TableHead>
-                        <TableHead className="text-base">ทะเบียนรถ</TableHead>
-                        <TableHead className="text-right text-base">ยอดขาย</TableHead>
-                        <TableHead className="text-right text-base">กำไร</TableHead>
-                        <TableHead className="text-center text-base">สินค้า</TableHead>
-                        <TableHead className="text-base">สถานะ</TableHead>
+                  ) : (
+                    filteredCustomers.map((customer: Customer) => (
+                      <TableRow
+                        key={customer.code}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => fetchCustomerDetail(customer.code)}
+                      >
+                        <TableCell className="font-mono text-xs">
+                          {customer.codeCustomer}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {customer.nameCustomer}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {customer.phoneCustomer}
+                        </TableCell>
+                        <TableCell className="font-mono text-sm">
+                          {customer.nameCar}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {customer.brandAndGenerate}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold">
+                          {formatCurrency(customer.totalSpent)}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {customer.totalOrders}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {formatDate(customer.lastOrderDate)}
+                          {customer.daysSinceLastOrder !== null && (
+                            <span className="block text-xs">
+                              ({customer.daysSinceLastOrder} วัน)
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {getSegmentBadge(customer.segment)}
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {selectedCustomer.purchases.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={7} className="text-center py-8 text-muted-foreground text-base">
-                            ยังไม่มีประวัติการซื้อ
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        selectedCustomer.purchases.map((purchase, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell className="text-base">
-                              {formatDate(purchase.dateSalePost)}
-                            </TableCell>
-                            <TableCell className="font-mono">
-                              {purchase.numberPrintSalePost}
-                            </TableCell>
-                            <TableCell className="font-mono text-base">
-                              {purchase.nameCar}
-                            </TableCell>
-                            <TableCell className="text-right font-semibold text-base">
-                              {formatCurrency(purchase.totalPrice)}
-                            </TableCell>
-                            <TableCell className="text-right text-green-600 font-semibold text-base">
-                              {formatCurrency(purchase.totalProfit)}
-                            </TableCell>
-                            <TableCell className="text-center text-base">
-                              {purchase.itemCount}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline">{purchase.status}</Badge>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-4">
+                <p className="text-sm text-muted-foreground">
+                  แสดง {page * limit + 1}-{Math.min((page + 1) * limit, total)}{" "}
+                  จาก {total.toLocaleString()} คน
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(Math.max(0, page - 1))}
+                    disabled={page === 0}
+                  >
+                    ← ก่อนหน้า
+                  </Button>
+                  <div className="flex items-center gap-2 px-3">
+                    <span className="text-sm text-muted-foreground">
+                      หน้า {page + 1} / {totalPages}
+                    </span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
+                    disabled={page >= totalPages - 1}
+                  >
+                    ถัดไป →
+                  </Button>
                 </div>
               </div>
-            </div>
-          ) : null}
-          </LargeDialogBody>
-        </LargeDialogContent>
-      </LargeDialog>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Customer Detail Modal */}
+        <LargeDialog open={modalOpen} onOpenChange={setModalOpen}>
+          <LargeDialogContent size="2xl">
+            <LargeDialogHeader>
+              <LargeDialogTitle>ข้อมูลลูกค้า</LargeDialogTitle>
+              <LargeDialogDescription>
+                ประวัติการซื้อและข้อมูลรายละเอียดทั้งหมด
+              </LargeDialogDescription>
+            </LargeDialogHeader>
+
+            <LargeDialogBody>
+              {modalLoading ? (
+                <div className="py-12 text-center text-muted-foreground text-base">
+                  กำลังโหลด...
+                </div>
+              ) : selectedCustomer ? (
+                <div className="space-y-6">
+                  {/* Customer Info */}
+                  <div className="grid grid-cols-2 gap-6 p-6 bg-muted/30 rounded-lg">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-base">
+                        <Users className="h-5 w-5 text-muted-foreground" />
+                        <span className="font-semibold text-lg">
+                          {selectedCustomer.customer.nameCustomer}
+                        </span>
+                        {getSegmentBadge(selectedCustomer.customer.segment)}
+                      </div>
+                      <div className="flex items-center gap-2 text-base text-muted-foreground">
+                        <Phone className="h-5 w-5" />
+                        {selectedCustomer.customer.phoneCustomer}
+                      </div>
+                      <div className="flex items-center gap-2 text-base text-muted-foreground">
+                        <Car className="h-5 w-5" />
+                        {selectedCustomer.customer.nameCar} -{" "}
+                        {selectedCustomer.customer.brandAndGenerate}
+                      </div>
+                      <div className="flex items-center gap-2 text-base text-muted-foreground">
+                        <MapPin className="h-5 w-5" />
+                        {selectedCustomer.customer.province}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="text-base">
+                        <span className="text-muted-foreground">ยอดซื้อรวม:</span>
+                        <span className="font-bold text-2xl ml-2">
+                          {formatCurrency(selectedCustomer.stats.totalSpent)}
+                        </span>
+                      </div>
+                      <div className="text-base">
+                        <span className="text-muted-foreground">จำนวนครั้ง:</span>
+                        <span className="font-semibold text-lg ml-2">
+                          {selectedCustomer.stats.totalOrders} ครั้ง
+                        </span>
+                      </div>
+                      <div className="text-base">
+                        <span className="text-muted-foreground">เฉลี่ย/ครั้ง:</span>
+                        <span className="font-semibold text-lg ml-2">
+                          {formatCurrency(
+                            selectedCustomer.stats.averageOrderValue,
+                          )}
+                        </span>
+                      </div>
+                      <div className="text-base">
+                        <span className="text-muted-foreground">ซื้อล่าสุด:</span>
+                        <span className="font-semibold text-lg ml-2">
+                          {formatDate(selectedCustomer.stats.lastOrderDate)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Purchase History */}
+                  <div>
+                    <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                      <Receipt className="h-5 w-5" />
+                      ประวัติการซื้อ ({selectedCustomer.purchases.length} รายการ)
+                    </h3>
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-base">วันที่</TableHead>
+                            <TableHead className="text-base">เลขที่บิล</TableHead>
+                            <TableHead className="text-base">
+                              ทะเบียนรถ
+                            </TableHead>
+                            <TableHead className="text-right text-base">
+                              ยอดขาย
+                            </TableHead>
+                            <TableHead className="text-right text-base">
+                              กำไร
+                            </TableHead>
+                            <TableHead className="text-center text-base">
+                              สินค้า
+                            </TableHead>
+                            <TableHead className="text-base">สถานะ</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {selectedCustomer.purchases.length === 0 ? (
+                            <TableRow>
+                              <TableCell
+                                colSpan={7}
+                                className="text-center py-8 text-muted-foreground text-base"
+                              >
+                                ยังไม่มีประวัติการซื้อ
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            selectedCustomer.purchases.map((purchase, idx) => (
+                              <TableRow key={idx}>
+                                <TableCell className="text-base">
+                                  {formatDate(purchase.dateSalePost)}
+                                </TableCell>
+                                <TableCell className="font-mono">
+                                  {purchase.numberPrintSalePost}
+                                </TableCell>
+                                <TableCell className="font-mono text-base">
+                                  {purchase.nameCar}
+                                </TableCell>
+                                <TableCell className="text-right font-semibold text-base">
+                                  {formatCurrency(purchase.totalPrice)}
+                                </TableCell>
+                                <TableCell className="text-right text-green-600 font-semibold text-base">
+                                  {formatCurrency(purchase.totalProfit)}
+                                </TableCell>
+                                <TableCell className="text-center text-base">
+                                  {purchase.itemCount}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant="outline">
+                                    {purchase.status}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </LargeDialogBody>
+          </LargeDialogContent>
+        </LargeDialog>
+      </div>
     </div>
   );
 }

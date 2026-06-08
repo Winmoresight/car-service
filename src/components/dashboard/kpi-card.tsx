@@ -3,9 +3,9 @@
  * แสดงตัวเลข KPI พร้อม label และ icon
  */
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
+import { outfit } from "@/components/fonts/fonts";
+import { cn } from "@/lib/utils";
 
 interface KPICardProps {
   title: string;
@@ -18,6 +18,7 @@ interface KPICardProps {
   };
   format?: "currency" | "number" | "percent";
   variant?: "default" | "emerald" | "blue" | "orange" | "purple";
+  onClick?: () => void;
 }
 
 export function KPICard({
@@ -28,6 +29,7 @@ export function KPICard({
   trend,
   format = "number",
   variant = "default",
+  onClick,
 }: KPICardProps) {
   const variantStyles = {
     default: "text-main-blue bg-blue-50",
@@ -37,62 +39,83 @@ export function KPICard({
     purple: "text-purple-600 bg-purple-50",
   };
 
-  // Format value based on type
   const formattedValue = () => {
-    if (typeof value === "string") return value;
+    if (typeof value === "string") {
+      return { amount: value, unit: "" };
+    }
 
     switch (format) {
       case "currency":
-        return new Intl.NumberFormat("th-TH", {
-          style: "currency",
-          currency: "THB",
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
-        }).format(value);
+        return {
+          amount: new Intl.NumberFormat("th-TH").format(value),
+          unit: "บาท",
+        };
       case "percent":
-        return `${value.toFixed(2)}%`;
-      case "number":
+        return { amount: value.toFixed(2), unit: "%" };
       default:
-        return new Intl.NumberFormat("th-TH").format(value);
+        return {
+          amount: new Intl.NumberFormat("th-TH").format(value),
+          unit: "",
+        };
     }
   };
 
-  return (
-    <Card className="border-none shadow-sm hover:shadow-md transition-all duration-300 bg-card overflow-hidden group">
-      <CardContent className="p-6">
-        <div className="flex flex-col gap-4">
-          <div className="flex items-start justify-between">
-            <div className={cn("p-2.5 rounded-2xl transition-transform group-hover:scale-110 duration-300", variantStyles[variant])}>
-              {Icon && <Icon className="h-6 w-6" />}
-            </div>
-            {trend && (
-              <span
-                className={cn(
-                  "inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg",
-                  trend.isPositive ? "text-main-green bg-emerald-50" : "text-main-red bg-red-50"
-                )}
-              >
-                {trend.isPositive ? "↑" : "↓"} {Math.abs(trend.value).toFixed(1)}%
-              </span>
-            )}
-          </div>
-          
-          <div className="space-y-1">
-            <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-              {title}
-            </p>
-            <div className="text-3xl font-extrabold text-card-foreground tracking-tight">
-              {formattedValue()}
-            </div>
-          </div>
+  const displayValue = formattedValue();
 
-          {subtitle && (
-            <p className="text-xs text-muted-foreground font-medium">
-              {subtitle}
-            </p>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+  const cardClassName = cn(
+    "col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4 min-h-[210px]",
+    onClick && "cursor-pointer text-left transition-shadow hover:shadow-md",
   );
+
+  const content = (
+    <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
+      <div
+        className={cn(
+          "flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border dark:bg-background/50 shrink-0",
+          variantStyles[variant],
+        )}
+      >
+        {Icon && (
+          <Icon
+            strokeWidth={2.5}
+            className="w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
+          />
+        )}
+      </div>
+
+      <div className="flex flex-col justify-between items-end min-[600px]:items-start gap-1 flex-1 min-h-[132px]">
+        <span className="text-primary text-lg font-semibold">{title}</span>
+        <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
+          <span className={outfit.className}>{displayValue.amount}</span>
+          {displayValue.unit ? ` ${displayValue.unit}` : null}
+        </h3>
+        {trend ? (
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg mt-1",
+              trend.isPositive
+                ? "text-main-green bg-emerald-50"
+                : "text-main-red bg-red-50",
+            )}
+          >
+            {trend.isPositive ? "↑" : "↓"} {Math.abs(trend.value).toFixed(1)}%
+          </span>
+        ) : (
+          <span className="text-muted-foreground text-xs mt-1 font-medium">
+            {subtitle ?? ""}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+
+  if (onClick) {
+    return (
+      <button type="button" className={cardClassName} onClick={onClick}>
+        {content}
+      </button>
+    );
+  }
+
+  return <div className={cardClassName}>{content}</div>;
 }

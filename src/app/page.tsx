@@ -113,7 +113,7 @@ export default function DashboardPage() {
       <div className="p-6 pb-16">
         <DashboardBreadcrumb href="/" isMain />
 
-        <hr className="my-4 w-full" />
+        <hr className="my-4 hidden w-full min-[1025px]:block" />
 
         <div className="space-y-6">
           <div className="dark:bg-background mt-6 flex h-auto w-full flex-col rounded-2xl border bg-white px-4 py-6 pb-6 shadow-sm">
@@ -143,17 +143,21 @@ export default function DashboardPage() {
 
             {/* KPI Cards */}
             <div className="grid min-[600px]:grid-cols-2 min-[1280px]:grid-cols-4 gap-4">
-              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
+              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4 min-h-[210px]">
                 <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-blue-50 dark:bg-background/50">
+                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-blue-50 dark:bg-background/50 shrink-0">
                     <Banknote
                       strokeWidth={2.5}
                       className="text-main-blue w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
                     />
                   </div>
-                  <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                  <div className="flex flex-col justify-between items-end min-[600px]:items-start gap-1 flex-1 min-h-[132px]">
                     <span className="text-primary text-lg font-semibold">
-                      {selectedDate && format(selectedDate, "yyyy-MM-dd") !== format(new Date(), "yyyy-MM-dd") ? "ยอดขายวันที่เลือก" : "ยอดขายวันนี้"}
+                      {selectedDate &&
+                      format(selectedDate, "yyyy-MM-dd") !==
+                        format(new Date(), "yyyy-MM-dd")
+                        ? "ยอดขายวันที่เลือก"
+                        : "ยอดขายวันนี้"}
                     </span>
                     <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
                       <span className={`${outfit.className}`}>
@@ -161,22 +165,28 @@ export default function DashboardPage() {
                       </span>{" "}
                       บาท
                     </h3>
-                    <span className="text-muted-foreground text-xs mt-1 font-medium">{kpi?.todayBills || 0} บิล</span>
+                    <span className="text-muted-foreground text-xs mt-1 font-medium">
+                      {kpi?.todayBills || 0} บิล
+                    </span>
                   </div>
                 </div>
               </div>
 
-              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
+              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4 min-h-[210px]">
                 <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-emerald-50 dark:bg-background/50">
+                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-emerald-50 dark:bg-background/50 shrink-0">
                     <TrendingUp
                       strokeWidth={2.5}
                       className="text-main-green w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
                     />
                   </div>
-                  <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                  <div className="flex flex-col justify-between items-end min-[600px]:items-start gap-1 flex-1 min-h-[132px]">
                     <span className="text-primary text-lg font-semibold">
-                      {selectedDate && format(selectedDate, "yyyy-MM-dd") !== format(new Date(), "yyyy-MM-dd") ? "กำไรวันที่เลือก" : "กำไรวันนี้"}
+                      {selectedDate &&
+                      format(selectedDate, "yyyy-MM-dd") !==
+                        format(new Date(), "yyyy-MM-dd")
+                        ? "กำไรวันที่เลือก"
+                        : "กำไรวันนี้"}
                     </span>
                     <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
                       <span className={`${outfit.className}`}>
@@ -188,15 +198,15 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
+              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4 min-h-[210px]">
                 <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-purple-50 dark:bg-background/50">
+                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-purple-50 dark:bg-background/50 shrink-0">
                     <ShoppingCart
                       strokeWidth={2.5}
                       className="text-purple-600 w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
                     />
                   </div>
-                  <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                  <div className="flex flex-col justify-between items-end min-[600px]:items-start gap-1 flex-1 min-h-[132px]">
                     <span className="text-primary text-lg font-semibold">
                       ยอดขายเดือนนี้
                     </span>
@@ -206,20 +216,22 @@ export default function DashboardPage() {
                       </span>{" "}
                       บาท
                     </h3>
-                    <span className="text-muted-foreground text-xs mt-1 font-medium">{kpi?.monthBills || 0} บิล</span>
+                    <span className="text-muted-foreground text-xs mt-1 font-medium">
+                      {kpi?.monthBills || 0} บิล
+                    </span>
                   </div>
                 </div>
               </div>
 
-              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
+              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4 min-h-[210px]">
                 <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-orange-50 dark:bg-background/50">
+                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-orange-50 dark:bg-background/50 shrink-0">
                     <CalendarIcon
                       strokeWidth={2.5}
                       className="text-main-orange w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
                     />
                   </div>
-                  <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                  <div className="flex flex-col justify-between items-end min-[600px]:items-start gap-1 flex-1 min-h-[132px]">
                     <span className="text-primary text-lg font-semibold">
                       อัตรากำไรขั้นต้น
                     </span>
@@ -236,17 +248,21 @@ export default function DashboardPage() {
 
             {/* Payment Method Cards */}
             <div className="grid min-[600px]:grid-cols-2 gap-4 mt-4">
-              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
+              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4 min-h-[190px]">
                 <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-blue-50 dark:bg-background/50">
+                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-blue-50 dark:bg-background/50 shrink-0">
                     <Wallet
                       strokeWidth={2.5}
                       className="text-main-blue w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
                     />
                   </div>
-                  <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                  <div className="flex flex-col justify-between items-end min-[600px]:items-start gap-1 flex-1 min-h-[112px]">
                     <span className="text-primary text-lg font-semibold">
-                      {selectedDate && format(selectedDate, "yyyy-MM-dd") !== format(new Date(), "yyyy-MM-dd") ? "เงินสดวันที่เลือก" : "เงินสดวันนี้"}
+                      {selectedDate &&
+                      format(selectedDate, "yyyy-MM-dd") !==
+                        format(new Date(), "yyyy-MM-dd")
+                        ? "เงินสดวันที่เลือก"
+                        : "เงินสดวันนี้"}
                     </span>
                     <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
                       <span className={`${outfit.className}`}>
@@ -258,17 +274,21 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
+              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4 min-h-[190px]">
                 <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-blue-50 dark:bg-background/50">
+                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-blue-50 dark:bg-background/50 shrink-0">
                     <CreditCard
                       strokeWidth={2.5}
                       className="text-main-blue w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
                     />
                   </div>
-                  <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                  <div className="flex flex-col justify-between items-end min-[600px]:items-start gap-1 flex-1 min-h-[112px]">
                     <span className="text-primary text-lg font-semibold">
-                      {selectedDate && format(selectedDate, "yyyy-MM-dd") !== format(new Date(), "yyyy-MM-dd") ? "เงินโอนวันที่เลือก" : "เงินโอนวันนี้"}
+                      {selectedDate &&
+                      format(selectedDate, "yyyy-MM-dd") !==
+                        format(new Date(), "yyyy-MM-dd")
+                        ? "เงินโอนวันที่เลือก"
+                        : "เงินโอนวันนี้"}
                     </span>
                     <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
                       <span className={`${outfit.className}`}>

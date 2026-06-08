@@ -5,11 +5,28 @@
  * แสดงสินค้าขายดี Top 10 รายเดือน พร้อมสถิติ
  */
 
+import {
+  DollarSign,
+  Download,
+  ShoppingCart,
+  TrendingUp,
+  Trophy,
+} from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
-import { TrendingUp, Trophy, ShoppingCart, DollarSign, Download } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
+import { KPICard } from "@/components/dashboard/kpi-card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -18,18 +35,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { KPICard } from "@/components/dashboard/kpi-card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import type { ApiResponse } from "@/types/api";
 import { cn } from "@/lib/utils";
+import type { ApiResponse } from "@/types/api";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -80,7 +87,8 @@ export default function TopProductsReportPage() {
   });
 
   const products = data?.success && data?.data?.data ? data.data.data : [];
-  const summary = data?.success && data?.data?.summary ? data.data.summary : null;
+  const summary =
+    data?.success && data?.data?.summary ? data.data.summary : null;
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("th-TH", {
@@ -151,228 +159,247 @@ export default function TopProductsReportPage() {
   });
 
   return (
-    <div className="p-4 md:p-8 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-gray-900 flex items-center gap-3">
-          <Trophy className="h-8 w-8 text-yellow-600" />
-          สินค้าขายดี Top 10
-        </h1>
-        <p className="text-muted-foreground mt-1 font-medium">
-          รายงานสินค้าขายดีรายเดือน
-        </p>
-      </div>
+    <div className="p-6 pb-16">
+      <DashboardBreadcrumb
+        label="รายงานสินค้าขายดี"
+        href="/reports/top-products"
+      />
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <label className="text-sm font-medium mb-2 block">เดือน</label>
-              <Select value={month} onValueChange={setMonth}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {months.map((m) => (
-                    <SelectItem key={m.value} value={m.value}>
-                      {m.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+      <hr className="my-4 hidden w-full min-[1025px]:block" />
 
-            <div className="flex-1">
-              <label className="text-sm font-medium mb-2 block">ปี</label>
-              <Select value={year} onValueChange={setYear}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {years.map((y) => (
-                    <SelectItem key={y.value} value={y.value}>
-                      {y.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex-1">
-              <label className="text-sm font-medium mb-2 block">จำนวน</label>
-              <Select value={limit.toString()} onValueChange={(v) => setLimit(Number(v))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="5">Top 5</SelectItem>
-                  <SelectItem value="10">Top 10</SelectItem>
-                  <SelectItem value="20">Top 20</SelectItem>
-                  <SelectItem value="50">Top 50</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-end">
-              <Button variant="outline" className="gap-2 w-full md:w-auto">
-                <Download className="h-4 w-4" />
-                Export
-              </Button>
+      <div className="space-y-6">
+        <div className="dark:bg-background mt-2 md:mt-6 flex w-full flex-col rounded-2xl border bg-white px-4 py-6 pb-4 shadow-sm">
+          <div className="mb-6 flex flex-col min-[798px]:flex-row min-[798px]:items-center min-[798px]:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-background dark:bg-secondary flex h-12 w-12 items-center justify-center rounded-[8px] border min-[798px]:h-14 min-[798px]:w-14">
+                <Trophy strokeWidth={2.5} className="text-primary" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-primary text-2xl font-bold">
+                  สินค้าขายดี Top 10
+                </span>
+                <p className="text-foreground hidden font-medium min-[798px]:block">
+                  รายงานสินค้าขายดีรายเดือน
+                </p>
+              </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Summary Cards */}
-      {summary && (
-        <div className="grid gap-4 md:grid-cols-4">
-          <KPICard
-            title="สินค้าทั้งหมด"
-            value={summary.totalProducts}
-            icon={ShoppingCart}
-            variant="blue"
-            subtitle={`ในเดือน${summary.period}`}
-          />
-          <KPICard
-            title="ยอดขายรวม"
-            value={summary.totalSales}
-            format="currency"
-            icon={DollarSign}
-            variant="purple"
-          />
-          <KPICard
-            title="กำไรรวม"
-            value={summary.totalProfit}
-            format="currency"
-            icon={TrendingUp}
-            variant="emerald"
-          />
-          <KPICard
-            title="เฉลี่ย Margin"
-            value={summary.averageProfitMargin}
-            format="percent"
-            icon={TrendingUp}
-            variant="orange"
-          />
-        </div>
-      )}
-
-      {/* Top Products Table */}
-      <Card className="border-none shadow-sm ring-1 ring-border/50 overflow-hidden">
-        <CardHeader className="bg-gradient-to-r from-yellow-50 to-orange-50 border-b border-yellow-100">
-          <CardTitle className="text-xl font-bold tracking-tight">
-            🏆 สินค้าขายดี {summary?.period}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-4 space-y-3">
-              {[...Array(10)].map((_, i) => (
-                <Skeleton key={i} className="h-16 w-full" />
-              ))}
-            </div>
-          ) : error || (data && !data.success) ? (
-            <div className="text-center py-12">
-              <p className="text-red-600 font-bold text-lg">
-                เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-muted/30">
-                  <TableRow className="hover:bg-transparent border-none">
-                    <TableHead className="font-bold text-xs uppercase tracking-wider w-[100px]">
-                      อันดับ
-                    </TableHead>
-                    <TableHead className="font-bold text-xs uppercase tracking-wider">
-                      สินค้า
-                    </TableHead>
-                    <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
-                      ขายได้
-                    </TableHead>
-                    <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
-                      จำนวน
-                    </TableHead>
-                    <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
-                      ยอดขาย
-                    </TableHead>
-                    <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
-                      กำไร
-                    </TableHead>
-                    <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
-                      % กำไร
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {products.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-16">
-                        <Trophy className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                        <p className="text-muted-foreground font-medium">
-                          ไม่พบข้อมูลสินค้าขายดี
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          ในเดือนที่เลือก
-                        </p>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    products.map((product) => (
-                      <TableRow
-                        key={product.rank}
-                        className={cn(
-                          "transition-all duration-200 border-border/40",
-                          product.rank <= 3
-                            ? "bg-gradient-to-r from-yellow-50/50 to-transparent hover:from-yellow-100/50"
-                            : "hover:bg-muted/20"
-                        )}
-                      >
-                        <TableCell>{getRankBadge(product.rank)}</TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-bold text-foreground">
-                              {product.productName}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground font-mono">
-                              {product.barcode}
-                            </p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right font-bold text-blue-600">
-                          {formatNumber(product.salesCount)} ครั้ง
-                        </TableCell>
-                        <TableCell className="text-right font-bold">
-                          {formatNumber(product.totalQuantity)}
-                        </TableCell>
-                        <TableCell className="text-right font-bold text-lg text-foreground">
-                          {formatCurrency(product.totalSales)}
-                        </TableCell>
-                        <TableCell className="text-right font-bold text-emerald-600">
-                          {formatCurrency(product.totalProfit)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "font-bold text-sm",
-                              getProfitMarginColor(product.profitMargin)
-                            )}
-                          >
-                            {product.profitMargin.toFixed(1)}%
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+          {/* Summary Cards */}
+          {summary && (
+            <div className="grid gap-4 min-[600px]:grid-cols-2 min-[1100px]:grid-cols-4">
+              <KPICard
+                title="สินค้าทั้งหมด"
+                value={summary.totalProducts}
+                icon={ShoppingCart}
+                variant="blue"
+                subtitle={`ในเดือน${summary.period}`}
+              />
+              <KPICard
+                title="ยอดขายรวม"
+                value={summary.totalSales}
+                format="currency"
+                icon={DollarSign}
+                variant="purple"
+              />
+              <KPICard
+                title="กำไรรวม"
+                value={summary.totalProfit}
+                format="currency"
+                icon={TrendingUp}
+                variant="emerald"
+              />
+              <KPICard
+                title="เฉลี่ย Margin"
+                value={summary.averageProfitMargin}
+                format="percent"
+                icon={TrendingUp}
+                variant="orange"
+              />
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Filters */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1">
+                <label className="text-sm font-medium mb-2 block">เดือน</label>
+                <Select value={month} onValueChange={setMonth}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {months.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex-1">
+                <label className="text-sm font-medium mb-2 block">ปี</label>
+                <Select value={year} onValueChange={setYear}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {years.map((y) => (
+                      <SelectItem key={y.value} value={y.value}>
+                        {y.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex-1">
+                <label className="text-sm font-medium mb-2 block">จำนวน</label>
+                <Select
+                  value={limit.toString()}
+                  onValueChange={(v) => setLimit(Number(v))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">Top 5</SelectItem>
+                    <SelectItem value="10">Top 10</SelectItem>
+                    <SelectItem value="20">Top 20</SelectItem>
+                    <SelectItem value="50">Top 50</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-end">
+                <Button variant="outline" className="gap-2 w-full md:w-auto">
+                  <Download className="h-4 w-4" />
+                  Export
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Top Products Table */}
+        <Card className="border-none shadow-sm ring-1 ring-border/50 overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-yellow-50 to-orange-50 border-b border-yellow-100">
+            <CardTitle className="text-xl font-bold tracking-tight">
+              🏆 สินค้าขายดี {summary?.period}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            {isLoading ? (
+              <div className="p-4 space-y-3">
+                {[...Array(10)].map((_, i) => (
+                  <Skeleton key={i} className="h-16 w-full" />
+                ))}
+              </div>
+            ) : error || (data && !data.success) ? (
+              <div className="text-center py-12">
+                <p className="text-red-600 font-bold text-lg">
+                  เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-muted/30">
+                    <TableRow className="hover:bg-transparent border-none">
+                      <TableHead className="font-bold text-xs uppercase tracking-wider w-[100px]">
+                        อันดับ
+                      </TableHead>
+                      <TableHead className="font-bold text-xs uppercase tracking-wider">
+                        สินค้า
+                      </TableHead>
+                      <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
+                        ขายได้
+                      </TableHead>
+                      <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
+                        จำนวน
+                      </TableHead>
+                      <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
+                        ยอดขาย
+                      </TableHead>
+                      <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
+                        กำไร
+                      </TableHead>
+                      <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
+                        % กำไร
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {products.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-16">
+                          <Trophy className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                          <p className="text-muted-foreground font-medium">
+                            ไม่พบข้อมูลสินค้าขายดี
+                          </p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            ในเดือนที่เลือก
+                          </p>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      products.map((product) => (
+                        <TableRow
+                          key={product.rank}
+                          className={cn(
+                            "transition-all duration-200 border-border/40",
+                            product.rank <= 3
+                              ? "bg-gradient-to-r from-yellow-50/50 to-transparent hover:from-yellow-100/50"
+                              : "hover:bg-muted/20",
+                          )}
+                        >
+                          <TableCell>{getRankBadge(product.rank)}</TableCell>
+                          <TableCell>
+                            <div>
+                              <p className="font-bold text-foreground">
+                                {product.productName}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground font-mono">
+                                {product.barcode}
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-blue-600">
+                            {formatNumber(product.salesCount)} ครั้ง
+                          </TableCell>
+                          <TableCell className="text-right font-bold">
+                            {formatNumber(product.totalQuantity)}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-lg text-foreground">
+                            {formatCurrency(product.totalSales)}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-emerald-600">
+                            {formatCurrency(product.totalProfit)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "font-bold text-sm",
+                                getProfitMarginColor(product.profitMargin),
+                              )}
+                            >
+                              {product.profitMargin.toFixed(1)}%
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

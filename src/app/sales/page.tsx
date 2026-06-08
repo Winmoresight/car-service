@@ -145,7 +145,7 @@ export default function SalesPage() {
       <div className="p-6 pb-16">
         <DashboardBreadcrumb label="ยอดขาย" href="/sales" />
 
-        <hr className="my-4 w-full" />
+        <hr className="my-4 hidden w-full min-[1025px]:block" />
         <div className="space-y-6">
           {/* Main White Box */}
           <div className="dark:bg-background mt-2 md:mt-6 flex w-full flex-col rounded-2xl border bg-white px-4 py-6 pb-4 shadow-sm">
@@ -166,7 +166,10 @@ export default function SalesPage() {
               </div>
 
               <div className="flex items-center gap-2 mt-4 min-[798px]:mt-0">
-                <Button variant="outline" className="gap-2 text-[#28ab6e] border-[#28ab6e] hover:bg-[#28ab6e] hover:text-white">
+                <Button
+                  variant="outline"
+                  className="gap-2 text-[#28ab6e] border-[#28ab6e] hover:bg-[#28ab6e] hover:text-white"
+                >
                   <Download className="h-4 w-4" />
                   ดาวน์โหลดเป็นไฟล์ Excel
                 </Button>
@@ -175,15 +178,15 @@ export default function SalesPage() {
 
             {/* Summary Cards */}
             <div className="grid min-[600px]:grid-cols-3 gap-4">
-              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
+              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4 min-h-[210px]">
                 <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-blue-50 dark:bg-background/50">
+                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-blue-50 dark:bg-background/50 shrink-0">
                     <FileText
                       strokeWidth={2.5}
                       className="text-main-blue w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
                     />
                   </div>
-                  <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                  <div className="flex flex-col justify-between items-end min-[600px]:items-start gap-1 flex-1 min-h-[132px]">
                     <span className="text-primary text-lg font-semibold">
                       บิลทั้งหมด
                     </span>
@@ -193,20 +196,22 @@ export default function SalesPage() {
                       </span>{" "}
                       บิล
                     </h3>
-                    <span className="text-muted-foreground text-xs mt-1 font-medium">ตั้งแต่ ก.พ. 2025</span>
+                    <span className="text-muted-foreground text-xs mt-1 font-medium">
+                      ตั้งแต่ ก.พ. 2025
+                    </span>
                   </div>
                 </div>
               </div>
 
-              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
+              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4 min-h-[210px]">
                 <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-purple-50 dark:bg-background/50">
+                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-purple-50 dark:bg-background/50 shrink-0">
                     <Banknote
                       strokeWidth={2.5}
                       className="text-purple-600 w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
                     />
                   </div>
-                  <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                  <div className="flex flex-col justify-between items-end min-[600px]:items-start gap-1 flex-1 min-h-[132px]">
                     <span className="text-primary text-lg font-semibold">
                       ยอดขายรวม
                     </span>
@@ -223,15 +228,15 @@ export default function SalesPage() {
                 </div>
               </div>
 
-              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
+              <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4 min-h-[210px]">
                 <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-emerald-50 dark:bg-background/50">
+                  <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-emerald-50 dark:bg-background/50 shrink-0">
                     <TrendingUp
                       strokeWidth={2.5}
                       className="text-main-green w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
                     />
                   </div>
-                  <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                  <div className="flex flex-col justify-between items-end min-[600px]:items-start gap-1 flex-1 min-h-[132px]">
                     <span className="text-primary text-lg font-semibold">
                       กำไรรวม
                     </span>
@@ -241,7 +246,9 @@ export default function SalesPage() {
                       </span>{" "}
                       บาท
                     </h3>
-                    <span className="text-muted-foreground text-xs mt-1 font-medium">8.1% margin</span>
+                    <span className="text-muted-foreground text-xs mt-1 font-medium">
+                      8.1% margin
+                    </span>
                   </div>
                 </div>
               </div>
@@ -277,7 +284,7 @@ export default function SalesPage() {
                 )}
               </div>
             </div>
-            
+
             {/* Active Filters Display */}
             {hasActiveFilters && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground mt-4">

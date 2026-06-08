@@ -18,7 +18,7 @@ const DashboardBreadcrumb = ({
         <Link href="/" className="cursor-pointer">
           <span
             className={cn(
-              "duaration-300 text-lg font-bold transition-colors",
+              "duration-300 text-lg font-bold transition-colors",
               isMain ? "text-primary" : "text-primary/80 hover:text-primary",
             )}
           >
@@ -31,7 +31,7 @@ const DashboardBreadcrumb = ({
             <Link href="/" className="cursor-pointer">
               <span
                 className={cn(
-                  "duaration-300 text-lg font-bold transition-colors",
+                  "duration-300 text-lg font-bold transition-colors",
                   isMain
                     ? "text-primary"
                     : "text-primary/80 hover:text-primary",
