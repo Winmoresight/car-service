@@ -12,6 +12,33 @@ export interface DashboardKPI {
   todayCash: number;
   todayTransfer: number;
 
+  // เงินสด/เงินโอนสำหรับปิดยอดรายวัน
+  cashDrawerExpected: number;
+  transferNet: number;
+
+  // รายรับรายจ่ายอื่น
+  otherIncome: number;
+  otherExpense: number;
+  otherIncomeCash: number;
+  otherExpenseCash: number;
+  otherIncomeTransfer: number;
+  otherExpenseTransfer: number;
+  otherPaymentCount: number;
+
+  // ลูกหนี้
+  receivableTotal: number;
+  receivableCount: number;
+  receivableCollected: number;
+  receivableCollectedCash: number;
+  receivableCollectedTransfer: number;
+  receivableCollectedCount: number;
+
+  // คู่ค้า / สินค้าเข้าร้าน
+  supplierBillTotal: number;
+  supplierBillCount: number;
+  stockInCount: number;
+  stockInQuantity: number;
+
   // เดือนนี้
   monthSales: number;
   monthProfit: number;

@@ -1,6 +1,7 @@
 import {
   Ban,
   Banknote,
+  FilePlus2,
   FileText,
   History,
   LayoutDashboard,
@@ -27,14 +28,24 @@ export const mainNavigation = [
     icon: ShoppingCart,
   },
   {
-    name: "รายการจ่ายเงิน",
+    name: "เปิดบิล",
+    href: "/bills/new",
+    icon: FilePlus2,
+  },
+  {
+    name: "ลูกหนี้",
+    href: "/tax-invoices",
+    icon: FileText,
+  },
+  {
+    name: "รับ-จ่าย",
     href: "/payments",
     icon: Receipt,
   },
   {
-    name: "พนักงาน",
-    href: "/employees",
-    icon: UserCog,
+    name: "สต็อก",
+    href: "/stock",
+    icon: Warehouse,
   },
   {
     name: "ลูกค้า",
@@ -47,23 +58,18 @@ export const mainNavigation = [
     icon: Package,
   },
   {
-    name: "สต็อก",
-    href: "/stock",
-    icon: Warehouse,
+    name: "พนักงาน",
+    href: "/employees",
+    icon: UserCog,
   },
   {
-    name: "Insights",
+    name: "วิเคราะห์",
     href: "/insights",
     icon: TrendingUp,
   },
 ] as const;
 
 export const taxAndReportNavigation = [
-  {
-    name: "ใบกำกับภาษี",
-    href: "/tax-invoices",
-    icon: FileText,
-  },
   {
     name: "ใบกำกับเงินสด (PSC)",
     href: "/cash-invoices",
@@ -93,10 +99,16 @@ export const taxAndReportNavigation = [
 
 export const mobilePrimaryNavigation = [
   mainNavigation[0],
-  mainNavigation[1],
-  mainNavigation[3],
   {
     ...mainNavigation[2],
-    name: "จ่ายเงิน",
+    name: "เปิดบิล",
+  },
+  {
+    ...mainNavigation[3],
+    name: "ลูกหนี้",
+  },
+  {
+    ...mainNavigation[4],
+    name: "รับ-จ่าย",
   },
 ] as const;

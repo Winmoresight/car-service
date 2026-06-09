@@ -8,11 +8,13 @@
 import { format } from "date-fns";
 import {
   Banknote,
-  Calendar as CalendarIcon,
   CreditCard,
+  FileText,
   LayoutDashboard,
-  ShoppingCart,
-  TrendingUp,
+  type LucideIcon,
+  Package,
+  Receipt,
+  TrendingDown,
   Wallet,
 } from "lucide-react";
 import { useState } from "react";
@@ -34,6 +36,96 @@ import type {
 
 // Fetcher function for SWR
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("th-TH", {
+    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+  }).format(value || 0);
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat("th-TH", {
+    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+  }).format(value || 0);
+}
+
+interface MoneyBreakdownRow {
+  label: string;
+  amount: number;
+  type?: "in" | "out" | "neutral";
+}
+
+interface MoneyBreakdownProps {
+  title: string;
+  subtitle: string;
+  totalLabel: string;
+  totalValue: number;
+  icon: LucideIcon;
+  rows: MoneyBreakdownRow[];
+}
+
+function MoneyBreakdown({
+  title,
+  subtitle,
+  totalLabel,
+  totalValue,
+  icon: Icon,
+  rows,
+}: MoneyBreakdownProps) {
+  return (
+    <section className="rounded-[8px] border bg-card p-4 shadow-sm">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-card-foreground">{title}</h2>
+          <p className="text-sm font-semibold text-muted-foreground">
+            {subtitle}
+          </p>
+        </div>
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] border bg-background text-primary">
+          <Icon className="h-5 w-5" strokeWidth={2.5} />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        {rows.map((row) => {
+          const amount =
+            row.type === "out" ? -Math.abs(row.amount) : Math.abs(row.amount);
+          const isOut = row.type === "out";
+
+          return (
+            <div
+              key={row.label}
+              className="flex items-center justify-between gap-3 rounded-[8px] border bg-background px-3 py-2"
+            >
+              <span className="min-w-0 text-sm font-semibold text-muted-foreground">
+                {row.label}
+              </span>
+              <span
+                className={
+                  isOut
+                    ? "shrink-0 text-sm font-bold text-main-red"
+                    : "shrink-0 text-sm font-bold text-main-green"
+                }
+              >
+                {amount < 0 ? "-" : "+"}
+                {formatCurrency(Math.abs(amount))} บาท
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-4 flex flex-col gap-1 rounded-[8px] border border-blue-100 bg-blue-50 px-3 py-3 dark:border-blue-500/20 dark:bg-blue-500/10">
+        <span className="text-sm font-bold text-main-blue">{totalLabel}</span>
+        <span className="text-2xl font-bold text-primary">
+          {formatCurrency(totalValue)} บาท
+        </span>
+      </div>
+    </section>
+  );
+}
 
 export default function DashboardPage() {
   // State สำหรับวันที่ที่เลือก (default = วันนี้)
@@ -94,9 +186,7 @@ export default function DashboardPage() {
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
         <div className="rounded-3xl border border-red-100 bg-red-50/50 px-6 py-10 text-center dark:border-red-500/20 dark:bg-red-500/10">
-          <h1 className="mb-2 text-2xl font-bold text-main-red">
-            เกิดข้อผิดพลาด
-          </h1>
+          <h1 className="mb-2 text-2xl font-bold text-main-red">เกิดข้อผิดพลาด</h1>
           <p className="font-medium text-muted-foreground">
             ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้
           </p>
@@ -119,7 +209,7 @@ export default function DashboardPage() {
       <hr className="my-4 hidden w-full min-[1025px]:block" />
 
       <div className="space-y-6">
-        <div className="dark:bg-background mt-2 flex h-auto w-full flex-col rounded-2xl border bg-white px-4 py-6 pb-4 shadow-sm md:mt-6">
+        <div className="dark:bg-background mt-2 flex w-full flex-col rounded-2xl border bg-white px-4 py-6 pb-4 shadow-sm md:mt-6">
           <div className="mb-6 flex flex-col justify-between gap-6 min-[798px]:flex-row min-[798px]:items-center">
             <div className="flex items-center gap-3">
               <div className="bg-background dark:bg-secondary flex h-12 w-12 items-center justify-center rounded-[8px] border min-[798px]:h-14 min-[798px]:w-14">
@@ -127,10 +217,10 @@ export default function DashboardPage() {
               </div>
               <div className="flex flex-col">
                 <span className="text-primary text-2xl font-bold transition-all duration-1000">
-                  ภาพรวม
+                  สรุปเงินประจำวัน
                 </span>
                 <p className="text-foreground hidden font-medium min-[798px]:block">
-                  สรุปข้อมูลยอดขายและกำไรประจำวัน
+                  ยอดขาย เงินสด เงินโอน ลูกหนี้ และใบวางบิลคู่ค้า
                 </p>
               </div>
             </div>
@@ -144,57 +234,138 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* KPI Cards */}
+          {/* Daily Close KPIs */}
           <div className="grid gap-4 min-[600px]:grid-cols-2 min-[1280px]:grid-cols-4">
             <KPICard
               title={`ยอดขาย${dateLabel}`}
               value={kpi?.todaySales || 0}
-              subtitle={`${(kpi?.todayBills || 0).toLocaleString()} บิล`}
+              subtitle={`${formatNumber(kpi?.todayBills || 0)} บิล`}
               icon={Banknote}
               variant="blue"
               format="currency"
             />
             <KPICard
-              title={`กำไร${dateLabel}`}
-              value={kpi?.todayProfit || 0}
-              icon={TrendingUp}
+              title="เงินสดในลิ้นชัก"
+              value={kpi?.cashDrawerExpected || 0}
+              subtitle="ยอดที่ควรตรงกับเงินสดหน้าร้าน"
+              icon={Wallet}
               variant="emerald"
               format="currency"
             />
             <KPICard
-              title={`เงินสด${dateLabel}`}
-              value={kpi?.todayCash || 0}
-              icon={Wallet}
-              variant="blue"
-              format="currency"
-            />
-            <KPICard
-              title={`เงินโอน${dateLabel}`}
-              value={kpi?.todayTransfer || 0}
+              title="เงินโอนสุทธิ"
+              value={kpi?.transferNet || 0}
+              subtitle="ยอดขายโอน + รับหนี้ - จ่ายโอน"
               icon={CreditCard}
               variant="purple"
               format="currency"
             />
+            <KPICard
+              title="ลูกหนี้ค้างชำระ"
+              value={kpi?.receivableTotal || 0}
+              subtitle={`${formatNumber(kpi?.receivableCount || 0)} ใบ`}
+              icon={FileText}
+              variant="orange"
+              format="currency"
+            />
           </div>
 
-          {/* Payment Method Cards */}
-          <div className="mt-4 grid gap-4 min-[600px]:grid-cols-2">
+          <div className="mt-4 grid gap-4 min-[600px]:grid-cols-2 min-[1280px]:grid-cols-4">
             <KPICard
-              title="ยอดขายเดือนนี้"
-              value={kpi?.monthSales || 0}
-              subtitle={`${(kpi?.monthBills || 0).toLocaleString()} บิล`}
-              icon={ShoppingCart}
-              variant="purple"
+              title="ลูกหนี้จ่ายวันนี้"
+              value={kpi?.receivableCollected || 0}
+              subtitle={`${formatNumber(kpi?.receivableCollectedCount || 0)} รายการ`}
+              icon={Receipt}
+              variant="emerald"
               format="currency"
             />
             <KPICard
-              title="อัตรากำไรขั้นต้น"
-              value={kpi?.profitMargin || 0}
-              icon={CalendarIcon}
+              title="รายรับอื่น"
+              value={kpi?.otherIncome || 0}
+              subtitle={`${formatNumber(kpi?.otherPaymentCount || 0)} รายการรับ-จ่าย`}
+              icon={Banknote}
+              variant="blue"
+              format="currency"
+            />
+            <KPICard
+              title="รายจ่ายอื่น"
+              value={kpi?.otherExpense || 0}
+              subtitle="รวมค่าใช้จ่ายที่ไม่ใช่ยอดขาย"
+              icon={TrendingDown}
               variant="orange"
-              format="percent"
+              format="currency"
+            />
+            <KPICard
+              title="ใบวางบิลคู่ค้า"
+              value={kpi?.supplierBillTotal || 0}
+              subtitle={`${formatNumber(kpi?.supplierBillCount || 0)} ใบ · สินค้าเข้า ${formatNumber(kpi?.stockInCount || 0)} รายการ`}
+              icon={Package}
+              variant="purple"
+              format="currency"
             />
           </div>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-2">
+          <MoneyBreakdown
+            title="ตรวจเงินสด"
+            subtitle="ใช้เทียบกับเงินในลิ้นชักตอนปิดวัน"
+            totalLabel="เงินสดที่ควรมี"
+            totalValue={kpi?.cashDrawerExpected || 0}
+            icon={Wallet}
+            rows={[
+              {
+                label: "ยอดขายเงินสด",
+                amount: kpi?.todayCash || 0,
+                type: "in",
+              },
+              {
+                label: "ลูกหนี้จ่ายสด",
+                amount: kpi?.receivableCollectedCash || 0,
+                type: "in",
+              },
+              {
+                label: "รายรับอื่นเงินสด",
+                amount: kpi?.otherIncomeCash || 0,
+                type: "in",
+              },
+              {
+                label: "รายจ่ายเงินสด",
+                amount: kpi?.otherExpenseCash || 0,
+                type: "out",
+              },
+            ]}
+          />
+
+          <MoneyBreakdown
+            title="ตรวจเงินโอน"
+            subtitle="ยอดสุทธิจากรายการรับเข้าและจ่ายออกผ่านบัญชี"
+            totalLabel="เงินโอนสุทธิ"
+            totalValue={kpi?.transferNet || 0}
+            icon={CreditCard}
+            rows={[
+              {
+                label: "ยอดขายเงินโอน",
+                amount: kpi?.todayTransfer || 0,
+                type: "in",
+              },
+              {
+                label: "ลูกหนี้จ่ายโอน",
+                amount: kpi?.receivableCollectedTransfer || 0,
+                type: "in",
+              },
+              {
+                label: "รายรับอื่นเงินโอน",
+                amount: kpi?.otherIncomeTransfer || 0,
+                type: "in",
+              },
+              {
+                label: "รายจ่ายเงินโอน",
+                amount: kpi?.otherExpenseTransfer || 0,
+                type: "out",
+              },
+            ]}
+          />
         </div>
 
         {/* Sales Chart */}
