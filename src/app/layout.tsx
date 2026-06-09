@@ -10,8 +10,28 @@ import { Header } from "@/components/layout/header";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 export const metadata: Metadata = {
-  title: "Car Service - ระบบสรุปข้อมูลยอดขาย",
-  description: "Dashboard สำหรับสรุปข้อมูลยอดขาย สินค้า สต็อก และลูกค้า",
+  title: "วิจิตรศิลปปักธงชัย",
+  description: "ระบบสำหรับสรุปข้อมูลยอดขาย สินค้า ลูกค้า และรายงานต่างๆ",
+  openGraph: {
+    title: "วิจิตรศิลปปักธงชัย",
+    description: "ระบบสำหรับสรุปข้อมูลยอดขาย สินค้า ลูกค้า และรายงานต่างๆ",
+    url: "https://car.winmoresight.com",
+    type: "website",
+    siteName: "วิจิตรศิลปปักธงชัย",
+    locale: "th_TH",
+    images: [
+      {
+        url: "/opengraph-image.png",
+        width: 1200,
+        height: 630,
+        alt: "ระบบสำหรับสรุปข้อมูลยอดขาย สินค้า ลูกค้า และรายงานต่างๆ",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: ["/opengraph-image.png"],
+  },
 };
 
 const RootLayout = ({ children }: { children: ReactNode }) => {
