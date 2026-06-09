@@ -3,6 +3,7 @@
  * เปิดบิลจากมือถือเข้าตารางบิลขายจริงของ POS เดิม
  */
 
+import { randomInt } from "node:crypto";
 import sql from "mssql";
 import { type NextRequest, NextResponse } from "next/server";
 import { executeQuery, getPool } from "@/lib/db";
@@ -156,21 +157,31 @@ function calculateTotals(items: BillDraftItem[]) {
   };
 }
 
-function createLegacyBillNo() {
-  const now = new Date();
-  const datePart = [
-    String(now.getFullYear()).slice(-2),
-    String(now.getMonth() + 1).padStart(2, "0"),
-    String(now.getDate()).padStart(2, "0"),
-  ].join("");
-  const timePart = [
-    String(now.getHours()).padStart(2, "0"),
-    String(now.getMinutes()).padStart(2, "0"),
-    String(now.getSeconds()).padStart(2, "0"),
-  ].join("");
-  const suffix = Math.random().toString(36).slice(2, 4).toUpperCase();
+function createRandomBillNo() {
+  const randomNumber = randomInt(1_000_000_000).toString().padStart(9, "0");
 
-  return `WEB${datePart}${timePart}${suffix}`;
+  return `WEB${randomNumber}`;
+}
+
+async function createLegacyBillNo() {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const billNo = createRandomBillNo();
+    const [existing] = await executeQuery<{ count: number }>(
+      `
+        SELECT COUNT(*) as count
+        FROM dbo.MasterSalePost
+        WHERE NumberPrintSalePost = @billNo
+      `,
+      { billNo },
+      false,
+    );
+
+    if (!existing?.count) {
+      return billNo;
+    }
+  }
+
+  throw new Error("ไม่สามารถสร้างเลขบิล WEB ที่ไม่ซ้ำได้");
 }
 
 function formatLegacyTime(date: Date) {
@@ -598,7 +609,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const billNo = createLegacyBillNo();
+    const billNo = await createLegacyBillNo();
     const totals = calculateTotals(items);
     const legacyBill = await createLegacySaleBill({
       billNo,

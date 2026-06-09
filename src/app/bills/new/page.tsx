@@ -6,7 +6,6 @@ import {
   Loader2,
   Plus,
   ReceiptText,
-  Search,
   Send,
   Smartphone,
   Trash2,
@@ -16,10 +15,10 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { outfit } from "@/components/fonts/fonts";
+import AsyncSearchableSelect from "@/components/ui/async-searchable-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 
 interface CustomerOption {
   codeCustomer: string;
@@ -67,6 +66,14 @@ interface BillDraft {
 
 type DraftItemForm = Omit<DraftItem, "id">;
 
+interface CatalogResponse {
+  success: boolean;
+  data?: {
+    customers?: CustomerOption[];
+    products?: ProductOption[];
+  };
+}
+
 const emptyItem: DraftItemForm = {
   type: "service",
   barCode: "",
@@ -109,13 +116,50 @@ function formatDateTime(dateString: string) {
   });
 }
 
+function getNumberInputValue(value?: number) {
+  return value === 0 || value === undefined ? "" : value;
+}
+
+function parseNumberInput(value: string) {
+  if (value === "") {
+    return 0;
+  }
+
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : 0;
+}
+
+function getItemTotal(
+  item: Pick<DraftItem, "quantity" | "unitPrice" | "discount">,
+) {
+  return Math.max(item.quantity * item.unitPrice - (item.discount || 0), 0);
+}
+
+async function fetchCatalogOptions(search: string, signal: AbortSignal) {
+  const response = await fetch(
+    `/api/bill-drafts/catalog?search=${encodeURIComponent(search)}&limit=12`,
+    { signal },
+  );
+  const data = (await response.json()) as CatalogResponse;
+
+  return data.success ? data.data : {};
+}
+
+async function fetchCustomerOptions(search: string, signal: AbortSignal) {
+  const data = await fetchCatalogOptions(search, signal);
+
+  return data?.customers || [];
+}
+
+async function fetchProductOptions(search: string, signal: AbortSignal) {
+  const data = await fetchCatalogOptions(search, signal);
+
+  return data?.products || [];
+}
+
 export default function NewBillPage() {
-  const [customerSearch, setCustomerSearch] = useState("");
-  const [productSearch, setProductSearch] = useState("");
-  const [customers, setCustomers] = useState<CustomerOption[]>([]);
-  const [products, setProducts] = useState<ProductOption[]>([]);
   const [recentDrafts, setRecentDrafts] = useState<BillDraft[]>([]);
-  const [isCatalogLoading, setIsCatalogLoading] = useState(false);
   const [isRecentLoading, setIsRecentLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -150,41 +194,6 @@ export default function NewBillPage() {
       totalPrice: Math.max(subTotal - discountTotal, 0),
     };
   }, [items]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const query = productSearch || customerSearch;
-
-    async function fetchCatalog() {
-      try {
-        setIsCatalogLoading(true);
-        const response = await fetch(
-          `/api/bill-drafts/catalog?search=${encodeURIComponent(query)}&limit=8`,
-          { signal: controller.signal },
-        );
-        const data = await response.json();
-
-        if (data.success) {
-          setCustomers(data.data.customers || []);
-          setProducts(data.data.products || []);
-        }
-      } catch (fetchError) {
-        if ((fetchError as Error).name !== "AbortError") {
-          setCustomers([]);
-          setProducts([]);
-        }
-      } finally {
-        setIsCatalogLoading(false);
-      }
-    }
-
-    const timer = window.setTimeout(fetchCatalog, 250);
-
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [customerSearch, productSearch]);
 
   useEffect(() => {
     async function fetchRecentDrafts() {
@@ -223,7 +232,6 @@ export default function NewBillPage() {
       province: customer.province,
       brandAndGenerate: customer.brandAndGenerate,
     }));
-    setCustomerSearch(customer.nameCustomer);
   };
 
   const selectProduct = (product: ProductOption) => {
@@ -235,7 +243,6 @@ export default function NewBillPage() {
       unitPrice: product.unitPrice || 0,
       cost: product.cost || 0,
     }));
-    setProductSearch(product.name);
   };
 
   const addItem = () => {
@@ -261,12 +268,28 @@ export default function NewBillPage() {
       },
     ]);
     setDraftItem(emptyItem);
-    setProductSearch("");
     setError(null);
   };
 
   const removeItem = (id: string) => {
     setItems((current) => current.filter((item) => item.id !== id));
+  };
+
+  const updateItem = <Key extends keyof DraftItem>(
+    id: string,
+    field: Key,
+    value: DraftItem[Key],
+  ) => {
+    setItems((current) =>
+      current.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              [field]: value,
+            }
+          : item,
+      ),
+    );
   };
 
   const resetForm = () => {
@@ -281,8 +304,6 @@ export default function NewBillPage() {
       createdBy: "",
       note: "",
     });
-    setCustomerSearch("");
-    setProductSearch("");
     setDraftItem(emptyItem);
     setItems([]);
   };
@@ -386,39 +407,37 @@ export default function NewBillPage() {
               </div>
 
               <div className="space-y-4">
-                <div className="relative">
-                  <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="ค้นหาชื่อ เบอร์โทร หรือทะเบียน..."
-                    value={customerSearch}
-                    onChange={(event) => setCustomerSearch(event.target.value)}
-                    className="h-11 rounded-2xl pl-10 font-medium"
-                  />
-                </div>
-
-                {customers.length > 0 ? (
-                  <div className="grid gap-2 min-[640px]:grid-cols-2">
-                    {customers.map((customer) => (
-                      <button
-                        key={`${customer.codeCustomer}-${customer.nameCar}`}
-                        type="button"
-                        onClick={() => selectCustomer(customer)}
-                        className="rounded-[8px] border bg-background p-3 text-left transition-colors hover:border-main-blue hover:bg-blue-50/60 dark:bg-secondary dark:hover:bg-blue-500/10"
-                      >
-                        <span className="block truncate text-sm font-bold text-primary">
-                          {customer.nameCustomer || "ไม่ระบุชื่อลูกค้า"}
-                        </span>
-                        <span className="mt-1 block truncate text-xs font-semibold text-muted-foreground">
-                          {customer.nameCar || "-"} {customer.province || ""}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                ) : isCatalogLoading ? (
-                  <p className="text-sm font-semibold text-muted-foreground">
-                    กำลังค้นหาข้อมูล...
-                  </p>
-                ) : null}
+                <AsyncSearchableSelect<CustomerOption>
+                  selectedLabel={
+                    form.customerName
+                      ? `${form.customerName}${form.nameCar ? ` · ${form.nameCar}` : ""}`
+                      : undefined
+                  }
+                  placeholder="เลือกลูกค้าเดิม"
+                  searchPlaceholder="ค้นหาชื่อ เบอร์โทร หรือทะเบียน..."
+                  emptyMessage="ไม่พบลูกค้า"
+                  fetchOptions={fetchCustomerOptions}
+                  getOptionKey={(customer) =>
+                    `${customer.codeCustomer}-${customer.nameCustomer}-${customer.nameCar}-${customer.phoneCustomer}`
+                  }
+                  getOptionLabel={(customer) =>
+                    customer.nameCustomer || "ไม่ระบุชื่อลูกค้า"
+                  }
+                  getOptionDescription={(customer) =>
+                    [
+                      customer.nameCar,
+                      customer.province,
+                      customer.phoneCustomer,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "ไม่มีข้อมูลรถ"
+                  }
+                  isOptionSelected={(customer) =>
+                    !!form.customerCode &&
+                    customer.codeCustomer === form.customerCode
+                  }
+                  onSelect={selectCustomer}
+                />
 
                 <div className="grid gap-3 min-[640px]:grid-cols-2">
                   <label htmlFor="customerName" className="space-y-1.5">
@@ -532,41 +551,28 @@ export default function NewBillPage() {
               </div>
 
               <div className="space-y-4">
-                <div className="relative">
-                  <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="ค้นหาสินค้าเดิม หรือพิมพ์รายการใหม่..."
-                    value={productSearch}
-                    onChange={(event) => {
-                      setProductSearch(event.target.value);
-                      setDraftItem((current) => ({
-                        ...current,
-                        name: event.target.value,
-                      }));
-                    }}
-                    className="h-11 rounded-2xl pl-10 font-medium"
-                  />
-                </div>
-
-                {products.length > 0 ? (
-                  <div className="grid gap-2 min-[640px]:grid-cols-2">
-                    {products.map((product) => (
-                      <button
-                        key={`${product.barCode}-${product.name}`}
-                        type="button"
-                        onClick={() => selectProduct(product)}
-                        className="rounded-[8px] border bg-background p-3 text-left transition-colors hover:border-main-blue hover:bg-blue-50/60 dark:bg-secondary dark:hover:bg-blue-500/10"
-                      >
-                        <span className="block truncate text-sm font-bold text-primary">
-                          {product.name}
-                        </span>
-                        <span className="mt-1 block text-xs font-semibold text-muted-foreground">
-                          {formatCurrency(product.unitPrice)} บาท
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
+                <AsyncSearchableSelect<ProductOption>
+                  selectedLabel={
+                    draftItem.type === "product" && draftItem.name
+                      ? draftItem.name
+                      : undefined
+                  }
+                  placeholder="เลือกสินค้าจากประวัติ"
+                  searchPlaceholder="ค้นหาชื่อสินค้า หรือบาร์โค้ด..."
+                  emptyMessage="ไม่พบสินค้า"
+                  fetchOptions={fetchProductOptions}
+                  getOptionKey={(product) =>
+                    `${product.barCode}-${product.name}`
+                  }
+                  getOptionLabel={(product) => product.name}
+                  getOptionDescription={(product) =>
+                    `${formatCurrency(product.unitPrice)} บาท`
+                  }
+                  isOptionSelected={(product) =>
+                    !!draftItem.barCode && product.barCode === draftItem.barCode
+                  }
+                  onSelect={selectProduct}
+                />
 
                 <div className="grid gap-3 min-[640px]:grid-cols-[1fr_120px_140px]">
                   <label htmlFor="itemName" className="space-y-1.5">
@@ -591,11 +597,11 @@ export default function NewBillPage() {
                     </span>
                     <Input
                       id="itemQuantity"
-                      value={draftItem.quantity}
+                      value={getNumberInputValue(draftItem.quantity)}
                       onChange={(event) =>
                         setDraftItem((current) => ({
                           ...current,
-                          quantity: Number(event.target.value),
+                          quantity: parseNumberInput(event.target.value),
                         }))
                       }
                       type="number"
@@ -608,11 +614,11 @@ export default function NewBillPage() {
                     <span className="text-sm font-bold text-primary">ราคา</span>
                     <Input
                       id="itemPrice"
-                      value={draftItem.unitPrice}
+                      value={getNumberInputValue(draftItem.unitPrice)}
                       onChange={(event) =>
                         setDraftItem((current) => ({
                           ...current,
-                          unitPrice: Number(event.target.value),
+                          unitPrice: parseNumberInput(event.target.value),
                         }))
                       }
                       type="number"
@@ -633,49 +639,127 @@ export default function NewBillPage() {
                 </Button>
 
                 {items.length > 0 ? (
-                  <div className="space-y-2">
-                    {items.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-start justify-between gap-3 rounded-[8px] border bg-background p-3 dark:bg-secondary"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-bold text-primary">
-                              {item.name}
-                            </span>
-                            <Badge
-                              variant="outline"
-                              className="rounded-full text-xs font-bold"
-                            >
-                              {item.type === "product" ? "สินค้า" : "บริการ"}
-                            </Badge>
-                          </div>
-                          <p className="mt-1 text-sm font-semibold text-muted-foreground">
-                            {formatCurrency(item.unitPrice)} x {item.quantity}
-                          </p>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          <span
-                            className={cn(
-                              outfit.className,
-                              "text-lg font-bold text-primary",
-                            )}
+                  <div className="overflow-x-auto rounded-[8px] border">
+                    <table className="w-full min-w-[780px] border-collapse text-sm">
+                      <thead className="bg-background dark:bg-secondary">
+                        <tr className="border-b text-left text-primary">
+                          <th className="w-16 px-3 py-3 font-bold">ลำดับ</th>
+                          <th className="px-3 py-3 font-bold">ชื่อรายการ</th>
+                          <th className="w-24 px-3 py-3 text-right font-bold">
+                            จำนวน
+                          </th>
+                          <th className="w-36 px-3 py-3 text-right font-bold">
+                            ราคา
+                          </th>
+                          <th className="w-32 px-3 py-3 text-right font-bold">
+                            ส่วนลด
+                          </th>
+                          <th className="w-32 px-3 py-3 text-right font-bold">
+                            รวม
+                          </th>
+                          <th className="w-14 px-3 py-3" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map((item, index) => (
+                          <tr
+                            key={item.id}
+                            className="border-b last:border-b-0"
                           >
-                            {formatCurrency(item.quantity * item.unitPrice)}
-                          </span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeItem(item.id)}
-                            className="h-9 w-9 text-main-red"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                            <td className="px-3 py-3 text-center font-semibold text-primary">
+                              {index + 1}
+                            </td>
+                            <td className="px-3 py-3">
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  value={item.name}
+                                  onChange={(event) =>
+                                    updateItem(
+                                      item.id,
+                                      "name",
+                                      event.target.value,
+                                    )
+                                  }
+                                  className="h-10 rounded-[8px] bg-background font-semibold dark:bg-secondary"
+                                />
+                                <Badge
+                                  variant="outline"
+                                  className="shrink-0 rounded-full text-xs font-bold"
+                                >
+                                  {item.type === "product" ? "สินค้า" : "บริการ"}
+                                </Badge>
+                              </div>
+                            </td>
+                            <td className="px-3 py-3">
+                              <Input
+                                type="number"
+                                min="1"
+                                inputMode="decimal"
+                                value={getNumberInputValue(item.quantity)}
+                                onChange={(event) =>
+                                  updateItem(
+                                    item.id,
+                                    "quantity",
+                                    parseNumberInput(event.target.value),
+                                  )
+                                }
+                                className="h-10 rounded-[8px] bg-background text-right font-semibold dark:bg-secondary"
+                              />
+                            </td>
+                            <td className="px-3 py-3">
+                              <Input
+                                type="number"
+                                min="0"
+                                inputMode="decimal"
+                                value={getNumberInputValue(item.unitPrice)}
+                                onChange={(event) =>
+                                  updateItem(
+                                    item.id,
+                                    "unitPrice",
+                                    parseNumberInput(event.target.value),
+                                  )
+                                }
+                                className="h-10 rounded-[8px] bg-background text-right font-semibold dark:bg-secondary"
+                              />
+                            </td>
+                            <td className="px-3 py-3">
+                              <Input
+                                type="number"
+                                min="0"
+                                inputMode="decimal"
+                                value={getNumberInputValue(item.discount)}
+                                onChange={(event) =>
+                                  updateItem(
+                                    item.id,
+                                    "discount",
+                                    parseNumberInput(event.target.value),
+                                  )
+                                }
+                                className="h-10 rounded-[8px] bg-background text-right font-semibold dark:bg-secondary"
+                              />
+                            </td>
+                            <td className="px-3 py-3 text-right">
+                              <span
+                                className={`${outfit.className} font-bold text-primary`}
+                              >
+                                {formatCurrency(getItemTotal(item))}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3 text-right">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeItem(item.id)}
+                                className="h-9 w-9 text-main-red"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 ) : null}
               </div>
