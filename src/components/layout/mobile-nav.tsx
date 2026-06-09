@@ -84,7 +84,7 @@ export function MobileNav() {
       {isMenuOpen ? (
         <div
           id="mobile-nav-drawer"
-          className="pointer-events-auto absolute inset-x-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-50 max-h-[68vh] translate-y-0 overflow-y-auto rounded-t-[28px] border border-x-0 border-b-0 bg-card p-4 opacity-100 shadow-[0_-18px_60px_rgba(15,23,42,0.14)] transition-all duration-300"
+          className="pointer-events-auto absolute inset-x-0 bottom-[calc(68px+env(safe-area-inset-bottom))] z-50 max-h-[68vh] translate-y-0 overflow-y-auto rounded-t-[28px] border border-x-0 border-b-0 bg-card p-4 opacity-100 shadow-[0_-18px_60px_rgba(15,23,42,0.14)] transition-all duration-300"
         >
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>

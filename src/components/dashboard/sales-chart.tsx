@@ -83,7 +83,7 @@ export function SalesChart({
         </div>
       </CardHeader>
       <CardContent className="px-4 pt-0">
-        <ChartContainer config={chartConfig} className="h-[600px] w-full">
+        <ChartContainer config={chartConfig} className="h-[450px] w-full">
           <AreaChart
             data={chartData}
             margin={{

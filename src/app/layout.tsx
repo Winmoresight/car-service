@@ -9,19 +9,23 @@ import { MobileNav } from "@/components/layout/mobile-nav";
 import { Header } from "@/components/layout/header";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
+const siteUrl = "https://car.winmoresight.com";
+const ogImageUrl = `${siteUrl}/opengraph-image.png`;
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: "วิจิตรศิลปปักธงชัย",
   description: "ระบบสำหรับสรุปข้อมูลยอดขาย สินค้า ลูกค้า และรายงานต่างๆ",
   openGraph: {
     title: "วิจิตรศิลปปักธงชัย",
     description: "ระบบสำหรับสรุปข้อมูลยอดขาย สินค้า ลูกค้า และรายงานต่างๆ",
-    url: "https://car.winmoresight.com",
+    url: siteUrl,
     type: "website",
     siteName: "วิจิตรศิลปปักธงชัย",
     locale: "th_TH",
     images: [
       {
-        url: "/opengraph-image.png",
+        url: ogImageUrl,
         width: 1200,
         height: 630,
         alt: "ระบบสำหรับสรุปข้อมูลยอดขาย สินค้า ลูกค้า และรายงานต่างๆ",
@@ -30,7 +34,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    images: ["/opengraph-image.png"],
+    images: [ogImageUrl],
   },
 };
 

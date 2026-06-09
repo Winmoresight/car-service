@@ -94,7 +94,9 @@ export default function DashboardPage() {
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
         <div className="rounded-3xl border border-red-100 bg-red-50/50 px-6 py-10 text-center dark:border-red-500/20 dark:bg-red-500/10">
-          <h1 className="mb-2 text-2xl font-bold text-main-red">เกิดข้อผิดพลาด</h1>
+          <h1 className="mb-2 text-2xl font-bold text-main-red">
+            เกิดข้อผิดพลาด
+          </h1>
           <p className="font-medium text-muted-foreground">
             ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้
           </p>
@@ -160,6 +162,24 @@ export default function DashboardPage() {
               format="currency"
             />
             <KPICard
+              title={`เงินสด${dateLabel}`}
+              value={kpi?.todayCash || 0}
+              icon={Wallet}
+              variant="blue"
+              format="currency"
+            />
+            <KPICard
+              title={`เงินโอน${dateLabel}`}
+              value={kpi?.todayTransfer || 0}
+              icon={CreditCard}
+              variant="purple"
+              format="currency"
+            />
+          </div>
+
+          {/* Payment Method Cards */}
+          <div className="mt-4 grid gap-4 min-[600px]:grid-cols-2">
+            <KPICard
               title="ยอดขายเดือนนี้"
               value={kpi?.monthSales || 0}
               subtitle={`${(kpi?.monthBills || 0).toLocaleString()} บิล`}
@@ -173,24 +193,6 @@ export default function DashboardPage() {
               icon={CalendarIcon}
               variant="orange"
               format="percent"
-            />
-          </div>
-
-          {/* Payment Method Cards */}
-          <div className="mt-4 grid gap-4 min-[600px]:grid-cols-2">
-            <KPICard
-              title={`เงินสด${dateLabel}`}
-              value={kpi?.todayCash || 0}
-              icon={Wallet}
-              variant="blue"
-              format="currency"
-            />
-            <KPICard
-              title={`เงินโอน${dateLabel}`}
-              value={kpi?.todayTransfer || 0}
-              icon={CreditCard}
-              variant="purple"
-              format="currency"
             />
           </div>
         </div>
