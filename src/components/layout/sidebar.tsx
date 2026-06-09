@@ -5,104 +5,15 @@
  * Navigation สำหรับ Desktop
  */
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  ShoppingCart,
-  Package,
-  Warehouse,
-  Users,
-  TrendingUp,
-  UserCog,
-  Receipt,
-  FileText,
-  Ban,
-  History,
-  Trash2,
-  Trophy,
-  Banknote,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Separator } from "@/components/ui/separator";
-import Image from "next/image";
 import { outfit } from "@/components/fonts/fonts";
-
-const navigation = [
-  {
-    name: "ภาพรวม",
-    href: "/",
-    icon: LayoutDashboard,
-  },
-  {
-    name: "ยอดขาย",
-    href: "/sales",
-    icon: ShoppingCart,
-  },
-  {
-    name: "รายการจ่ายเงิน",
-    href: "/payments",
-    icon: Receipt,
-  },
-  {
-    name: "พนักงาน",
-    href: "/employees",
-    icon: UserCog,
-  },
-  {
-    name: "ลูกค้า",
-    href: "/customers",
-    icon: Users,
-  },
-  {
-    name: "สินค้า",
-    href: "/products",
-    icon: Package,
-  },
-  {
-    name: "สต็อก",
-    href: "/stock",
-    icon: Warehouse,
-  },
-  {
-    name: "Insights",
-    href: "/insights",
-    icon: TrendingUp,
-  },
-];
-
-const taxAndReports = [
-  {
-    name: "ใบกำกับภาษี",
-    href: "/tax-invoices",
-    icon: FileText,
-  },
-  {
-    name: "ใบกำกับเงินสด (PSC)",
-    href: "/cash-invoices",
-    icon: Banknote,
-  },
-  {
-    name: "บิลที่ยกเลิก",
-    href: "/tax-invoices/cancelled",
-    icon: Ban,
-  },
-  {
-    name: "ประวัติแก้ไขบิล",
-    href: "/bills/edit-history",
-    icon: History,
-  },
-  {
-    name: "บิลที่ถูกลบ",
-    href: "/bills/deleted",
-    icon: Trash2,
-  },
-  {
-    name: "สินค้าขายดี",
-    href: "/reports/top-products",
-    icon: Trophy,
-  },
-];
+import {
+  mainNavigation,
+  taxAndReportNavigation,
+} from "@/components/layout/navigation";
+import { cn } from "@/lib/utils";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -137,7 +48,7 @@ export function Sidebar() {
               เมนูหลัก
             </p>
             <div className="space-y-1">
-              {navigation.map((item) => {
+              {mainNavigation.map((item) => {
                 const isActive = pathname === item.href;
                 return (
                   <Link
@@ -171,7 +82,7 @@ export function Sidebar() {
               ภาษี & รายงาน
             </p>
             <div className="space-y-1">
-              {taxAndReports.map((item) => {
+              {taxAndReportNavigation.map((item) => {
                 const isActive = pathname === item.href;
                 return (
                   <Link
