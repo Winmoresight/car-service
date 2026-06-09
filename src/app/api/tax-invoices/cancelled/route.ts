@@ -34,17 +34,19 @@ export async function GET(request: NextRequest) {
 
     // Build query for cancelled invoices
     let query = `
-      SELECT 
-        NumberPrintPost as numberPrint,
-        DatePost as date,
-        ISNULL(NameCustomer, 'ไม่ระบุ') as customerName,
-        ISNULL(NameCar, '') as nameCar,
-        ISNULL(SubVatePrice, 0) as subVatePrice,
-        ISNULL(VatePrice, 0) as vatePrice,
-        ISNULL(TotalPrice, 0) as totalPrice,
-        ISNULL(NameUser, '') as userName
-      FROM dbo.MasterPrintPostVate
-      WHERE Status = 'ยกเลิก'
+      WITH PaginatedData AS (
+        SELECT 
+          NumberPrintPost as numberPrint,
+          DatePost as date,
+          ISNULL(NameCustomer, 'ไม่ระบุ') as customerName,
+          ISNULL(NameCar, '') as nameCar,
+          ISNULL(SubVatePrice, 0) as subVatePrice,
+          ISNULL(VatePrice, 0) as vatePrice,
+          ISNULL(TotalPrice, 0) as totalPrice,
+          ISNULL(NameUser, '') as userName,
+          ROW_NUMBER() OVER (ORDER BY DatePost DESC) as RowNum
+        FROM dbo.MasterPrintPostVate
+        WHERE Status = 'ยกเลิก'
     `;
 
     // Add date filters
@@ -57,9 +59,19 @@ export async function GET(request: NextRequest) {
     }
 
     query += `
-      ORDER BY DatePost DESC
-      OFFSET @offset ROWS
-      FETCH NEXT @limit ROWS ONLY
+      )
+      SELECT
+        numberPrint,
+        date,
+        customerName,
+        nameCar,
+        subVatePrice,
+        vatePrice,
+        totalPrice,
+        userName
+      FROM PaginatedData
+      WHERE RowNum > @offset AND RowNum <= (@offset + @limit)
+      ORDER BY RowNum
     `;
 
     const results = await executeQuery<{

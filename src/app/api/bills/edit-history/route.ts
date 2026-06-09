@@ -46,18 +46,20 @@ export async function GET(request: NextRequest) {
 
     // Build query
     let query = `
-      SELECT 
-        NumberPrint as numberPrint,
-        DateEditPrint as editDate,
-        ISNULL(Times, '') as editTime,
-        ISNULL(PayCashOld, 0) as payCashOld,
-        ISNULL(PayCashNew, 0) as payCashNew,
-        ISNULL(PayTransferOld, 0) as payTransferOld,
-        ISNULL(PayTransferNew, 0) as payTransferNew,
-        ISNULL(NameBankOld, '') as nameBankOld,
-        ISNULL(NameBankNew, '') as nameBankNew,
-        ISNULL(NameUser, '') as nameUser
-      FROM dbo.ChangeEditPrint
+      WITH PaginatedData AS (
+        SELECT 
+          NumberPrint as numberPrint,
+          DateEditPrint as editDate,
+          ISNULL(Times, '') as editTime,
+          ISNULL(PayCashOld, 0) as payCashOld,
+          ISNULL(PayCashNew, 0) as payCashNew,
+          ISNULL(PayTransferOld, 0) as payTransferOld,
+          ISNULL(PayTransferNew, 0) as payTransferNew,
+          ISNULL(NameBankOld, '') as nameBankOld,
+          ISNULL(NameBankNew, '') as nameBankNew,
+          ISNULL(NameUser, '') as nameUser,
+          ROW_NUMBER() OVER (ORDER BY DateEditPrint DESC, Times DESC) as RowNum
+        FROM dbo.ChangeEditPrint
     `;
 
     // Build WHERE clause
@@ -87,9 +89,21 @@ export async function GET(request: NextRequest) {
     }
 
     query += `
-      ORDER BY DateEditPrint DESC, Times DESC
-      OFFSET @offset ROWS
-      FETCH NEXT @limit ROWS ONLY
+      )
+      SELECT
+        numberPrint,
+        editDate,
+        editTime,
+        payCashOld,
+        payCashNew,
+        payTransferOld,
+        payTransferNew,
+        nameBankOld,
+        nameBankNew,
+        nameUser
+      FROM PaginatedData
+      WHERE RowNum > @offset AND RowNum <= (@offset + @limit)
+      ORDER BY RowNum
     `;
 
     const results = await executeQuery<{

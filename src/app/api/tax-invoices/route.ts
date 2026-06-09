@@ -33,19 +33,21 @@ export async function GET(request: NextRequest) {
 
     // Build query
     let query = `
-      SELECT 
-        NumberPrintPost as numberPrint,
-        DatePost as date,
-        ISNULL(CodeCustomer, '') as customerCode,
-        ISNULL(NameCustomer, 'ไม่ระบุ') as customerName,
-        ISNULL(NameCar, '') as nameCar,
-        ISNULL(Province, '') as province,
-        ISNULL(SubVatePrice, 0) as subVatePrice,
-        ISNULL(VatePrice, 0) as vatePrice,
-        ISNULL(TotalPrice, 0) as totalPrice,
-        ISNULL(Status, '') as status,
-        ISNULL(NameUser, '') as userName
-      FROM dbo.MasterPrintPostVate
+      WITH PaginatedData AS (
+        SELECT 
+          NumberPrintPost as numberPrint,
+          DatePost as date,
+          ISNULL(CodeCustomer, '') as customerCode,
+          ISNULL(NameCustomer, 'ไม่ระบุ') as customerName,
+          ISNULL(NameCar, '') as nameCar,
+          ISNULL(Province, '') as province,
+          ISNULL(SubVatePrice, 0) as subVatePrice,
+          ISNULL(VatePrice, 0) as vatePrice,
+          ISNULL(TotalPrice, 0) as totalPrice,
+          ISNULL(Status, '') as status,
+          ISNULL(NameUser, '') as userName,
+          ROW_NUMBER() OVER (ORDER BY DatePost DESC) as RowNum
+        FROM dbo.MasterPrintPostVate
     `;
 
     // Build WHERE clause
@@ -72,9 +74,22 @@ export async function GET(request: NextRequest) {
     }
 
     query += `
-      ORDER BY DatePost DESC
-      OFFSET @offset ROWS
-      FETCH NEXT @limit ROWS ONLY
+      )
+      SELECT
+        numberPrint,
+        date,
+        customerCode,
+        customerName,
+        nameCar,
+        province,
+        subVatePrice,
+        vatePrice,
+        totalPrice,
+        status,
+        userName
+      FROM PaginatedData
+      WHERE RowNum > @offset AND RowNum <= (@offset + @limit)
+      ORDER BY RowNum
     `;
 
     const results = await executeQuery<{

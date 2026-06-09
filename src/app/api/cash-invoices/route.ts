@@ -31,19 +31,21 @@ export async function GET(request: NextRequest) {
 
     // Build query สำหรับ DetailSalePost ที่มีรหัสขึ้นต้นด้วย psc
     let query = `
-      SELECT 
-        ISNULL(NumberPrintSalePost, '') as invoiceNo,
-        DateSalePost as dateSalePost,
-        ISNULL(CodeCustomer, '') as customerCode,
-        ISNULL(NameProduct, '') as productName,
-        ISNULL(NumProduct, 0) as quantity,
-        ISNULL(SalePrice, 0) as unitPrice,
-        ISNULL(ReducePrice, 0) as discount,
-        ISNULL(SumPrice, 0) as totalAmount,
-        ISNULL(NameSave, '') as userName,
-        ISNULL(TypeSale, '') as typeSale
-      FROM dbo.DetailSalePost
-      WHERE (NumberPrintSalePost LIKE 'psc%' OR NumberPrintSalePost LIKE 'PSC%')
+      WITH PaginatedData AS (
+        SELECT 
+          ISNULL(NumberPrintSalePost, '') as invoiceNo,
+          DateSalePost as dateSalePost,
+          ISNULL(CodeCustomer, '') as customerCode,
+          ISNULL(NameProduct, '') as productName,
+          ISNULL(NumProduct, 0) as quantity,
+          ISNULL(SalePrice, 0) as unitPrice,
+          ISNULL(ReducePrice, 0) as discount,
+          ISNULL(SumPrice, 0) as totalAmount,
+          ISNULL(NameSave, '') as userName,
+          ISNULL(TypeSale, '') as typeSale,
+          ROW_NUMBER() OVER (ORDER BY DateSalePost DESC, NumberPrintSalePost DESC) as RowNum
+        FROM dbo.DetailSalePost
+        WHERE (NumberPrintSalePost LIKE 'psc%' OR NumberPrintSalePost LIKE 'PSC%')
     `;
 
     // Build additional WHERE conditions
@@ -68,9 +70,21 @@ export async function GET(request: NextRequest) {
     }
 
     query += `
-      ORDER BY DateSalePost DESC, NumberPrintSalePost DESC
-      OFFSET @offset ROWS
-      FETCH NEXT @limit ROWS ONLY
+      )
+      SELECT
+        invoiceNo,
+        dateSalePost,
+        customerCode,
+        productName,
+        quantity,
+        unitPrice,
+        discount,
+        totalAmount,
+        userName,
+        typeSale
+      FROM PaginatedData
+      WHERE RowNum > @offset AND RowNum <= (@offset + @limit)
+      ORDER BY RowNum
     `;
 
     const results = await executeQuery<{

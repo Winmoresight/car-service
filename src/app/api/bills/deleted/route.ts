@@ -36,22 +36,35 @@ export async function GET(request: NextRequest) {
     // Note: ระบบปัจจุบันอาจไม่มี field สำหรับบิลที่ถูกลบโดยตรง
     // เราจะดูจาก Status หรือ CloseAcc field
     const query = `
-      SELECT 
-        NumberPrintSalePost as numberPrint,
-        DateSalePost as originalDate,
-        ISNULL(NameCustomer, 'ไม่ระบุ') as customerName,
-        ISNULL(TotalPrice, 0) as totalPrice,
-        ISNULL(TotalProfit, 0) as totalProfit,
-        ISNULL(Cash, 0) as cash,
-        ISNULL(Transfer, 0) as transfer,
-        ISNULL(Status, '') as status,
-        ISNULL(NameSave, '') as userName
-      FROM dbo.MasterSalePost
-      WHERE Status LIKE '%ยกเลิก%'
-        AND DateSalePost >= DATEADD(day, -@days, GETDATE())
-      ORDER BY DateSalePost DESC
-      OFFSET @offset ROWS
-      FETCH NEXT @limit ROWS ONLY
+      WITH PaginatedData AS (
+        SELECT 
+          NumberPrintSalePost as numberPrint,
+          DateSalePost as originalDate,
+          ISNULL(NameCustomer, 'ไม่ระบุ') as customerName,
+          ISNULL(TotalPrice, 0) as totalPrice,
+          ISNULL(TotalProfit, 0) as totalProfit,
+          ISNULL(Cash, 0) as cash,
+          ISNULL(Transfer, 0) as transfer,
+          ISNULL(Status, '') as status,
+          ISNULL(NameSave, '') as userName,
+          ROW_NUMBER() OVER (ORDER BY DateSalePost DESC) as RowNum
+        FROM dbo.MasterSalePost
+        WHERE Status LIKE '%ยกเลิก%'
+          AND DateSalePost >= DATEADD(day, -@days, GETDATE())
+      )
+      SELECT
+        numberPrint,
+        originalDate,
+        customerName,
+        totalPrice,
+        totalProfit,
+        cash,
+        transfer,
+        status,
+        userName
+      FROM PaginatedData
+      WHERE RowNum > @offset AND RowNum <= (@offset + @limit)
+      ORDER BY RowNum
     `;
 
     const results = await executeQuery<{

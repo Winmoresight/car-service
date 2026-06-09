@@ -35,18 +35,20 @@ export async function GET(request: NextRequest) {
 
     // Build query
     let query = `
-      SELECT 
-        m.NumberPrintSalePost as id,
-        m.DateSalePost as date,
-        ISNULL(m.NameCustomer, 'ไม่ระบุ') as customerName,
-        ISNULL(c.PhoneCustomer, '') as customerPhone,
-        m.TotalPrice as totalPrice,
-        m.TotalProfit as totalProfit,
-        m.Cash as cash,
-        m.Transfer as transfer,
-        (SELECT COUNT(*) FROM dbo.DetailSalePost WHERE NumberPrintSalePost = m.NumberPrintSalePost) as itemCount
-      FROM dbo.MasterSalePost m
-      LEFT JOIN dbo.Customer c ON m.CodeCustomer = c.CodeCustomer
+      WITH PaginatedData AS (
+        SELECT 
+          m.NumberPrintSalePost as id,
+          m.DateSalePost as date,
+          ISNULL(m.NameCustomer, 'ไม่ระบุ') as customerName,
+          ISNULL(c.PhoneCustomer, '') as customerPhone,
+          m.TotalPrice as totalPrice,
+          m.TotalProfit as totalProfit,
+          m.Cash as cash,
+          m.Transfer as transfer,
+          (SELECT COUNT(*) FROM dbo.DetailSalePost WHERE NumberPrintSalePost = m.NumberPrintSalePost) as itemCount,
+          ROW_NUMBER() OVER (ORDER BY m.DateSalePost DESC) as RowNum
+        FROM dbo.MasterSalePost m
+        LEFT JOIN dbo.Customer c ON m.CodeCustomer = c.CodeCustomer
     `;
 
     // Build WHERE clause
@@ -71,9 +73,20 @@ export async function GET(request: NextRequest) {
     }
 
     query += `
-      ORDER BY DateSalePost DESC
-      OFFSET @offset ROWS
-      FETCH NEXT @limit ROWS ONLY
+      )
+      SELECT
+        id,
+        date,
+        customerName,
+        customerPhone,
+        totalPrice,
+        totalProfit,
+        cash,
+        transfer,
+        itemCount
+      FROM PaginatedData
+      WHERE RowNum > @offset AND RowNum <= (@offset + @limit)
+      ORDER BY RowNum
     `;
 
     const results = await executeQuery<{

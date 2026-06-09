@@ -85,17 +85,35 @@ export async function GET(request: NextRequest) {
 
     // Get stock summary
     const query = `
-      SELECT 
-        BarCode as barCode,
-        NameProduct as name,
-        Stock as currentStock,
-        MAX(DateSave) as lastUpdate,
-        COUNT(*) as movements
-      FROM dbo.INOUTStockProduct
-      GROUP BY BarCode, NameProduct, Stock
-      ORDER BY movements DESC
-      OFFSET 0 ROWS
-      FETCH NEXT @limit ROWS ONLY
+      WITH StockData AS (
+        SELECT 
+          BarCode as barCode,
+          NameProduct as name,
+          Stock as currentStock,
+          MAX(DateSave) as lastUpdate,
+          COUNT(*) as movements
+        FROM dbo.INOUTStockProduct
+        GROUP BY BarCode, NameProduct, Stock
+      ),
+      PaginatedData AS (
+        SELECT
+          barCode,
+          name,
+          currentStock,
+          lastUpdate,
+          movements,
+          ROW_NUMBER() OVER (ORDER BY movements DESC) as RowNum
+        FROM StockData
+      )
+      SELECT
+        barCode,
+        name,
+        currentStock,
+        lastUpdate,
+        movements
+      FROM PaginatedData
+      WHERE RowNum <= @limit
+      ORDER BY RowNum
     `;
 
     const results = await executeQuery<{

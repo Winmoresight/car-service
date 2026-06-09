@@ -147,34 +147,66 @@ export async function GET(request: Request) {
 
     // ดึงข้อมูลลูกค้าพร้อมสถิติการซื้อ
     const query = `
-      SELECT 
-        c.Code as code,
-        c.CodeCustomer as codeCustomer,
-        c.NameCustomer as nameCustomer,
-        c.PhoneCustomer as phoneCustomer,
-        c.NameCar as nameCar,
-        c.Province as province,
-        c.BrandAndGenerate as brandAndGenerate,
-        c.CaseCustomer as caseCustomer,
-        ISNULL(SUM(m.TotalPrice), 0) as totalSpent,
-        COUNT(m.NumberPrintSalePost) as totalOrders,
-        MAX(m.DateSalePost) as lastOrderDate,
-        MIN(m.DateSalePost) as firstOrderDate
-      FROM Customer c
-      LEFT JOIN MasterSalePost m ON c.CodeCustomer = m.CodeCustomer
-      ${searchCondition}
-      GROUP BY 
-        c.Code,
-        c.CodeCustomer,
-        c.NameCustomer,
-        c.PhoneCustomer,
-        c.NameCar,
-        c.Province,
-        c.BrandAndGenerate,
-        c.CaseCustomer
-      ORDER BY totalSpent DESC, c.Code ASC
-      OFFSET @offset ROWS
-      FETCH NEXT @limit ROWS ONLY
+      WITH CustomerData AS (
+        SELECT 
+          c.Code as code,
+          c.CodeCustomer as codeCustomer,
+          c.NameCustomer as nameCustomer,
+          c.PhoneCustomer as phoneCustomer,
+          c.NameCar as nameCar,
+          c.Province as province,
+          c.BrandAndGenerate as brandAndGenerate,
+          c.CaseCustomer as caseCustomer,
+          ISNULL(SUM(m.TotalPrice), 0) as totalSpent,
+          COUNT(m.NumberPrintSalePost) as totalOrders,
+          MAX(m.DateSalePost) as lastOrderDate,
+          MIN(m.DateSalePost) as firstOrderDate
+        FROM Customer c
+        LEFT JOIN MasterSalePost m ON c.CodeCustomer = m.CodeCustomer
+        ${searchCondition}
+        GROUP BY 
+          c.Code,
+          c.CodeCustomer,
+          c.NameCustomer,
+          c.PhoneCustomer,
+          c.NameCar,
+          c.Province,
+          c.BrandAndGenerate,
+          c.CaseCustomer
+      ),
+      PaginatedData AS (
+        SELECT
+          code,
+          codeCustomer,
+          nameCustomer,
+          phoneCustomer,
+          nameCar,
+          province,
+          brandAndGenerate,
+          caseCustomer,
+          totalSpent,
+          totalOrders,
+          lastOrderDate,
+          firstOrderDate,
+          ROW_NUMBER() OVER (ORDER BY totalSpent DESC, code ASC) as RowNum
+        FROM CustomerData
+      )
+      SELECT
+        code,
+        codeCustomer,
+        nameCustomer,
+        phoneCustomer,
+        nameCar,
+        province,
+        brandAndGenerate,
+        caseCustomer,
+        totalSpent,
+        totalOrders,
+        lastOrderDate,
+        firstOrderDate
+      FROM PaginatedData
+      WHERE RowNum > @offset AND RowNum <= (@offset + @limit)
+      ORDER BY RowNum
     `;
 
     const rawCustomers = await executeQuery<{
