@@ -168,12 +168,12 @@ export default function EmployeesPage() {
       <DashboardBreadcrumb label="พนักงาน" href="/employees" />
       <hr className="my-4 mb-6 hidden w-full min-[1025px]:block" />
 
-      <div className="space-y-6">
+      <div className="space-y-6 mt-2 sm:mt-0">
         <div className="dark:bg-background flex w-full flex-col rounded-2xl border bg-white px-4 py-6 shadow-sm">
           <div className="mb-6 flex flex-col justify-between gap-6 min-[798px]:flex-row min-[798px]:items-center">
             <div className="flex items-center gap-3">
               <div className="bg-background dark:bg-secondary flex h-12 w-12 items-center justify-center rounded-[8px] border min-[798px]:h-14 min-[798px]:w-14">
-                <Users className="h-6 w-6 text-primary" />
+                <Users className="h-6 w-6 text-primary" strokeWidth={2.5} />
               </div>
               <div className="flex flex-col">
                 <span className="text-2xl font-bold text-primary">
@@ -190,6 +190,7 @@ export default function EmployeesPage() {
             <KPICard
               title="พนักงานทั้งหมด"
               value={employees.length}
+              unit="คน"
               subtitle={`${employeesWithPhone.toLocaleString("th-TH")} คนมีเบอร์ติดต่อ`}
               icon={Users}
               variant="blue"
@@ -197,6 +198,7 @@ export default function EmployeesPage() {
             <KPICard
               title="ตำแหน่งงาน"
               value={positions.length}
+              unit="ตำแหน่ง"
               subtitle="ตำแหน่ง"
               icon={Briefcase}
               variant="purple"

@@ -11,6 +11,7 @@ interface KPICardProps {
   title: string;
   value: string | number;
   subtitle?: string;
+  unit?: string;
   icon?: LucideIcon;
   trend?: {
     value: number;
@@ -24,7 +25,7 @@ interface KPICardProps {
 export function KPICard({
   title,
   value,
-  subtitle,
+  unit,
   icon: Icon,
   trend,
   format = "number",
@@ -32,11 +33,11 @@ export function KPICard({
   onClick,
 }: KPICardProps) {
   const variantStyles = {
-    default: "text-main-blue bg-blue-50",
-    emerald: "text-main-green bg-emerald-50",
-    blue: "text-main-blue bg-blue-50",
-    orange: "text-main-orange bg-orange-50",
-    purple: "text-purple-600 bg-purple-50",
+    default: "text-primary",
+    emerald: "text-main-green",
+    blue: "text-main-blue",
+    orange: "text-main-orange",
+    purple: "text-purple-600",
   };
 
   const formattedValue = () => {
@@ -61,33 +62,36 @@ export function KPICard({
   };
 
   const displayValue = formattedValue();
+  const displayUnit = unit ?? displayValue.unit;
 
   const cardClassName = cn(
-    "col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4 min-h-[210px]",
+    "col-span-1 w-full rounded-[8px] border bg-background p-4 dark:bg-secondary",
     onClick && "cursor-pointer text-left transition-shadow hover:shadow-md",
   );
 
   const content = (
-    <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
+    <div className="flex justify-between gap-3 min-[600px]:flex-col min-[600px]:justify-start">
       <div
         className={cn(
-          "flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border dark:bg-background/50 shrink-0",
+          "flex h-[66px] w-[66px] shrink-0 items-center justify-center rounded-[8px] border bg-white min-[450px]:w-[70px] min-[600px]:h-12 min-[600px]:w-12 min-[600px]:rounded-full dark:bg-background/65",
           variantStyles[variant],
         )}
       >
         {Icon && (
           <Icon
             strokeWidth={2.5}
-            className="w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
+            className="h-10 w-10 min-[600px]:h-6 min-[600px]:w-6"
           />
         )}
       </div>
 
-      <div className="flex flex-col justify-between items-end min-[600px]:items-start gap-1 flex-1 min-h-[132px]">
-        <span className="text-primary text-lg font-semibold">{title}</span>
-        <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
+      <div className="flex flex-col items-end gap-1 min-[600px]:items-start">
+        <span className="text-lg font-semibold text-primary">{title}</span>
+        <h3 className="flex items-baseline justify-end gap-1.5 whitespace-nowrap text-left text-[20px] font-bold text-primary min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:justify-start min-[600px]:text-4xl">
           <span className={outfit.className}>{displayValue.amount}</span>
-          {displayValue.unit ? ` ${displayValue.unit}` : null}
+          {displayUnit ? (
+            <span className="font-bold text-primary">{displayUnit}</span>
+          ) : null}
         </h3>
         {trend ? (
           <span
@@ -100,11 +104,7 @@ export function KPICard({
           >
             {trend.isPositive ? "↑" : "↓"} {Math.abs(trend.value).toFixed(1)}%
           </span>
-        ) : (
-          <span className="text-muted-foreground text-xs mt-1 font-medium">
-            {subtitle ?? ""}
-          </span>
-        )}
+        ) : null}
       </div>
     </div>
   );

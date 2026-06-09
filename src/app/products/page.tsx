@@ -177,12 +177,14 @@ export default function ProductsPage() {
             <KPICard
               title="สินค้าทั้งหมด"
               value={totalProducts}
+              unit="รายการ"
               icon={Package}
               variant="blue"
             />
             <KPICard
               title="กำไรดี"
               value={highMarginCount}
+              unit="รายการ"
               subtitle="≥10% margin"
               icon={TrendingUp}
               variant="emerald"
@@ -190,6 +192,7 @@ export default function ProductsPage() {
             <KPICard
               title="กำไรต่ำ"
               value={lowMarginCount}
+              unit="รายการ"
               subtitle="<5% margin"
               icon={TrendingDown}
               variant="orange"

@@ -145,6 +145,7 @@ export default function CancelledTaxInvoicesPage() {
               <KPICard
                 title="ยกเลิกทั้งหมด"
                 value={summary.totalCancelled}
+                unit="ใบ"
                 icon={Ban}
                 variant="orange"
                 subtitle={`${summary.totalCancelled} ใบ`}
@@ -172,7 +173,7 @@ export default function CancelledTaxInvoicesPage() {
           <CardContent className="pt-6">
             <div className="flex flex-col md:flex-row gap-4 items-end">
               <div className="flex-1">
-                <label className="text-sm font-medium mb-2 block">ช่วงวันที่</label>
+                <span className="text-sm font-medium mb-2 block">ช่วงวันที่</span>
                 <DateRangePicker
                   dateRange={dateRange}
                   onDateRangeChange={handleDateRangeChange}
@@ -214,8 +215,8 @@ export default function CancelledTaxInvoicesPage() {
           <CardContent className="p-0">
             {isLoading ? (
               <div className="p-4 space-y-3">
-                {[...Array(10)].map((_, i) => (
-                  <Skeleton key={i} className="h-12 w-full" />
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((row) => (
+                  <Skeleton key={row} className="h-12 w-full" />
                 ))}
               </div>
             ) : error || (data && !data.success) ? (

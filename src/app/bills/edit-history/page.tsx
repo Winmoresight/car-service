@@ -447,6 +447,7 @@ export default function BillEditHistoryPage() {
               <KPICard
                 title="แก้ไขทั้งหมด"
                 value={totalSummary.totalEdits}
+                unit="ครั้ง"
                 icon={Edit}
                 variant="blue"
                 subtitle={`${totalSummary.totalEdits.toLocaleString()} ครั้ง`}
@@ -454,6 +455,7 @@ export default function BillEditHistoryPage() {
               <KPICard
                 title="แก้ไขจำนวนเงินจริง"
                 value={totalSummary.totalAmountChanges}
+                unit="ครั้ง"
                 icon={TrendingUp}
                 variant="emerald"
                 subtitle={`${totalSummary.totalAmountChanges.toLocaleString()} ครั้ง`}
@@ -461,6 +463,7 @@ export default function BillEditHistoryPage() {
               <KPICard
                 title="แก้ไขเฉพาะธนาคาร"
                 value={totalSummary.totalBankOnlyChanges}
+                unit="ครั้ง"
                 icon={History}
                 variant="orange"
                 subtitle={`${totalSummary.totalBankOnlyChanges.toLocaleString()} ครั้ง (ไม่เปลี่ยนยอด)`}

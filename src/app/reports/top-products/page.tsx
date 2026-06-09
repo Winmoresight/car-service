@@ -229,6 +229,7 @@ export default function TopProductsReportPage() {
               <KPICard
                 title="สินค้าทั้งหมด"
                 value={summary.totalProducts}
+                unit="รายการ"
                 icon={ShoppingCart}
                 variant="blue"
                 subtitle={`ในเดือน${summary.period}`}
@@ -447,19 +448,18 @@ export default function TopProductsReportPage() {
                               </span>
                               <p className="text-xs font-semibold text-muted-foreground min-[620px]:hidden">
                                 {formatNumber(product.totalQuantity)} ชิ้น ·{" "}
-                                {formatNumber(product.salesCount)} ครั้ง
+                                {formatNumber(product.salesCount)}
+                                ครั้ง
                               </p>
                             </div>
                           </div>
                         </TableCell>
 
-                        <TableCell
-                          className={cn(
-                            outfit.className,
-                            "hidden text-right text-sm font-bold text-main-blue min-[760px]:table-cell",
-                          )}
-                        >
-                          {formatNumber(product.salesCount)} ครั้ง
+                        <TableCell className="hidden text-right text-sm font-bold text-main-blue min-[760px]:table-cell">
+                          <span className={outfit.className}>
+                            {formatNumber(product.salesCount)}
+                          </span>{" "}
+                          ครั้ง
                         </TableCell>
 
                         <TableCell

@@ -246,15 +246,15 @@ export default function CashInvoicesPage() {
 
           {/* Summary Cards */}
           <div className="grid min-[600px]:grid-cols-2 min-[1280px]:grid-cols-4 gap-4">
-            <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4 min-h-[210px]">
+            <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
               <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-blue-50 dark:bg-background/50 shrink-0">
+                <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
                   <FileText
                     strokeWidth={2.5}
                     className="text-main-blue w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
                   />
                 </div>
-                <div className="flex flex-col justify-between items-end min-[600px]:items-start gap-1 flex-1 min-h-[132px]">
+                <div className="flex flex-col items-end min-[600px]:items-start gap-1">
                   <span className="text-primary text-lg font-semibold">
                     ใบกำกับทั้งหมด
                   </span>
@@ -268,15 +268,15 @@ export default function CashInvoicesPage() {
               </div>
             </div>
 
-            <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4 min-h-[210px]">
+            <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
               <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-emerald-50 dark:bg-background/50 shrink-0">
+                <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
                   <Receipt
                     strokeWidth={2.5}
                     className="text-main-green w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
                   />
                 </div>
-                <div className="flex flex-col justify-between items-end min-[600px]:items-start gap-1 flex-1 min-h-[132px]">
+                <div className="flex flex-col items-end min-[600px]:items-start gap-1">
                   <span className="text-primary text-lg font-semibold">
                     รายการทั้งหมด
                   </span>
@@ -290,15 +290,15 @@ export default function CashInvoicesPage() {
               </div>
             </div>
 
-            <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4 min-h-[210px]">
+            <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
               <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-orange-50 dark:bg-background/50 shrink-0">
+                <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
                   <ShoppingCart
                     strokeWidth={2.5}
                     className="text-main-orange w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
                   />
                 </div>
-                <div className="flex flex-col justify-between items-end min-[600px]:items-start gap-1 flex-1 min-h-[132px]">
+                <div className="flex flex-col items-end min-[600px]:items-start gap-1">
                   <span className="text-primary text-lg font-semibold">
                     จำนวนสินค้า
                   </span>
@@ -312,15 +312,15 @@ export default function CashInvoicesPage() {
               </div>
             </div>
 
-            <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4 min-h-[210px]">
+            <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
               <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] min-[450px]:h-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-emerald-50 dark:bg-background/50 shrink-0">
+                <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] min-[450px]:h-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
                   <TrendingUp
                     strokeWidth={2.5}
                     className="text-main-green w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
                   />
                 </div>
-                <div className="flex flex-col justify-between items-end min-[600px]:items-start gap-1 flex-1 min-h-[132px]">
+                <div className="flex flex-col items-end min-[600px]:items-start gap-1">
                   <span className="text-primary text-lg font-semibold">
                     ยอดขายรวม
                   </span>

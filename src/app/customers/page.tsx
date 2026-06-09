@@ -398,6 +398,7 @@ export default function CustomersPage() {
             <KPICard
               title="ลูกค้าทั้งหมด"
               value={summary?.total ?? 0}
+              unit="คน"
               subtitle="คน"
               icon={Users}
               variant="blue"
@@ -406,6 +407,7 @@ export default function CustomersPage() {
             <KPICard
               title="ลูกค้า VIP"
               value={summary?.vip ?? 0}
+              unit="คน"
               subtitle={`${summary?.total ? ((summary.vip / summary.total) * 100).toFixed(1) : 0}%`}
               icon={Award}
               variant="orange"
@@ -414,6 +416,7 @@ export default function CustomersPage() {
             <KPICard
               title="ลูกค้าปกติ"
               value={summary?.regular ?? 0}
+              unit="คน"
               subtitle={`${summary?.total ? ((summary.regular / summary.total) * 100).toFixed(1) : 0}%`}
               icon={TrendingUp}
               variant="blue"
@@ -422,6 +425,7 @@ export default function CustomersPage() {
             <KPICard
               title="ลูกค้าใหม่"
               value={summary?.new ?? 0}
+              unit="คน"
               subtitle="ยังไม่มีประวัติซื้อ"
               icon={UserPlus}
               variant="emerald"
@@ -430,6 +434,7 @@ export default function CustomersPage() {
             <KPICard
               title="ไม่ active"
               value={summary?.inactive ?? 0}
+              unit="คน"
               subtitle=">6 เดือน"
               icon={Users}
               variant="purple"

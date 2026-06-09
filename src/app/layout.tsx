@@ -25,7 +25,7 @@ const RootLayout = ({ children }: { children: ReactNode }) => {
           {/* Main Content */}
           <div className="md:pl-64 flex flex-col min-h-screen">
             {/* Mobile Header */}
-            <Header />
+            {/*<Header />*/}
 
             {/* Page Content */}
             <main className="flex-1 pb-20 md:pb-4">{children}</main>

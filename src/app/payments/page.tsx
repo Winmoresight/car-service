@@ -179,7 +179,7 @@ export default function PaymentsPage() {
       <DashboardBreadcrumb label="จ่ายเงิน" href="/payments" />
       <hr className="mt-4 mb-6 hidden w-full min-[1025px]:block" />
 
-      <div className="space-y-6">
+      <div className="space-y-6 mt-2 sm:mt-0">
         <div className="dark:bg-background flex w-full flex-col rounded-2xl border bg-white px-4 py-6 shadow-sm">
           <div className="flex flex-col justify-between gap-6 min-[798px]:flex-row min-[798px]:items-center mb-6">
             <div className="flex items-center gap-3">
@@ -187,8 +187,11 @@ export default function PaymentsPage() {
                 <Receipt strokeWidth={2.5} className="text-primary" />
               </div>
               <div className="flex flex-col">
-                <span className="text-primary text-2xl font-bold">
+                <span className="hidden sm:block text-primary text-2xl font-bold">
                   รายการจ่ายเงินทั้งหมด
+                </span>
+                <span className="block sm:hidden text-primary text-2xl font-bold">
+                  รายการจ่ายเงิน
                 </span>
                 <p className="text-foreground hidden font-medium min-[798px]:block">
                   ติดตามการเบิกเงินล่วงหน้า เงินเดือน และค่าใช้จ่ายต่างๆ
@@ -209,7 +212,7 @@ export default function PaymentsPage() {
                 className="font-bold"
               >
                 <Users className="h-4 w-4 mr-2" />
-                มีพนักงาน
+                พนักงาน
               </Button>
               <Button
                 variant={filter === "expense" ? "default" : "outline"}
@@ -217,7 +220,7 @@ export default function PaymentsPage() {
                 className="font-bold"
               >
                 <Receipt className="h-4 w-4 mr-2" />
-                ค่าใช้จ่ายอื่น
+                ค่าใช้จ่ายอื่นๆ
               </Button>
             </div>
           </div>
@@ -249,6 +252,7 @@ export default function PaymentsPage() {
               <KPICard
                 title="รายการมีพนักงาน"
                 value={summary.salaryCount}
+                unit="รายการ"
                 subtitle="รายการ"
                 icon={Users}
                 variant="orange"
@@ -256,6 +260,7 @@ export default function PaymentsPage() {
               <KPICard
                 title="รายการอื่นๆ"
                 value={summary.expenseCount}
+                unit="รายการ"
                 subtitle="รายการ"
                 icon={Receipt}
                 variant="blue"

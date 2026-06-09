@@ -215,6 +215,7 @@ export default function StockPage() {
             <KPICard
               title="สินค้าในสต็อก"
               value={totalItems}
+              unit="รายการ"
               subtitle="รายการสินค้า"
               icon={Package}
               variant="blue"
@@ -222,6 +223,7 @@ export default function StockPage() {
             <KPICard
               title="สินค้าเข้า"
               value={stockIn}
+              unit="รายการ"
               subtitle="ล่าสุด"
               icon={TrendingUp}
               variant="emerald"
@@ -229,6 +231,7 @@ export default function StockPage() {
             <KPICard
               title="สินค้าออก"
               value={stockOut}
+              unit="รายการ"
               subtitle="ล่าสุด"
               icon={TrendingDown}
               variant="purple"
@@ -236,6 +239,7 @@ export default function StockPage() {
             <KPICard
               title="สต็อกต่ำ"
               value={lowStock}
+              unit="รายการ"
               subtitle="ต้องสั่งเพิ่ม"
               icon={AlertCircle}
               variant="orange"

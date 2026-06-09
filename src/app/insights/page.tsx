@@ -171,6 +171,7 @@ export default function InsightsPage() {
             <KPICard
               title="รายการขาดทุน"
               value={lossProducts.length}
+              unit="รายการ"
               subtitle={formatCurrency(totalLoss)}
               icon={AlertTriangle}
               variant="orange"
@@ -178,6 +179,7 @@ export default function InsightsPage() {
             <KPICard
               title="ยอดขายตก"
               value={3}
+              unit="วัน"
               subtitle="วันที่ผิดปกติ"
               icon={TrendingDown}
               variant="purple"
@@ -185,6 +187,7 @@ export default function InsightsPage() {
             <KPICard
               title="สต็อกต่ำ"
               value={12}
+              unit="รายการ"
               subtitle="ต้องสั่งเพิ่ม"
               icon={AlertCircle}
               variant="orange"
@@ -192,6 +195,7 @@ export default function InsightsPage() {
             <KPICard
               title="สินค้าดีเด่น"
               value={45}
+              unit="รายการ"
               subtitle="กำไร >15%"
               icon={CheckCircle}
               variant="emerald"

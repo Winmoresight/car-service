@@ -137,6 +137,7 @@ export default function DeletedBillsPage() {
               <KPICard
                 title={`ลบ/ยกเลิกทั้งหมด (${summary.periodDays} วัน)`}
                 value={summary.totalDeleted}
+                unit="บิล"
                 icon={Trash2}
                 variant="orange"
                 subtitle={`${summary.totalDeleted} บิล`}
@@ -168,9 +169,9 @@ export default function DeletedBillsPage() {
           <CardContent className="pt-6">
             <div className="flex flex-col md:flex-row gap-4 items-end">
               <div className="flex-1">
-                <label className="text-sm font-medium mb-2 block">
+                <span className="text-sm font-medium mb-2 block">
                   ช่วงเวลาย้อนหลัง
-                </label>
+                </span>
                 <Select
                   value={days.toString()}
                   onValueChange={handleDaysChange}
@@ -215,8 +216,8 @@ export default function DeletedBillsPage() {
           <CardContent className="p-0">
             {isLoading ? (
               <div className="p-4 space-y-3">
-                {[...Array(10)].map((_, i) => (
-                  <Skeleton key={i} className="h-12 w-full" />
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((row) => (
+                  <Skeleton key={row} className="h-12 w-full" />
                 ))}
               </div>
             ) : error || (data && !data.success) ? (
