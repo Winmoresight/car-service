@@ -25,8 +25,8 @@ interface Payment {
   Datepayment: string;
   NameExpensesORIncome: string;
   CodeTypepayment: number;
-  Debit: string;
-  Credit: string;
+  Debit: number;
+  Credit: number;
   MoneyCash: number;
   MoneyTransfer: number;
   Codebank: string;
@@ -100,23 +100,37 @@ export async function GET(request: Request) {
 
     const payments = await executeQuery<Payment>(query);
 
+    // แปลงค่า Debit และ Credit เป็นตัวเลข และป้องกัน NaN
+    const normalizedPayments = payments.map((p) => ({
+      ...p,
+      Debit: Number(p.Debit) || 0,
+      Credit: Number(p.Credit) || 0,
+      TotalPrice: Number(p.TotalPrice) || 0,
+      MoneyCash: Number(p.MoneyCash) || 0,
+      MoneyTransfer: Number(p.MoneyTransfer) || 0,
+    }));
+
     // คำนวณสรุป
     const summary = {
-      totalAmount: payments.reduce((sum, p) => sum + (p.TotalPrice || 0), 0),
-      totalCash: payments.reduce((sum, p) => sum + (p.MoneyCash || 0), 0),
-      totalTransfer: payments.reduce((sum, p) => sum + (p.MoneyTransfer || 0), 0),
-      salaryCount: payments.filter(
+      totalAmount: normalizedPayments.reduce((sum, p) => sum + p.TotalPrice, 0),
+      totalCash: normalizedPayments.reduce((sum, p) => sum + p.MoneyCash, 0),
+      totalTransfer: normalizedPayments.reduce((sum, p) => sum + p.MoneyTransfer, 0),
+      totalDebit: normalizedPayments.reduce((sum, p) => sum + p.Debit, 0),
+      totalCredit: normalizedPayments.reduce((sum, p) => sum + p.Credit, 0),
+      salaryCount: normalizedPayments.filter(
         (p) => p.CodeStaff > 0 && p.NameSure && p.NameSure !== ""
       ).length,
-      expenseCount: payments.filter(
+      expenseCount: normalizedPayments.filter(
         (p) => !p.CodeStaff || p.CodeStaff === 0 || !p.NameSure || p.NameSure === ""
       ).length,
+      debitCount: normalizedPayments.filter((p) => p.Debit > 0).length,
+      creditCount: normalizedPayments.filter((p) => p.Credit > 0).length,
     };
 
     return NextResponse.json({
       success: true,
-      data: payments,
-      total: payments.length,
+      data: normalizedPayments,
+      total: normalizedPayments.length,
       summary,
     });
   } catch (error) {

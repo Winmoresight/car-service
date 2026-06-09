@@ -2,6 +2,8 @@
 
 import {
   Activity,
+  ArrowDownCircle,
+  ArrowUpCircle,
   ArrowUpDown,
   Banknote,
   CreditCard,
@@ -35,6 +37,8 @@ interface Payment {
   TotalPrice: number;
   Datepayment: string;
   NameExpensesORIncome: string;
+  Debit: number;
+  Credit: number;
   MoneyCash: number;
   MoneyTransfer: number;
   NameBank: string;
@@ -46,8 +50,12 @@ interface Summary {
   totalAmount: number;
   totalCash: number;
   totalTransfer: number;
+  totalDebit: number;
+  totalCredit: number;
   salaryCount: number;
   expenseCount: number;
+  debitCount: number;
+  creditCount: number;
 }
 
 export default function PaymentsPage() {
@@ -92,6 +100,29 @@ export default function PaymentsPage() {
     const hasEmployee =
       payment.CodeStaff > 0 && payment.NameSure && payment.NameSure !== "";
 
+    // เช็คว่าเป็น Debit (รายรับ) หรือ Credit (รายจ่าย)
+    const isDebit = (payment.Debit || 0) > 0;
+    const isCredit = (payment.Credit || 0) > 0;
+
+    // ถ้ามี Debit = รายรับ (เขียว)
+    if (isDebit && !isCredit) {
+      return {
+        label: hasEmployee ? "พนักงาน • รายรับ" : "รายรับ",
+        className:
+          "bg-emerald-50 text-main-green border-emerald-100 dark:bg-emerald-500/10 dark:border-emerald-500/20",
+      };
+    }
+
+    // ถ้ามี Credit = รายจ่าย (แดง)
+    if (isCredit && !isDebit) {
+      return {
+        label: hasEmployee ? "พนักงาน • รายจ่าย" : "รายจ่าย",
+        className:
+          "bg-red-50 text-main-red border-red-100 dark:bg-red-500/10 dark:border-red-500/20",
+      };
+    }
+
+    // กรณีไม่มีทั้ง Debit และ Credit หรือมีทั้งคู่
     if (hasEmployee) {
       return {
         label: "พนักงาน",
@@ -225,46 +256,90 @@ export default function PaymentsPage() {
             </div>
           </div>
           {summary && (
-            <div className="grid gap-4 md:grid-cols-5">
-              <KPICard
-                title="ยอดรวมทั้งหมด"
-                value={summary.totalAmount}
-                format="currency"
-                icon={DollarSign}
-                variant="blue"
-              />
-              <KPICard
-                title="เงินสด"
-                value={summary.totalCash}
-                format="currency"
-                subtitle={`${summary.totalAmount ? ((summary.totalCash / summary.totalAmount) * 100).toFixed(1) : 0}%`}
-                icon={Banknote}
-                variant="emerald"
-              />
-              <KPICard
-                title="เงินโอน"
-                value={summary.totalTransfer}
-                format="currency"
-                subtitle={`${summary.totalAmount ? ((summary.totalTransfer / summary.totalAmount) * 100).toFixed(1) : 0}%`}
-                icon={CreditCard}
-                variant="purple"
-              />
-              <KPICard
-                title="รายการมีพนักงาน"
-                value={summary.salaryCount}
-                unit="รายการ"
-                subtitle="รายการ"
-                icon={Users}
-                variant="orange"
-              />
-              <KPICard
-                title="รายการอื่นๆ"
-                value={summary.expenseCount}
-                unit="รายการ"
-                subtitle="รายการ"
-                icon={Receipt}
-                variant="blue"
-              />
+            <div className="space-y-4">
+              {/* แถวบน - 4 cards */}
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <KPICard
+                  title="ยอดรวมทั้งหมด"
+                  value={summary.totalAmount || 0}
+                  format="currency"
+                  icon={DollarSign}
+                  variant="blue"
+                />
+                <KPICard
+                  title="เงินสด"
+                  value={summary.totalCash || 0}
+                  format="currency"
+                  subtitle={`${summary.totalAmount ? ((summary.totalCash / summary.totalAmount) * 100).toFixed(1) : 0}%`}
+                  icon={Banknote}
+                  variant="emerald"
+                />
+                <KPICard
+                  title="เงินโอน"
+                  value={summary.totalTransfer || 0}
+                  format="currency"
+                  subtitle={`${summary.totalAmount ? ((summary.totalTransfer / summary.totalAmount) * 100).toFixed(1) : 0}%`}
+                  icon={CreditCard}
+                  variant="purple"
+                />
+                <div className="bg-background dark:bg-secondary rounded-[8px] border p-4">
+                  <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
+                    <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
+                      <Activity
+                        strokeWidth={2.5}
+                        className="text-main-blue w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
+                      />
+                    </div>
+                    <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                      <span className="text-primary text-lg font-semibold">
+                        ทั้งหมด
+                      </span>
+                      <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
+                        <span className={`${outfit.className}`}>
+                          {(summary.salaryCount || 0) + (summary.expenseCount || 0)}
+                        </span>{" "}
+                        รายการ
+                      </h3>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* แถวล่าง - 4 cards */}
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <KPICard
+                  title="รายรับ (Debit)"
+                  value={summary.totalDebit || 0}
+                  format="currency"
+                  subtitle={`${summary.debitCount || 0} รายการ`}
+                  icon={ArrowUpCircle}
+                  variant="emerald"
+                />
+                <KPICard
+                  title="รายจ่าย (Credit)"
+                  value={summary.totalCredit || 0}
+                  format="currency"
+                  subtitle={`${summary.creditCount || 0} รายการ`}
+                  icon={ArrowDownCircle}
+                  variant="red"
+                />
+                <KPICard
+                  title="รายการอื่นๆ"
+                  value={summary.expenseCount || 0}
+                  unit="รายการ"
+                  subtitle="รายการ"
+                  icon={Receipt}
+                  variant="blue"
+                />
+                <KPICard
+                  title="รายการมีพนักงาน"
+                  value={summary.salaryCount || 0}
+                  unit="รายการ"
+                  subtitle="รายการ"
+                  icon={Users}
+                  variant="orange"
+                />
+              </div>
             </div>
           )}
         </div>
@@ -328,10 +403,13 @@ export default function PaymentsPage() {
                     <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[760px]:table-cell">
                       ประเภท
                     </TableHead>
+                    <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[900px]:table-cell">
+                      รายรับ/รายจ่าย
+                    </TableHead>
                     <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[1020px]:table-cell">
                       พนักงาน/ธนาคาร
                     </TableHead>
-                    <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[900px]:table-cell">
+                    <TableHead className="hidden text-right text-base font-bold min-[1100px]:table-cell text-card-foreground">
                       วิธีจ่าย
                     </TableHead>
                     <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
@@ -411,6 +489,42 @@ export default function PaymentsPage() {
                           </Badge>
                         </TableCell>
 
+                        <TableCell className="hidden text-right align-middle min-[900px]:table-cell">
+                          <div className="flex flex-col items-end gap-1.5">
+                            {payment.Debit > 0 && (
+                              <div className="flex items-center gap-1.5">
+                                <ArrowUpCircle className="h-4 w-4 text-main-green" />
+                                <span
+                                  className={cn(
+                                    outfit.className,
+                                    "text-sm font-bold text-main-green",
+                                  )}
+                                >
+                                  +{formatCurrency(payment.Debit)}
+                                </span>
+                              </div>
+                            )}
+                            {payment.Credit > 0 && (
+                              <div className="flex items-center gap-1.5">
+                                <ArrowDownCircle className="h-4 w-4 text-main-red" />
+                                <span
+                                  className={cn(
+                                    outfit.className,
+                                    "text-sm font-bold text-main-red",
+                                  )}
+                                >
+                                  -{formatCurrency(payment.Credit)}
+                                </span>
+                              </div>
+                            )}
+                            {payment.Debit === 0 && payment.Credit === 0 && (
+                              <span className="text-xs font-medium text-muted-foreground">
+                                ไม่มีข้อมูล
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+
                         <TableCell className="hidden text-right align-middle min-[1020px]:table-cell">
                           <div className="flex flex-col items-end gap-1">
                             <span className="max-w-[220px] truncate text-sm font-semibold text-card-foreground">
@@ -428,7 +542,7 @@ export default function PaymentsPage() {
                           </div>
                         </TableCell>
 
-                        <TableCell className="hidden text-right align-middle min-[900px]:table-cell">
+                        <TableCell className="hidden text-right align-middle min-[1100px]:table-cell">
                           <div className="flex flex-wrap justify-end gap-1.5">
                             {paymentMethods.length > 0 ? (
                               paymentMethods.map((method) => (
@@ -464,7 +578,24 @@ export default function PaymentsPage() {
                             >
                               {formatCurrency(payment.TotalPrice)}
                             </span>
-                            <div className="flex flex-wrap justify-end gap-1 min-[700px]:hidden">
+                            
+                            {/* แสดง Debit/Credit ในมุมมอง mobile */}
+                            <div className="flex flex-wrap justify-end gap-2 min-[900px]:hidden">
+                              {payment.Debit > 0 && (
+                                <span className="flex items-center gap-1 text-xs font-semibold text-main-green">
+                                  <ArrowUpCircle className="h-3 w-3" />
+                                  รับ {formatCurrency(payment.Debit)}
+                                </span>
+                              )}
+                              {payment.Credit > 0 && (
+                                <span className="flex items-center gap-1 text-xs font-semibold text-main-red">
+                                  <ArrowDownCircle className="h-3 w-3" />
+                                  จ่าย {formatCurrency(payment.Credit)}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap justify-end gap-1 min-[1100px]:hidden">
                               {paymentMethods.length > 0 ? (
                                 paymentMethods.map((method) => (
                                   <span

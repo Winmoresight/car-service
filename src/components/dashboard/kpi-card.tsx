@@ -18,7 +18,7 @@ interface KPICardProps {
     isPositive: boolean;
   };
   format?: "currency" | "number" | "percent";
-  variant?: "default" | "emerald" | "blue" | "orange" | "purple";
+  variant?: "default" | "emerald" | "blue" | "orange" | "purple" | "red";
   onClick?: () => void;
 }
 
@@ -39,6 +39,7 @@ export function KPICard({
     blue: "text-main-blue",
     orange: "text-main-orange",
     purple: "text-purple-600",
+    red: "text-main-red",
   };
 
   const formattedValue = () => {
