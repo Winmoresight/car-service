@@ -1,7 +1,11 @@
 "use client";
 
 import {
+  Banknote,
   Car,
+  CircleCheck,
+  CircleSlash,
+  CreditCard,
   FilePlus2,
   Loader2,
   Plus,
@@ -73,6 +77,9 @@ interface CatalogResponse {
     products?: ProductOption[];
   };
 }
+
+type PaymentState = "unpaid" | "paid";
+type PaymentMethod = "cash" | "transfer";
 
 const emptyItem: DraftItemForm = {
   type: "service",
@@ -176,6 +183,8 @@ export default function NewBillPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [paymentState, setPaymentState] = useState<PaymentState>("unpaid");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [form, setForm] = useState({
     customerCode: "",
     customerName: "",
@@ -258,6 +267,62 @@ export default function NewBillPage() {
     }));
   };
 
+  const getDefaultPaymentAmount = () =>
+    totals.totalPrice > 0 ? String(totals.totalPrice) : "";
+
+  const selectPaymentState = (nextState: PaymentState) => {
+    setPaymentState(nextState);
+
+    if (nextState === "unpaid") {
+      setForm((current) => ({
+        ...current,
+        cash: "",
+        transfer: "",
+        nameBank: "",
+      }));
+      return;
+    }
+
+    setForm((current) => {
+      const currentAmount =
+        paymentMethod === "cash" ? current.cash : current.transfer;
+      const amount = currentAmount || getDefaultPaymentAmount();
+
+      return {
+        ...current,
+        cash: paymentMethod === "cash" ? amount : "",
+        transfer: paymentMethod === "transfer" ? amount : "",
+        nameBank: paymentMethod === "transfer" ? current.nameBank : "",
+      };
+    });
+  };
+
+  const selectPaymentMethod = (nextMethod: PaymentMethod) => {
+    setPaymentState("paid");
+    setPaymentMethod(nextMethod);
+    setForm((current) => {
+      const amount =
+        (nextMethod === "cash" ? current.cash : current.transfer) ||
+        (nextMethod === "cash" ? current.transfer : current.cash) ||
+        getDefaultPaymentAmount();
+
+      return {
+        ...current,
+        cash: nextMethod === "cash" ? amount : "",
+        transfer: nextMethod === "transfer" ? amount : "",
+        nameBank: nextMethod === "transfer" ? current.nameBank : "",
+      };
+    });
+  };
+
+  const updatePaymentAmount = (value: string) => {
+    setForm((current) => ({
+      ...current,
+      cash: paymentMethod === "cash" ? value : "",
+      transfer: paymentMethod === "transfer" ? value : "",
+    }));
+  };
+
   const selectCustomer = (customer: CustomerOption) => {
     setForm((current) => ({
       ...current,
@@ -329,6 +394,8 @@ export default function NewBillPage() {
   };
 
   const resetForm = () => {
+    setPaymentState("unpaid");
+    setPaymentMethod("cash");
     setForm({
       customerCode: "",
       customerName: "",
@@ -870,47 +937,110 @@ export default function NewBillPage() {
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-3 min-[520px]:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                <label htmlFor="cash" className="space-y-1.5">
-                  <span className="text-sm font-bold text-primary">เงินสด</span>
-                  <Input
-                    id="cash"
-                    type="number"
-                    min="0"
-                    inputMode="decimal"
-                    value={form.cash}
-                    onChange={(event) => updateForm("cash", event.target.value)}
-                    className="h-11 rounded-xl text-right font-semibold"
-                  />
-                </label>
-                <label htmlFor="transfer" className="space-y-1.5">
-                  <span className="text-sm font-bold text-primary">เงินโอน</span>
-                  <Input
-                    id="transfer"
-                    type="number"
-                    min="0"
-                    inputMode="decimal"
-                    value={form.transfer}
-                    onChange={(event) =>
-                      updateForm("transfer", event.target.value)
-                    }
-                    className="h-11 rounded-xl text-right font-semibold"
-                  />
-                </label>
-              </div>
+              <div className="mt-4 space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => selectPaymentState("unpaid")}
+                    className={`h-11 gap-2 rounded-xl font-bold ${
+                      paymentState === "unpaid"
+                        ? "border-main-orange bg-main-orange !text-white shadow-sm hover:bg-main-orange/90 hover:!text-white"
+                        : "bg-white text-muted-foreground hover:border-main-orange/40 hover:bg-orange-50 hover:!text-main-orange dark:bg-background"
+                    }`}
+                  >
+                    <CircleSlash className="h-4 w-4" />
+                    ยังไม่ชำระ
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => selectPaymentState("paid")}
+                    className={`h-11 gap-2 rounded-xl font-bold ${
+                      paymentState === "paid"
+                        ? "border-main-green bg-main-green !text-white shadow-sm hover:bg-main-green/90 hover:!text-white"
+                        : "bg-white text-muted-foreground hover:border-main-green/40 hover:bg-emerald-50 hover:!text-main-green dark:bg-background"
+                    }`}
+                  >
+                    <CircleCheck className="h-4 w-4" />
+                    รับชำระแล้ว
+                  </Button>
+                </div>
 
-              <label htmlFor="nameBank" className="mt-4 block space-y-1.5">
-                <span className="text-sm font-bold text-primary">ธนาคาร</span>
-                <Input
-                  id="nameBank"
-                  value={form.nameBank}
-                  onChange={(event) =>
-                    updateForm("nameBank", event.target.value)
-                  }
-                  disabled={paymentSummary.transfer <= 0}
-                  className="h-11 rounded-xl"
-                />
-              </label>
+                {paymentState === "paid" ? (
+                  <div className="rounded-[8px] border bg-white p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] dark:bg-background">
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => selectPaymentMethod("cash")}
+                        className={`h-10 gap-2 rounded-xl font-bold ${
+                          paymentMethod === "cash"
+                            ? "border-main-blue bg-main-blue !text-white shadow-sm hover:bg-main-blue/90 hover:!text-white"
+                            : "bg-white text-muted-foreground hover:border-main-blue/40 hover:bg-blue-50 hover:!text-main-blue dark:bg-background"
+                        }`}
+                      >
+                        <Banknote className="h-4 w-4" />
+                        เงินสด
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => selectPaymentMethod("transfer")}
+                        className={`h-10 gap-2 rounded-xl font-bold ${
+                          paymentMethod === "transfer"
+                            ? "border-main-blue bg-main-blue !text-white shadow-sm hover:bg-main-blue/90 hover:!text-white"
+                            : "bg-white text-muted-foreground hover:border-main-blue/40 hover:bg-blue-50 hover:!text-main-blue dark:bg-background"
+                        }`}
+                      >
+                        <CreditCard className="h-4 w-4" />
+                        เงินโอน
+                      </Button>
+                    </div>
+
+                    <label
+                      htmlFor="paymentAmount"
+                      className="mt-3 block space-y-1.5"
+                    >
+                      <span className="text-sm font-bold text-primary">
+                        จำนวนเงิน
+                      </span>
+                      <Input
+                        id="paymentAmount"
+                        type="number"
+                        min="0"
+                        inputMode="decimal"
+                        value={
+                          paymentMethod === "cash" ? form.cash : form.transfer
+                        }
+                        onChange={(event) =>
+                          updatePaymentAmount(event.target.value)
+                        }
+                        className="h-11 rounded-xl text-right font-semibold"
+                      />
+                    </label>
+
+                    {paymentMethod === "transfer" ? (
+                      <label
+                        htmlFor="nameBank"
+                        className="mt-3 block space-y-1.5"
+                      >
+                        <span className="text-sm font-bold text-primary">
+                          ธนาคาร
+                        </span>
+                        <Input
+                          id="nameBank"
+                          value={form.nameBank}
+                          onChange={(event) =>
+                            updateForm("nameBank", event.target.value)
+                          }
+                          className="h-11 rounded-xl"
+                        />
+                      </label>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
 
               <label htmlFor="createdBy" className="mt-4 block space-y-1.5">
                 <span className="text-sm font-bold text-primary">ผู้รับงาน</span>

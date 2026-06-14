@@ -175,11 +175,58 @@ async function getReceivableSummary(): Promise<ReceivableSummary> {
   try {
     const [summary] = await executeQuery<ReceivableSummary>(
       `
+        WITH unpaid_sales AS (
+          SELECT
+            NumberPrintSalePost,
+            ${getSafeMoneyExpression("TotalPrice")} as total_price,
+            ${getSafeMoneyExpression("Cash")} as cash,
+            ${getSafeMoneyExpression("Transfer")} as transfer
+          FROM dbo.MasterSalePost
+          WHERE LTRIM(RTRIM(ISNULL(Status, ''))) = N'ค้างชำระ'
+        ),
+        latest_receivable AS (
+          SELECT
+            NumberPrintPost,
+            ${getSafeMoneyExpression("SubMoney")} as sub_money,
+            ROW_NUMBER() OVER (
+              PARTITION BY NumberPrintPost
+              ORDER BY DatePost DESC
+            ) as row_number
+          FROM dbo.MasterRecivePaymentCustomer
+        ),
+        normalized AS (
+          SELECT
+            unpaid_sales.NumberPrintSalePost,
+            CASE
+              WHEN latest_receivable.NumberPrintPost IS NOT NULL
+                THEN latest_receivable.sub_money
+              ELSE unpaid_sales.total_price - unpaid_sales.cash - unpaid_sales.transfer
+            END as receivable_amount
+          FROM unpaid_sales
+          LEFT JOIN latest_receivable
+            ON latest_receivable.NumberPrintPost = unpaid_sales.NumberPrintSalePost
+            AND latest_receivable.row_number = 1
+        )
         SELECT
-          COUNT(*) as receivable_count,
-          ISNULL(SUM(TotalPrice), 0) as receivable_total
-        FROM dbo.MasterPrintPostVate
-        WHERE Status = N'ค้างชำระ'
+          ISNULL(
+            SUM(
+              CASE
+                WHEN receivable_amount > 0 THEN 1
+                ELSE 0
+              END
+            ),
+            0
+          ) as receivable_count,
+          ISNULL(
+            SUM(
+              CASE
+                WHEN receivable_amount > 0 THEN receivable_amount
+                ELSE 0
+              END
+            ),
+            0
+          ) as receivable_total
+        FROM normalized
       `,
       undefined,
       false,
