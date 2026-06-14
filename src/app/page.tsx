@@ -186,7 +186,9 @@ export default function DashboardPage() {
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
         <div className="rounded-3xl border border-red-100 bg-red-50/50 px-6 py-10 text-center dark:border-red-500/20 dark:bg-red-500/10">
-          <h1 className="mb-2 text-2xl font-bold text-main-red">เกิดข้อผิดพลาด</h1>
+          <h1 className="mb-2 text-2xl font-bold text-main-red">
+            เกิดข้อผิดพลาด
+          </h1>
           <p className="font-medium text-muted-foreground">
             ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้
           </p>
@@ -241,7 +243,7 @@ export default function DashboardPage() {
               value={kpi?.todaySales || 0}
               subtitle={`${formatNumber(kpi?.todayBills || 0)} บิล`}
               icon={Banknote}
-              variant="blue"
+              variant="emerald"
               format="currency"
             />
             <KPICard
@@ -257,7 +259,7 @@ export default function DashboardPage() {
               value={kpi?.transferNet || 0}
               subtitle="ยอดขายโอน + รับหนี้ - จ่ายโอน"
               icon={CreditCard}
-              variant="purple"
+              variant="blue"
               format="currency"
             />
             <KPICard
@@ -284,7 +286,7 @@ export default function DashboardPage() {
               value={kpi?.otherIncome || 0}
               subtitle={`${formatNumber(kpi?.otherPaymentCount || 0)} รายการรับ-จ่าย`}
               icon={Banknote}
-              variant="blue"
+              variant="emerald"
               format="currency"
             />
             <KPICard
@@ -292,7 +294,7 @@ export default function DashboardPage() {
               value={kpi?.otherExpense || 0}
               subtitle="รวมค่าใช้จ่ายที่ไม่ใช่ยอดขาย"
               icon={TrendingDown}
-              variant="orange"
+              variant="red"
               format="currency"
             />
             <KPICard
@@ -300,7 +302,7 @@ export default function DashboardPage() {
               value={kpi?.supplierBillTotal || 0}
               subtitle={`${formatNumber(kpi?.supplierBillCount || 0)} ใบ · สินค้าเข้า ${formatNumber(kpi?.stockInCount || 0)} รายการ`}
               icon={Package}
-              variant="purple"
+              variant="orange"
               format="currency"
             />
           </div>

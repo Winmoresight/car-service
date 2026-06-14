@@ -1,6 +1,6 @@
 /**
  * KPI Card Component
- * แสดงตัวเลข KPI พร้อม label และ icon
+ * แสดงตัวเลข KPI พร้อม label, unit และ icon
  */
 
 import type { LucideIcon } from "lucide-react";
@@ -25,10 +25,8 @@ interface KPICardProps {
 export function KPICard({
   title,
   value,
-  subtitle,
   unit,
   icon: Icon,
-  trend,
   format = "number",
   variant = "default",
   onClick,
@@ -91,33 +89,12 @@ export function KPICard({
         <span className="text-right text-lg leading-tight font-semibold text-primary min-[600px]:text-left">
           {title}
         </span>
-        <h3 className="flex max-w-full flex-wrap items-baseline justify-end gap-x-1.5 gap-y-0.5 text-left text-[20px] leading-none font-bold text-primary min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:justify-start min-[600px]:text-4xl">
-          <span className={cn(outfit.className, "min-w-0 break-all")}>
+        <h3 className="max-w-full text-left text-[20px] font-bold text-primary min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl">
+          <span className={cn(outfit.className, "break-all")}>
             {displayValue.amount}
           </span>
-          {displayUnit ? (
-            <span className="text-base leading-none font-bold text-primary min-[450px]:text-lg min-[600px]:text-xl">
-              {displayUnit}
-            </span>
-          ) : null}
+          {displayUnit ? <> {displayUnit}</> : null}
         </h3>
-        {subtitle ? (
-          <span className="max-w-full text-right text-xs leading-snug font-semibold text-muted-foreground min-[600px]:text-left">
-            {subtitle}
-          </span>
-        ) : null}
-        {trend ? (
-          <span
-            className={cn(
-              "inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg mt-1",
-              trend.isPositive
-                ? "text-main-green bg-emerald-50"
-                : "text-main-red bg-red-50",
-            )}
-          >
-            {trend.isPositive ? "↑" : "↓"} {Math.abs(trend.value).toFixed(1)}%
-          </span>
-        ) : null}
       </div>
     </div>
   );

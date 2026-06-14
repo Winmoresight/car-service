@@ -264,7 +264,7 @@ export default function PaymentsPage() {
                   value={summary.totalAmount || 0}
                   format="currency"
                   icon={DollarSign}
-                  variant="blue"
+                  variant="emerald"
                 />
                 <KPICard
                   title="เงินสด"
@@ -280,14 +280,14 @@ export default function PaymentsPage() {
                   format="currency"
                   subtitle={`${summary.totalAmount ? ((summary.totalTransfer / summary.totalAmount) * 100).toFixed(1) : 0}%`}
                   icon={CreditCard}
-                  variant="purple"
+                  variant="blue"
                 />
                 <div className="bg-background dark:bg-secondary rounded-[8px] border p-4">
                   <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
                     <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
                       <Activity
                         strokeWidth={2.5}
-                        className="text-main-blue w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
+                        className="text-main-orange w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
                       />
                     </div>
                     <div className="flex flex-col items-end min-[600px]:items-start gap-1">
@@ -296,7 +296,8 @@ export default function PaymentsPage() {
                       </span>
                       <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
                         <span className={`${outfit.className}`}>
-                          {(summary.salaryCount || 0) + (summary.expenseCount || 0)}
+                          {(summary.salaryCount || 0) +
+                            (summary.expenseCount || 0)}
                         </span>{" "}
                         รายการ
                       </h3>
@@ -308,7 +309,7 @@ export default function PaymentsPage() {
               {/* แถวล่าง - 4 cards */}
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <KPICard
-                  title="รายรับ (Debit)"
+                  title="รายรับ"
                   value={summary.totalDebit || 0}
                   format="currency"
                   subtitle={`${summary.debitCount || 0} รายการ`}
@@ -316,7 +317,7 @@ export default function PaymentsPage() {
                   variant="emerald"
                 />
                 <KPICard
-                  title="รายจ่าย (Credit)"
+                  title="รายจ่าย"
                   value={summary.totalCredit || 0}
                   format="currency"
                   subtitle={`${summary.creditCount || 0} รายการ`}
@@ -578,7 +579,7 @@ export default function PaymentsPage() {
                             >
                               {formatCurrency(payment.TotalPrice)}
                             </span>
-                            
+
                             {/* แสดง Debit/Credit ในมุมมอง mobile */}
                             <div className="flex flex-wrap justify-end gap-2 min-[900px]:hidden">
                               {payment.Debit > 0 && (
