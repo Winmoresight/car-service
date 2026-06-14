@@ -1,5 +1,6 @@
 "use client";
 
+import { format } from "date-fns";
 import {
   Activity,
   ArrowDownCircle,
@@ -17,6 +18,14 @@ import { KPICard } from "@/components/dashboard/kpi-card";
 import { outfit } from "@/components/fonts/fonts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -63,7 +72,13 @@ export default function PaymentsPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "salary" | "expense">("all");
+  const [filter, setFilter] = useState<"all" | "income" | "expense" | "salary">(
+    "all",
+  );
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
+    new Date(),
+  );
+  const [limit, setLimit] = useState(20);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("th-TH", {
@@ -89,8 +104,12 @@ export default function PaymentsPage() {
       return "รายการมีพนักงาน";
     }
 
+    if (filter === "income") {
+      return "รายรับ";
+    }
+
     if (filter === "expense") {
-      return "ค่าใช้จ่ายอื่น";
+      return "รายจ่าย";
     }
 
     return "ทั้งหมด";
@@ -100,39 +119,36 @@ export default function PaymentsPage() {
     const hasEmployee =
       payment.CodeStaff > 0 && payment.NameSure && payment.NameSure !== "";
 
-    // เช็คว่าเป็น Debit (รายรับ) หรือ Credit (รายจ่าย)
     const isDebit = (payment.Debit || 0) > 0;
     const isCredit = (payment.Credit || 0) > 0;
 
-    // ถ้ามี Debit = รายรับ (เขียว)
+    if (hasEmployee) {
+      return {
+        label: "พนักงาน",
+        className: isCredit
+          ? "bg-red-50 text-main-red border-red-100 dark:bg-red-500/10 dark:border-red-500/20"
+          : "bg-orange-50 text-main-orange border-orange-100 dark:bg-orange-500/10 dark:border-orange-500/20",
+      };
+    }
+
     if (isDebit && !isCredit) {
       return {
-        label: hasEmployee ? "พนักงาน • รายรับ" : "รายรับ",
+        label: "รายรับ",
         className:
           "bg-emerald-50 text-main-green border-emerald-100 dark:bg-emerald-500/10 dark:border-emerald-500/20",
       };
     }
 
-    // ถ้ามี Credit = รายจ่าย (แดง)
     if (isCredit && !isDebit) {
       return {
-        label: hasEmployee ? "พนักงาน • รายจ่าย" : "รายจ่าย",
+        label: "รายจ่าย",
         className:
           "bg-red-50 text-main-red border-red-100 dark:bg-red-500/10 dark:border-red-500/20",
       };
     }
 
-    // กรณีไม่มีทั้ง Debit และ Credit หรือมีทั้งคู่
-    if (hasEmployee) {
-      return {
-        label: "พนักงาน",
-        className:
-          "bg-orange-50 text-main-orange border-orange-100 dark:bg-orange-500/10 dark:border-orange-500/20",
-      };
-    }
-
     return {
-      label: "ค่าใช้จ่าย",
+      label: "ไม่ระบุ",
       className:
         "bg-blue-50 text-main-blue border-blue-100 dark:bg-blue-500/10 dark:border-blue-500/20",
     };
@@ -166,7 +182,18 @@ export default function PaymentsPage() {
     async function fetchPayments() {
       try {
         setLoading(true);
-        const res = await fetch(`/api/payments?limit=50&type=${filter}`);
+        const params = new URLSearchParams({
+          limit: limit.toString(),
+          type: filter,
+        });
+
+        if (selectedDate) {
+          const date = format(selectedDate, "yyyy-MM-dd");
+          params.set("dateFrom", date);
+          params.set("dateTo", date);
+        }
+
+        const res = await fetch(`/api/payments?${params.toString()}`);
         const data = await res.json();
 
         if (data.success) {
@@ -181,7 +208,7 @@ export default function PaymentsPage() {
     }
 
     fetchPayments();
-  }, [filter]);
+  }, [filter, limit, selectedDate]);
 
   if (loading) {
     return (
@@ -219,17 +246,17 @@ export default function PaymentsPage() {
               </div>
               <div className="flex flex-col">
                 <span className="hidden sm:block text-primary text-2xl font-bold">
-                  รายการจ่ายเงินทั้งหมด
+                  รายการรับ-จ่ายเงินทั้งหมด
                 </span>
                 <span className="block sm:hidden text-primary text-2xl font-bold">
-                  รายการจ่ายเงิน
+                  รายการรับ-จ่ายเงิน
                 </span>
                 <p className="text-foreground hidden font-medium min-[798px]:block">
-                  ติดตามการเบิกเงินล่วงหน้า เงินเดือน และค่าใช้จ่ายต่างๆ
+                  ติดตามรายรับ รายจ่าย เงินเดือน และการชำระเงินรายวัน
                 </p>
               </div>
             </div>
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex flex-wrap gap-2">
               <Button
                 variant={filter === "all" ? "default" : "outline"}
                 onClick={() => setFilter("all")}
@@ -238,20 +265,28 @@ export default function PaymentsPage() {
                 ทั้งหมด
               </Button>
               <Button
-                variant={filter === "salary" ? "default" : "outline"}
-                onClick={() => setFilter("salary")}
+                variant={filter === "income" ? "default" : "outline"}
+                onClick={() => setFilter("income")}
                 className="font-bold"
               >
-                <Users className="h-4 w-4 mr-2" />
-                พนักงาน
+                <ArrowUpCircle className="mr-2 h-4 w-4" />
+                รายรับ
               </Button>
               <Button
                 variant={filter === "expense" ? "default" : "outline"}
                 onClick={() => setFilter("expense")}
                 className="font-bold"
               >
-                <Receipt className="h-4 w-4 mr-2" />
-                ค่าใช้จ่ายอื่นๆ
+                <ArrowDownCircle className="mr-2 h-4 w-4" />
+                รายจ่าย
+              </Button>
+              <Button
+                variant={filter === "salary" ? "default" : "outline"}
+                onClick={() => setFilter("salary")}
+                className="font-bold"
+              >
+                <Users className="mr-2 h-4 w-4" />
+                พนักงาน
               </Button>
             </div>
           </div>
@@ -325,7 +360,7 @@ export default function PaymentsPage() {
                   variant="red"
                 />
                 <KPICard
-                  title="รายการอื่นๆ"
+                  title="รายการทั่วไป"
                   value={summary.expenseCount || 0}
                   unit="รายการ"
                   subtitle="รายการ"
@@ -345,7 +380,7 @@ export default function PaymentsPage() {
           )}
         </div>
 
-        {/* ตารางรายการจ่าย */}
+        {/* ตารางรายการรับ-จ่าย */}
         <div className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm">
           <div className="mb-4 flex flex-col justify-between gap-4 min-[720px]:flex-row min-[720px]:items-center">
             <div className="flex items-center gap-3">
@@ -357,12 +392,32 @@ export default function PaymentsPage() {
                   รายการล่าสุด
                 </span>
                 <p className="text-sm font-medium text-muted-foreground">
-                  รายการจ่ายเงิน 50 รายการล่าสุดตามตัวกรองที่เลือก
+                  รายการรับ-จ่ายตามวันที่ จำนวน และตัวกรองที่เลือก
                 </p>
               </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              <DatePicker
+                date={selectedDate}
+                onDateChange={setSelectedDate}
+                placeholder="เลือกวันที่"
+                className="h-8 w-full rounded-full font-bold min-[520px]:w-[230px]"
+              />
+              <Select
+                value={limit.toString()}
+                onValueChange={(value) => setLimit(Number(value))}
+              >
+                <SelectTrigger className="h-8 w-full rounded-full px-4 font-bold min-[520px]:w-[150px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="20">20 รายการ</SelectItem>
+                  <SelectItem value="50">50 รายการ</SelectItem>
+                  <SelectItem value="100">100 รายการ</SelectItem>
+                  <SelectItem value="200">200 รายการ</SelectItem>
+                </SelectContent>
+              </Select>
               <Badge className="h-8 rounded-full bg-orange-50 px-4 text-sm font-bold text-main-orange dark:bg-orange-500/10">
                 {payments.length} รายการ
               </Badge>
@@ -381,7 +436,7 @@ export default function PaymentsPage() {
                 <Receipt className="h-5 w-5 text-muted-foreground" />
               </div>
               <h3 className="text-lg font-bold text-card-foreground">
-                ไม่พบรายการจ่ายเงิน
+                ไม่พบรายการรับ-จ่าย
               </h3>
               <p className="mt-1 text-sm font-medium text-muted-foreground">
                 ลองเปลี่ยนตัวกรองด้านบนเพื่อดูรายการอื่น
@@ -415,9 +470,6 @@ export default function PaymentsPage() {
                     </TableHead>
                     <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
                       ยอดรวม
-                    </TableHead>
-                    <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[1200px]:table-cell">
-                      หมายเหตุ
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -619,12 +671,6 @@ export default function PaymentsPage() {
                               )}
                             </div>
                           </div>
-                        </TableCell>
-
-                        <TableCell className="hidden max-w-xs text-right align-middle min-[1200px]:table-cell">
-                          <span className="line-clamp-2 text-xs font-medium text-muted-foreground">
-                            {payment.Remark || "-"}
-                          </span>
                         </TableCell>
                       </TableRow>
                     );

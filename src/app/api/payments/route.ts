@@ -1,6 +1,6 @@
 /**
  * API Endpoint: GET /api/payments
- * ดึงข้อมูลการจ่ายเงินทั้งหมด (เงินเดือน + ค่าใช้จ่ายอื่นๆ)
+ * ดึงข้อมูลรายรับรายจ่ายทั้งหมด (รายรับ + รายจ่าย + รายการพนักงาน)
  */
 
 import { NextResponse } from "next/server";
@@ -41,13 +41,16 @@ interface Payment {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const limit = searchParams.get("limit") || "100";
+    const requestedLimit = Number(searchParams.get("limit") || 20);
+    const allowedLimits = [20, 50, 100, 200];
+    const limit = allowedLimits.includes(requestedLimit) ? requestedLimit : 20;
     const dateFrom = searchParams.get("dateFrom");
     const dateTo = searchParams.get("dateTo");
-    const paymentType = searchParams.get("type"); // 'salary' | 'expense' | 'all'
+    const paymentType = searchParams.get("type"); // 'salary' | 'income' | 'expense' | 'all'
+    const params: Record<string, unknown> = { limit };
 
     let query = `
-      SELECT TOP ${limit}
+      SELECT TOP (@limit)
         OrderNum,
         DatePost,
         Times,
@@ -84,21 +87,29 @@ export async function GET(request: Request) {
     // กรองตามประเภท
     if (paymentType === "salary") {
       query += ` AND CodeStaff > 0 AND NameSure IS NOT NULL AND NameSure != ''`;
+    } else if (paymentType === "income") {
+      query += ` AND Debit > 0 AND (Credit IS NULL OR Credit = 0)`;
     } else if (paymentType === "expense") {
-      query += ` AND (CodeStaff = 0 OR CodeStaff IS NULL OR NameSure = '' OR NameSure IS NULL)`;
+      query += `
+        AND Credit > 0
+        AND (Debit IS NULL OR Debit = 0)
+        AND (CodeStaff = 0 OR CodeStaff IS NULL OR NameSure = '' OR NameSure IS NULL)
+      `;
     }
 
     // กรองตามวันที่
     if (dateFrom) {
-      query += ` AND Datepayment >= '${dateFrom}'`;
+      query += ` AND CONVERT(date, Datepayment) >= @dateFrom`;
+      params.dateFrom = dateFrom;
     }
     if (dateTo) {
-      query += ` AND Datepayment <= '${dateTo}'`;
+      query += ` AND CONVERT(date, Datepayment) <= @dateTo`;
+      params.dateTo = dateTo;
     }
 
     query += ` ORDER BY Datepayment DESC, OrderNum DESC`;
 
-    const payments = await executeQuery<Payment>(query);
+    const payments = await executeQuery<Payment>(query, params);
 
     // แปลงค่า Debit และ Credit เป็นตัวเลข และป้องกัน NaN
     const normalizedPayments = payments.map((p) => ({
@@ -114,14 +125,18 @@ export async function GET(request: Request) {
     const summary = {
       totalAmount: normalizedPayments.reduce((sum, p) => sum + p.TotalPrice, 0),
       totalCash: normalizedPayments.reduce((sum, p) => sum + p.MoneyCash, 0),
-      totalTransfer: normalizedPayments.reduce((sum, p) => sum + p.MoneyTransfer, 0),
+      totalTransfer: normalizedPayments.reduce(
+        (sum, p) => sum + p.MoneyTransfer,
+        0,
+      ),
       totalDebit: normalizedPayments.reduce((sum, p) => sum + p.Debit, 0),
       totalCredit: normalizedPayments.reduce((sum, p) => sum + p.Credit, 0),
       salaryCount: normalizedPayments.filter(
-        (p) => p.CodeStaff > 0 && p.NameSure && p.NameSure !== ""
+        (p) => p.CodeStaff > 0 && p.NameSure && p.NameSure !== "",
       ).length,
       expenseCount: normalizedPayments.filter(
-        (p) => !p.CodeStaff || p.CodeStaff === 0 || !p.NameSure || p.NameSure === ""
+        (p) =>
+          !p.CodeStaff || p.CodeStaff === 0 || !p.NameSure || p.NameSure === "",
       ).length,
       debitCount: normalizedPayments.filter((p) => p.Debit > 0).length,
       creditCount: normalizedPayments.filter((p) => p.Credit > 0).length,
@@ -141,7 +156,7 @@ export async function GET(request: Request) {
         error: "Failed to fetch payments",
         message: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
