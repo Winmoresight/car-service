@@ -3,7 +3,6 @@
  * เปิดบิลจากมือถือเข้าตารางบิลขายจริงของ POS เดิม
  */
 
-import { randomInt } from "node:crypto";
 import sql from "mssql";
 import { type NextRequest, NextResponse } from "next/server";
 import { executeQuery, getPool } from "@/lib/db";
@@ -27,6 +26,9 @@ interface BillDraftPayload {
   province?: string;
   brandAndGenerate?: string;
   mileCar?: string;
+  cash?: number;
+  transfer?: number;
+  nameBank?: string;
   note?: string;
   createdBy?: string;
   createdFrom?: string;
@@ -63,6 +65,16 @@ interface BillTotals {
   totalCost: number;
   totalProfit: number;
   serviceTotal: number;
+}
+
+interface BillPayment {
+  cash: number;
+  transfer: number;
+  paidTotal: number;
+  remainingAmount: number;
+  legacyStatus: "ค้างชำระ" | "ชำระเงินแล้ว";
+  draftPaymentStatus: "ยังไม่ชำระ" | "ชำระบางส่วน" | "ชำระแล้ว";
+  nameBank: string;
 }
 
 function sanitizeText(value: unknown) {
@@ -157,31 +169,124 @@ function calculateTotals(items: BillDraftItem[]) {
   };
 }
 
-function createRandomBillNo() {
-  const randomNumber = randomInt(1_000_000_000).toString().padStart(9, "0");
+function calculatePayment(body: BillDraftPayload, totalPrice: number) {
+  const cash = normalizeMoney(body.cash);
+  const transfer = normalizeMoney(body.transfer);
+  const paidTotal = Number((cash + transfer).toFixed(2));
+  const remainingAmount = Number(
+    Math.max(totalPrice - paidTotal, 0).toFixed(2),
+  );
+  const draftPaymentStatus =
+    remainingAmount <= 0
+      ? "ชำระแล้ว"
+      : paidTotal > 0
+        ? "ชำระบางส่วน"
+        : "ยังไม่ชำระ";
 
-  return `WEB${randomNumber}`;
+  return {
+    cash,
+    transfer,
+    paidTotal,
+    remainingAmount,
+    legacyStatus: remainingAmount <= 0 ? "ชำระเงินแล้ว" : "ค้างชำระ",
+    draftPaymentStatus,
+    nameBank: transfer > 0 ? sanitizeText(body.nameBank) : "",
+  } satisfies BillPayment;
 }
 
-async function createLegacyBillNo() {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const billNo = createRandomBillNo();
-    const [existing] = await executeQuery<{ count: number }>(
-      `
-        SELECT COUNT(*) as count
-        FROM dbo.MasterSalePost
-        WHERE NumberPrintSalePost = @billNo
-      `,
-      { billNo },
-      false,
-    );
+function formatLegacyBillNo(params: {
+  shortCode: string;
+  date: Date;
+  reportNumber: number;
+}) {
+  const month = String(params.date.getMonth() + 1);
+  const shortYear = String(params.date.getFullYear()).slice(-2);
+  const paddedReportNumber = String(params.reportNumber).padStart(6, "0");
 
-    if (!existing?.count) {
-      return billNo;
-    }
+  return `${params.shortCode}${month}${shortYear}${paddedReportNumber}`;
+}
+
+async function createLegacyBillNo(
+  transaction: sql.Transaction,
+  createdAt: Date,
+) {
+  const yearToday = String(createdAt.getFullYear());
+  const seedRequest = new sql.Request(transaction);
+
+  seedRequest.input("yearToday", sql.NVarChar(20), yearToday);
+  seedRequest.input("shortCode", sql.NVarChar(15), "PSC");
+
+  await seedRequest.query(`
+    IF NOT EXISTS (
+      SELECT 1
+      FROM dbo.NumberSalePost WITH (UPDLOCK, HOLDLOCK)
+      WHERE YearToday = @yearToday
+    )
+    BEGIN
+      INSERT INTO dbo.NumberSalePost (YearToday, ShortCH, NumReport)
+      VALUES (@yearToday, @shortCode, 0)
+    END
+  `);
+
+  const readRequest = new sql.Request(transaction);
+  readRequest.input("yearToday", sql.NVarChar(20), yearToday);
+
+  const numberRows = await readRequest.query<{
+    ShortCH: string | null;
+    NumReport: number | null;
+  }>(`
+    SELECT TOP 1
+      ISNULL(ShortCH, 'PSC') AS ShortCH,
+      ISNULL(NumReport, 0) AS NumReport
+    FROM dbo.NumberSalePost WITH (UPDLOCK, HOLDLOCK)
+    WHERE YearToday = @yearToday
+    ORDER BY ShortCH
+  `);
+
+  const numberRow = numberRows.recordset[0];
+
+  if (!numberRow) {
+    throw new Error("ไม่พบข้อมูลเลขรันบิล NumberSalePost");
   }
 
-  throw new Error("ไม่สามารถสร้างเลขบิล WEB ที่ไม่ซ้ำได้");
+  const shortCode = sanitizeText(numberRow.ShortCH) || "PSC";
+  let reportNumber = Number(numberRow.NumReport || 0) + 1;
+
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const billNo = formatLegacyBillNo({
+      shortCode,
+      date: createdAt,
+      reportNumber,
+    });
+    const existingRequest = new sql.Request(transaction);
+    existingRequest.input("billNo", sql.NVarChar(20), billNo);
+
+    const existingRows = await existingRequest.query<{ count: number }>(`
+      SELECT COUNT(*) AS count
+      FROM dbo.MasterSalePost WITH (UPDLOCK, HOLDLOCK)
+      WHERE NumberPrintSalePost = @billNo
+    `);
+
+    if (!existingRows.recordset[0]?.count) {
+      const updateRequest = new sql.Request(transaction);
+      updateRequest.input("yearToday", sql.NVarChar(20), yearToday);
+      updateRequest.input("shortCode", sql.NVarChar(15), shortCode);
+      updateRequest.input("reportNumber", sql.Int, reportNumber);
+
+      await updateRequest.query(`
+        UPDATE dbo.NumberSalePost
+        SET NumReport = @reportNumber
+        WHERE YearToday = @yearToday
+          AND ISNULL(ShortCH, 'PSC') = @shortCode
+      `);
+
+      return billNo;
+    }
+
+    reportNumber += 1;
+  }
+
+  throw new Error("ไม่สามารถสร้างเลขบิลจาก NumberSalePost ที่ไม่ซ้ำได้");
 }
 
 function formatLegacyTime(date: Date) {
@@ -212,6 +317,24 @@ function getLineCost(item: BillDraftItem) {
   return Number((item.quantity * (item.cost || 0)).toFixed(2));
 }
 
+function getItemBarcode(item: BillDraftItem, index: number) {
+  return truncateText(sanitizeText(item.barCode), 20) || `SVC${index + 1}`;
+}
+
+function getMeterProduct(item: BillDraftItem) {
+  return item.type === "service" ? "ครั้ง" : "ชิ้น";
+}
+
+function formatStockValue(value: number) {
+  return Number(value.toFixed(2)).toString();
+}
+
+function parseLegacyNumber(value: unknown) {
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : 0;
+}
+
 function getLegacyDetailPrint(body: BillDraftPayload) {
   const phoneCustomer = sanitizeText(body.phoneCustomer);
   const note = sanitizeText(body.note);
@@ -223,14 +346,14 @@ function getLegacyDetailPrint(body: BillDraftPayload) {
 }
 
 async function createLegacySaleBill(params: {
-  billNo: string;
   body: BillDraftPayload;
   items: BillDraftItem[];
   totals: BillTotals;
+  payment: BillPayment;
   customerName: string;
   nameCar: string;
 }) {
-  const { billNo, body, items, totals, customerName, nameCar } = params;
+  const { body, items, totals, payment, customerName, nameCar } = params;
   const pool = await getPool();
   const transaction = new sql.Transaction(pool);
   const createdAt = new Date();
@@ -244,6 +367,7 @@ async function createLegacySaleBill(params: {
   await transaction.begin();
 
   try {
+    const billNo = await createLegacyBillNo(transaction, createdAt);
     const masterRequest = new sql.Request(transaction);
 
     masterRequest.input("dateSalePost", sql.DateTime, createdAt);
@@ -269,14 +393,14 @@ async function createLegacySaleBill(params: {
     masterRequest.input("totalPrice", sql.Money, totals.totalPrice);
     masterRequest.input("totalCost", sql.Money, totals.totalCost);
     masterRequest.input("totalProfit", sql.Money, totals.totalProfit);
-    masterRequest.input("cash", sql.Money, 0);
-    masterRequest.input("transfer", sql.Money, 0);
+    masterRequest.input("cash", sql.Money, payment.cash);
+    masterRequest.input("transfer", sql.Money, payment.transfer);
     masterRequest.input("createdBy", createdBy);
     masterRequest.input("closeAcc", "");
-    masterRequest.input("status", "ค้างชำระ");
+    masterRequest.input("status", payment.legacyStatus);
     masterRequest.input("numberPrintCash", "");
     masterRequest.input("code", sql.Int, null);
-    masterRequest.input("nameBank", "");
+    masterRequest.input("nameBank", truncateText(payment.nameBank, 250) || "");
     masterRequest.input("priceService", sql.Money, totals.serviceTotal);
     masterRequest.input("itemSummary", itemSummary);
     masterRequest.input("detailPrint", getLegacyDetailPrint(body));
@@ -339,6 +463,8 @@ async function createLegacySaleBill(params: {
     `);
 
     for (const [index, item] of items.entries()) {
+      const barCode = getItemBarcode(item, index);
+      const meterProduct = getMeterProduct(item);
       const lineTotal = getLineTotal(item);
       const lineCost = getLineCost(item);
       const detailRequest = new sql.Request(transaction);
@@ -346,13 +472,10 @@ async function createLegacySaleBill(params: {
       detailRequest.input("dateSalePost", sql.DateTime, createdAt);
       detailRequest.input("billNo", billNo);
       detailRequest.input("orderNumber", sql.Int, index + 1);
-      detailRequest.input(
-        "barCode",
-        truncateText(sanitizeText(item.barCode), 20) || `WEB${index + 1}`,
-      );
+      detailRequest.input("barCode", barCode);
       detailRequest.input("nameProduct", truncateText(item.name, 250));
       detailRequest.input("quantity", sql.Real, item.quantity);
-      detailRequest.input("meterProduct", "ชิ้น");
+      detailRequest.input("meterProduct", meterProduct);
       detailRequest.input("salePrice", sql.Money, item.unitPrice);
       detailRequest.input("reducePrice", sql.Money, item.discount || 0);
       detailRequest.input("sumPrice", sql.Money, lineTotal);
@@ -401,6 +524,97 @@ async function createLegacySaleBill(params: {
           @createdBy
         )
       `);
+
+      const currentStockRequest = new sql.Request(transaction);
+      currentStockRequest.input("barCode", sql.NVarChar(30), barCode);
+
+      const currentStockRows = await currentStockRequest.query<{
+        Stock: string | null;
+      }>(`
+        SELECT TOP 1 Stock
+        FROM dbo.INOUTStockProduct WITH (UPDLOCK, HOLDLOCK)
+        WHERE BarCode = @barCode
+        ORDER BY DateSave DESC, Times DESC, NumberPrint DESC
+      `);
+
+      const currentStock = parseLegacyNumber(
+        currentStockRows.recordset[0]?.Stock,
+      );
+      const nextStock = currentStock - item.quantity;
+      const stockRequest = new sql.Request(transaction);
+
+      stockRequest.input("dateSave", sql.DateTime, createdAt);
+      stockRequest.input("times", formatLegacyTime(createdAt));
+      stockRequest.input("billNo", billNo);
+      stockRequest.input("barCode", truncateText(barCode, 30));
+      stockRequest.input("nameProduct", truncateText(item.name, 250));
+      stockRequest.input("meterProduct", truncateText(meterProduct, 50));
+      stockRequest.input("credit", formatStockValue(item.quantity));
+      stockRequest.input("stock", formatStockValue(nextStock));
+
+      await stockRequest.query(`
+        INSERT INTO dbo.INOUTStockProduct (
+          DateSave,
+          Times,
+          NumberPrint,
+          BarCode,
+          NameProduct,
+          MeterProduct,
+          Debit,
+          Credit,
+          Stock,
+          CostPrice,
+          CodeCompany,
+          NameCompany
+        )
+        VALUES (
+          @dateSave,
+          @times,
+          @billNo,
+          @barCode,
+          @nameProduct,
+          @meterProduct,
+          '',
+          @credit,
+          @stock,
+          '',
+          '',
+          ''
+        )
+      `);
+    }
+
+    if (payment.remainingAmount > 0) {
+      const receivableRequest = new sql.Request(transaction);
+
+      receivableRequest.input("datePost", sql.DateTime, createdAt);
+      receivableRequest.input("billNo", billNo);
+      receivableRequest.input("customerCode", customerCode);
+      receivableRequest.input("customerName", customerName || null);
+      receivableRequest.input("totalPrice", sql.Money, totals.totalPrice);
+      receivableRequest.input("payMoney", sql.Money, payment.paidTotal);
+      receivableRequest.input("subMoney", sql.Money, payment.remainingAmount);
+
+      await receivableRequest.query(`
+        INSERT INTO dbo.MasterRecivePaymentCustomer (
+          DatePost,
+          NumberPrintPost,
+          CodeCustomer,
+          NameCustomer,
+          TotalPrice,
+          PayMoney,
+          SubMoney
+        )
+        VALUES (
+          @datePost,
+          @billNo,
+          @customerCode,
+          @customerName,
+          @totalPrice,
+          @payMoney,
+          @subMoney
+        )
+      `);
     }
 
     await transaction.commit();
@@ -410,7 +624,11 @@ async function createLegacySaleBill(params: {
       createdAt,
     };
   } catch (error) {
-    await transaction.rollback();
+    try {
+      await transaction.rollback();
+    } catch (rollbackError) {
+      console.warn("Bill draft transaction rollback failed:", rollbackError);
+    }
     throw error;
   }
 }
@@ -609,16 +827,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const billNo = await createLegacyBillNo();
     const totals = calculateTotals(items);
+    const payment = calculatePayment(body, totals.totalPrice);
+
+    if (payment.paidTotal > totals.totalPrice) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "ยอดชำระมากกว่ายอดรวมของบิล",
+        },
+        { status: 400 },
+      );
+    }
+
     const legacyBill = await createLegacySaleBill({
-      billNo,
       body,
       items,
       totals,
+      payment,
       customerName,
       nameCar,
     });
+    const billNo = legacyBill.billNo;
     let created: BillDraftRow | null = null;
 
     try {
@@ -670,7 +900,7 @@ export async function POST(request: NextRequest) {
           VALUES (
             @draftNo,
             N'เปิดบิล',
-            N'ยังไม่ชำระ',
+            @paymentStatus,
             @customerCode,
             @customerName,
             @phoneCustomer,
@@ -690,6 +920,7 @@ export async function POST(request: NextRequest) {
         `,
         {
           draftNo: billNo,
+          paymentStatus: payment.draftPaymentStatus,
           customerCode: sanitizeText(body.customerCode) || null,
           customerName: customerName || null,
           phoneCustomer: sanitizeText(body.phoneCustomer) || null,
@@ -718,7 +949,7 @@ export async function POST(request: NextRequest) {
           id: 0,
           draftNo: billNo,
           status: "เปิดบิล",
-          paymentStatus: "ยังไม่ชำระ",
+          paymentStatus: payment.draftPaymentStatus,
           customerCode: sanitizeText(body.customerCode) || null,
           customerName: customerName || null,
           phoneCustomer: sanitizeText(body.phoneCustomer) || null,

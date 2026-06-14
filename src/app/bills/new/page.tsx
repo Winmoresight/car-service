@@ -136,6 +136,18 @@ function getItemTotal(
   return Math.max(item.quantity * item.unitPrice - (item.discount || 0), 0);
 }
 
+function getPaymentStatusBadgeClass(status: string) {
+  if (status === "ชำระแล้ว") {
+    return "border-emerald-100 bg-emerald-50 text-main-green dark:border-emerald-500/20 dark:bg-emerald-500/10";
+  }
+
+  if (status === "ชำระบางส่วน") {
+    return "border-blue-100 bg-blue-50 text-main-blue dark:border-blue-500/20 dark:bg-blue-500/10";
+  }
+
+  return "border-orange-100 bg-orange-50 text-main-orange dark:border-orange-500/20 dark:bg-orange-500/10";
+}
+
 async function fetchCatalogOptions(search: string, signal: AbortSignal) {
   const response = await fetch(
     `/api/bill-drafts/catalog?search=${encodeURIComponent(search)}&limit=12`,
@@ -172,6 +184,9 @@ export default function NewBillPage() {
     province: "",
     brandAndGenerate: "",
     mileCar: "",
+    cash: "",
+    transfer: "",
+    nameBank: "",
     createdBy: "",
     note: "",
   });
@@ -194,6 +209,27 @@ export default function NewBillPage() {
       totalPrice: Math.max(subTotal - discountTotal, 0),
     };
   }, [items]);
+
+  const paymentSummary = useMemo(() => {
+    const cash = parseNumberInput(form.cash);
+    const transfer = parseNumberInput(form.transfer);
+    const paidTotal = cash + transfer;
+    const remainingAmount = Math.max(totals.totalPrice - paidTotal, 0);
+    const status =
+      remainingAmount <= 0 && totals.totalPrice > 0
+        ? "ชำระแล้ว"
+        : paidTotal > 0
+          ? "ชำระบางส่วน"
+          : "ยังไม่ชำระ";
+
+    return {
+      cash,
+      transfer,
+      paidTotal,
+      remainingAmount,
+      status,
+    };
+  }, [form.cash, form.transfer, totals.totalPrice]);
 
   useEffect(() => {
     async function fetchRecentDrafts() {
@@ -301,6 +337,9 @@ export default function NewBillPage() {
       province: "",
       brandAndGenerate: "",
       mileCar: "",
+      cash: "",
+      transfer: "",
+      nameBank: "",
       createdBy: "",
       note: "",
     });
@@ -314,6 +353,11 @@ export default function NewBillPage() {
       setMessage(null);
       setError(null);
 
+      if (paymentSummary.paidTotal > totals.totalPrice) {
+        setError("ยอดชำระมากกว่ายอดรวมของบิล");
+        return;
+      }
+
       const response = await fetch("/api/bill-drafts", {
         method: "POST",
         headers: {
@@ -321,6 +365,8 @@ export default function NewBillPage() {
         },
         body: JSON.stringify({
           ...form,
+          cash: paymentSummary.cash,
+          transfer: paymentSummary.transfer,
           createdFrom: "mobile",
           items,
         }),
@@ -767,7 +813,7 @@ export default function NewBillPage() {
           </div>
 
           <aside className="space-y-6">
-            <section className="rounded-2xl border bg-white p-4 shadow-sm dark:bg-background xl:sticky xl:top-6">
+            <section className="rounded-2xl border bg-white p-4 shadow-sm dark:bg-background">
               <div className="mb-4 flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-[8px] border bg-background text-primary dark:bg-secondary">
                   <ReceiptText className="h-5 w-5" strokeWidth={2.5} />
@@ -775,7 +821,7 @@ export default function NewBillPage() {
                 <div>
                   <h2 className="text-xl font-bold text-primary">สรุปบิล</h2>
                   <p className="text-sm font-semibold text-muted-foreground">
-                    สถานะเริ่มต้น: ยังไม่ชำระ
+                    สถานะ: {paymentSummary.status}
                   </p>
                 </div>
               </div>
@@ -808,7 +854,63 @@ export default function NewBillPage() {
                     บาท
                   </p>
                 </div>
+                <div className="border-t pt-3">
+                  <div className="flex justify-between gap-3 text-sm font-semibold">
+                    <span className="text-muted-foreground">รับชำระแล้ว</span>
+                    <span className="text-primary">
+                      {formatCurrency(paymentSummary.paidTotal)} บาท
+                    </span>
+                  </div>
+                  <div className="mt-1 flex justify-between gap-3 text-sm font-semibold">
+                    <span className="text-muted-foreground">คงเหลือ</span>
+                    <span className="text-primary">
+                      {formatCurrency(paymentSummary.remainingAmount)} บาท
+                    </span>
+                  </div>
+                </div>
               </div>
+
+              <div className="mt-4 grid gap-3 min-[520px]:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                <label htmlFor="cash" className="space-y-1.5">
+                  <span className="text-sm font-bold text-primary">เงินสด</span>
+                  <Input
+                    id="cash"
+                    type="number"
+                    min="0"
+                    inputMode="decimal"
+                    value={form.cash}
+                    onChange={(event) => updateForm("cash", event.target.value)}
+                    className="h-11 rounded-xl text-right font-semibold"
+                  />
+                </label>
+                <label htmlFor="transfer" className="space-y-1.5">
+                  <span className="text-sm font-bold text-primary">เงินโอน</span>
+                  <Input
+                    id="transfer"
+                    type="number"
+                    min="0"
+                    inputMode="decimal"
+                    value={form.transfer}
+                    onChange={(event) =>
+                      updateForm("transfer", event.target.value)
+                    }
+                    className="h-11 rounded-xl text-right font-semibold"
+                  />
+                </label>
+              </div>
+
+              <label htmlFor="nameBank" className="mt-4 block space-y-1.5">
+                <span className="text-sm font-bold text-primary">ธนาคาร</span>
+                <Input
+                  id="nameBank"
+                  value={form.nameBank}
+                  onChange={(event) =>
+                    updateForm("nameBank", event.target.value)
+                  }
+                  disabled={paymentSummary.transfer <= 0}
+                  className="h-11 rounded-xl"
+                />
+              </label>
 
               <label htmlFor="createdBy" className="mt-4 block space-y-1.5">
                 <span className="text-sm font-bold text-primary">ผู้รับงาน</span>
@@ -894,7 +996,11 @@ export default function NewBillPage() {
                             {draft.nameCar || "ไม่ระบุรถ"}
                           </p>
                         </div>
-                        <Badge className="shrink-0 rounded-full bg-orange-50 text-main-orange dark:bg-orange-500/10">
+                        <Badge
+                          className={`shrink-0 rounded-full shadow-none ${getPaymentStatusBadgeClass(
+                            draft.paymentStatus,
+                          )}`}
+                        >
                           {draft.paymentStatus}
                         </Badge>
                       </div>

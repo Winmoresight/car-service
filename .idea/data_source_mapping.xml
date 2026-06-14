@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="DataSourcePerFileMappings">
+    <file url="file://$PROJECT_DIR$/check-bill-table-candidates.sql" value="0afb89d1-f88d-4196-86d7-873ac1c8c34c" />
+    <file url="file://$PROJECT_DIR$/check-open-bill-payment-flow.sql" value="0afb89d1-f88d-4196-86d7-873ac1c8c34c" />
+  </component>
+</project>
