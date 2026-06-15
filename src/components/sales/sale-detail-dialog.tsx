@@ -17,6 +17,7 @@ import {
   TrendingUp,
   User,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { outfit } from "@/components/fonts/fonts";
 import { Badge } from "@/components/ui/badge";
@@ -67,12 +68,14 @@ interface SaleDetailDialogProps {
   saleId: string | null;
   isOpen: boolean;
   onClose: () => void;
+  paymentAction?: ReactNode;
 }
 
 export function SaleDetailDialog({
   saleId,
   isOpen,
   onClose,
+  paymentAction,
 }: SaleDetailDialogProps) {
   const [saleDetail, setSaleDetail] = useState<SaleDetail | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -270,139 +273,218 @@ export function SaleDetailDialog({
                     </div>
                   </div>
 
-                  <div className="grid gap-3 min-[540px]:grid-cols-2">
+                  {paymentAction ? (
                     <div className="rounded-2xl border bg-white p-4 dark:bg-card">
-                      <span className="text-sm font-semibold text-muted-foreground">
-                        ยอดขายรวม
-                      </span>
-                      <p
-                        className={cn(
-                          outfit.className,
-                          "mt-2 text-2xl font-bold text-card-foreground",
-                        )}
-                      >
-                        {formatCurrency(saleDetail.totalPrice)}
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border bg-white p-4 dark:bg-card">
-                      <span className="text-sm font-semibold text-muted-foreground">
-                        ต้นทุนรวม
-                      </span>
-                      <p
-                        className={cn(
-                          outfit.className,
-                          "mt-2 text-2xl font-bold text-card-foreground",
-                        )}
-                      >
-                        {formatCurrency(saleDetail.totalCost)}
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border bg-white p-4 dark:bg-card">
-                      <span className="text-sm font-semibold text-muted-foreground">
-                        กำไรรวม
-                      </span>
-                      <p
-                        className={cn(
-                          outfit.className,
-                          "mt-2 text-2xl font-bold",
-                          saleDetail.totalProfit >= 0
-                            ? "text-main-green"
-                            : "text-main-red",
-                        )}
-                      >
-                        {formatCurrency(saleDetail.totalProfit)}
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border bg-white p-4 dark:bg-card">
-                      <span className="text-sm font-semibold text-muted-foreground">
-                        Margin
-                      </span>
-                      <p
-                        className={cn(
-                          outfit.className,
-                          "mt-2 text-2xl font-bold",
-                          saleDetail.totalProfit >= 0
-                            ? "text-main-green"
-                            : "text-main-red",
-                        )}
-                      >
-                        {formatProfitMargin(saleDetail)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm">
-                <div className="mb-4 flex flex-col justify-between gap-4 min-[720px]:flex-row min-[720px]:items-center">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-emerald-50 dark:border-emerald-500/20 dark:bg-emerald-500/10">
-                      <CreditCard className="h-6 w-6 text-main-green" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-xl font-bold text-card-foreground">
-                        การชำระเงิน
-                      </span>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        วิธีชำระและยอดที่รับจากลูกค้า
-                      </p>
-                    </div>
-                  </div>
-
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      outfit.className,
-                      "h-8 w-fit rounded-full px-4 text-sm font-bold text-card-foreground",
-                    )}
-                  >
-                    {formatCurrency(saleDetail.cash + saleDetail.transfer)}
-                  </Badge>
-                </div>
-
-                <div className="grid gap-3 min-[560px]:grid-cols-2">
-                  {getPaymentMethods(saleDetail).length > 0 ? (
-                    getPaymentMethods(saleDetail).map((method) => {
-                      const Icon = method.icon;
-
-                      return (
-                        <div
-                          key={method.label}
-                          className="rounded-2xl border bg-white p-4 dark:bg-card"
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-3">
-                              <div
-                                className={cn(
-                                  "flex h-11 w-11 items-center justify-center rounded-xl border",
-                                  method.className,
-                                )}
-                              >
-                                <Icon className="h-5 w-5" />
-                              </div>
-                              <span className="font-bold text-card-foreground">
-                                {method.label}
-                              </span>
-                            </div>
-                            <span
-                              className={cn(
-                                outfit.className,
-                                "text-xl font-bold text-card-foreground",
-                              )}
-                            >
-                              {formatCurrency(method.amount)}
+                      <div className="flex flex-col justify-between gap-4 min-[560px]:flex-row min-[560px]:items-center">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-emerald-100 bg-emerald-50 dark:border-emerald-500/20 dark:bg-emerald-500/10">
+                            <CreditCard className="h-5 w-5 text-main-green" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-lg font-bold text-card-foreground">
+                              การชำระเงิน
+                            </span>
+                            <span className="text-xs font-semibold text-muted-foreground">
+                              ยอดที่รับแล้วและปิดยอดค้าง
                             </span>
                           </div>
                         </div>
-                      );
-                    })
+
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            outfit.className,
+                            "h-8 w-fit rounded-full px-4 text-sm font-bold text-card-foreground",
+                          )}
+                        >
+                          {formatCurrency(
+                            saleDetail.cash + saleDetail.transfer,
+                          )}
+                        </Badge>
+                      </div>
+
+                      <div className="mt-4 grid gap-3 min-[560px]:grid-cols-2">
+                        {getPaymentMethods(saleDetail).length > 0 ? (
+                          getPaymentMethods(saleDetail).map((method) => {
+                            const Icon = method.icon;
+
+                            return (
+                              <div
+                                key={method.label}
+                                className="rounded-xl border bg-card p-3"
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="flex items-center gap-2">
+                                    <div
+                                      className={cn(
+                                        "flex h-9 w-9 items-center justify-center rounded-lg border",
+                                        method.className,
+                                      )}
+                                    >
+                                      <Icon className="h-4 w-4" />
+                                    </div>
+                                    <span className="font-bold text-card-foreground">
+                                      {method.label}
+                                    </span>
+                                  </div>
+                                  <span
+                                    className={cn(
+                                      outfit.className,
+                                      "text-base font-bold text-card-foreground",
+                                    )}
+                                  >
+                                    {formatCurrency(method.amount)}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="rounded-xl border bg-card p-3 text-sm font-semibold text-muted-foreground min-[560px]:col-span-2">
+                            ยังไม่พบยอดรับชำระ
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-4">{paymentAction}</div>
+                    </div>
                   ) : (
-                    <div className="rounded-2xl border bg-white p-4 text-sm font-semibold text-muted-foreground dark:bg-card min-[560px]:col-span-2">
-                      ไม่พบข้อมูลวิธีชำระเงิน
+                    <div className="grid gap-3 min-[540px]:grid-cols-2">
+                      <div className="rounded-2xl border bg-white p-4 dark:bg-card">
+                        <span className="text-sm font-semibold text-muted-foreground">
+                          ยอดขายรวม
+                        </span>
+                        <p
+                          className={cn(
+                            outfit.className,
+                            "mt-2 text-2xl font-bold text-card-foreground",
+                          )}
+                        >
+                          {formatCurrency(saleDetail.totalPrice)}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border bg-white p-4 dark:bg-card">
+                        <span className="text-sm font-semibold text-muted-foreground">
+                          ต้นทุนรวม
+                        </span>
+                        <p
+                          className={cn(
+                            outfit.className,
+                            "mt-2 text-2xl font-bold text-card-foreground",
+                          )}
+                        >
+                          {formatCurrency(saleDetail.totalCost)}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border bg-white p-4 dark:bg-card">
+                        <span className="text-sm font-semibold text-muted-foreground">
+                          กำไรรวม
+                        </span>
+                        <p
+                          className={cn(
+                            outfit.className,
+                            "mt-2 text-2xl font-bold",
+                            saleDetail.totalProfit >= 0
+                              ? "text-main-green"
+                              : "text-main-red",
+                          )}
+                        >
+                          {formatCurrency(saleDetail.totalProfit)}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border bg-white p-4 dark:bg-card">
+                        <span className="text-sm font-semibold text-muted-foreground">
+                          Margin
+                        </span>
+                        <p
+                          className={cn(
+                            outfit.className,
+                            "mt-2 text-2xl font-bold",
+                            saleDetail.totalProfit >= 0
+                              ? "text-main-green"
+                              : "text-main-red",
+                          )}
+                        >
+                          {formatProfitMargin(saleDetail)}
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
+
+              {!paymentAction ? (
+                <div className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm">
+                  <div className="mb-4 flex flex-col justify-between gap-4 min-[720px]:flex-row min-[720px]:items-center">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-emerald-50 dark:border-emerald-500/20 dark:bg-emerald-500/10">
+                        <CreditCard className="h-6 w-6 text-main-green" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-xl font-bold text-card-foreground">
+                          การชำระเงิน
+                        </span>
+                        <p className="text-sm font-medium text-muted-foreground">
+                          วิธีชำระและยอดที่รับจากลูกค้า
+                        </p>
+                      </div>
+                    </div>
+
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        outfit.className,
+                        "h-8 w-fit rounded-full px-4 text-sm font-bold text-card-foreground",
+                      )}
+                    >
+                      {formatCurrency(saleDetail.cash + saleDetail.transfer)}
+                    </Badge>
+                  </div>
+
+                  <div className="grid gap-3 min-[560px]:grid-cols-2">
+                    {getPaymentMethods(saleDetail).length > 0 ? (
+                      getPaymentMethods(saleDetail).map((method) => {
+                        const Icon = method.icon;
+
+                        return (
+                          <div
+                            key={method.label}
+                            className="rounded-2xl border bg-white p-4 dark:bg-card"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className={cn(
+                                    "flex h-11 w-11 items-center justify-center rounded-xl border",
+                                    method.className,
+                                  )}
+                                >
+                                  <Icon className="h-5 w-5" />
+                                </div>
+                                <span className="font-bold text-card-foreground">
+                                  {method.label}
+                                </span>
+                              </div>
+                              <span
+                                className={cn(
+                                  outfit.className,
+                                  "text-xl font-bold text-card-foreground",
+                                )}
+                              >
+                                {formatCurrency(method.amount)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="rounded-2xl border bg-white p-4 text-sm font-semibold text-muted-foreground dark:bg-card min-[560px]:col-span-2">
+                        ไม่พบข้อมูลวิธีชำระเงิน
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : null}
 
               <div className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm">
                 <div className="mb-4 flex flex-col justify-between gap-4 min-[720px]:flex-row min-[720px]:items-center">

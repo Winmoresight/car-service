@@ -2,7 +2,7 @@
 
 /**
  * Sales Page - หน้ายอดขาย
- * แสดงรายการบิลขายจากฐานข้อมูลจริง พร้อม filter และค้นหา
+ * แสดงรายการบิลขายที่ชำระแล้วจากฐานข้อมูลจริง พร้อม filter และค้นหา
  */
 
 import { format } from "date-fns";
@@ -198,7 +198,7 @@ export default function SalesPage() {
               <div className="flex flex-col">
                 <span className="text-primary text-2xl font-bold">ยอดขาย</span>
                 <p className="text-foreground hidden font-medium min-[798px]:block">
-                  รายการบิลขายทั้งหมด ({total.toLocaleString()} บิล)
+                  รายการบิลขายที่ชำระแล้ว ({total.toLocaleString()} บิล)
                 </p>
               </div>
             </div>
@@ -226,7 +226,7 @@ export default function SalesPage() {
                 </div>
                 <div className="flex flex-col items-end min-[600px]:items-start gap-1">
                   <span className="text-primary text-lg font-semibold">
-                    บิลทั้งหมด
+                    บิลชำระแล้ว
                   </span>
                   <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
                     <span className={`${outfit.className}`}>
@@ -248,7 +248,7 @@ export default function SalesPage() {
                 </div>
                 <div className="flex flex-col items-end min-[600px]:items-start gap-1">
                   <span className="text-primary text-lg font-semibold">
-                    ยอดขายรวม
+                    ยอดขายที่ชำระแล้ว
                   </span>
                   <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
                     <span className={`${outfit.className}`}>
@@ -340,7 +340,7 @@ export default function SalesPage() {
               </div>
               <div className="flex flex-col">
                 <span className="text-xl font-bold text-card-foreground">
-                  รายการบิลขาย
+                  รายการบิลขายที่ชำระแล้ว
                 </span>
                 <p className="text-sm font-medium text-muted-foreground">
                   คลิกที่บิลเพื่อดูรายละเอียดสินค้าและการชำระเงิน
@@ -382,7 +382,7 @@ export default function SalesPage() {
                 <Search className="h-5 w-5 text-muted-foreground" />
               </div>
               <h3 className="text-lg font-bold text-card-foreground">
-                ไม่พบข้อมูลบิลขาย
+                ไม่พบข้อมูลบิลขายที่ชำระแล้ว
               </h3>
               <p className="mt-1 text-sm font-medium text-muted-foreground">
                 ลองปรับคำค้นหาหรือช่วงวันที่ใหม่อีกครั้ง

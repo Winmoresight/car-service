@@ -1,30 +1,34 @@
 "use client";
 
 /**
- * Tax Invoices Page - หน้าใบกำกับภาษี
- * แสดงรายการใบกำกับภาษีทั้งหมด พร้อม filter
+ * Receivable Bills Page - หน้าลูกหนี้จากบิลขายหลัก
+ * แสดงรายการบิลขายหลัก พร้อม filter
  */
 
 import { format } from "date-fns";
-import { Ban, Download, FileText, Receipt, Search, X } from "lucide-react";
+import {
+  Ban,
+  Banknote,
+  CreditCard,
+  Download,
+  FileText,
+  Loader2,
+  Receipt,
+  Search,
+  X,
+} from "lucide-react";
 import { useState } from "react";
 import type { DateRange } from "react-day-picker";
 import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { outfit } from "@/components/fonts/fonts";
+import { SaleDetailDialog } from "@/components/sales/sale-detail-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -39,24 +43,41 @@ import type { ApiResponse } from "@/types/api";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-interface TaxInvoice {
+interface ReceivableBill {
   numberPrint: string;
   date: string;
   customerCode: string;
   customerName: string;
   nameCar: string;
   province: string;
-  subVatePrice: number;
-  vatePrice: number;
   totalPrice: number;
+  cash: number;
+  transfer: number;
+  paidAmount: number;
+  receivableAmount: number;
   status: string;
   userName: string;
 }
 
+interface ReceivableSummary {
+  totalAmount: number;
+  paidAmount: number;
+  totalCash: number;
+  totalTransfer: number;
+  receivableAmount: number;
+  receivableCount: number;
+}
+
+type PaymentMethod = "cash" | "transfer";
+
 export default function TaxInvoicesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(0);
-  const [status, setStatus] = useState<string>("all");
+  const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [closingBillNo, setClosingBillNo] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const limit = 20;
 
@@ -71,10 +92,6 @@ export default function TaxInvoicesPage() {
       params.append("search", searchTerm);
     }
 
-    if (status && status !== "all") {
-      params.append("status", status);
-    }
-
     if (dateRange?.from) {
       params.append("startDate", format(dateRange.from, "yyyy-MM-dd"));
     }
@@ -87,9 +104,10 @@ export default function TaxInvoicesPage() {
   };
 
   // Fetch tax invoices data
-  const { data, error, isLoading } = useSWR<
+  const { data, error, isLoading, mutate } = useSWR<
     ApiResponse<{
-      taxInvoices: TaxInvoice[];
+      taxInvoices: ReceivableBill[];
+      summary: ReceivableSummary;
       total: number;
       limit: number;
       offset: number;
@@ -100,15 +118,14 @@ export default function TaxInvoicesPage() {
 
   const taxInvoices =
     data?.success && data?.data?.taxInvoices ? data.data.taxInvoices : [];
+  const summary =
+    data?.success && data?.data?.summary ? data.data.summary : null;
   const total = data?.success && data?.data?.total ? data.data.total : 0;
   const totalPages = Math.ceil(total / limit);
-
-  // คำนวณสถิติ
-  const totalAmount = taxInvoices.reduce((sum, inv) => sum + inv.totalPrice, 0);
-  const totalVat = taxInvoices.reduce((sum, inv) => sum + inv.vatePrice, 0);
-  const pendingCount = taxInvoices.filter(
-    (inv) => inv.status === "ค้างชำระ",
-  ).length;
+  const selectedInvoice = selectedSaleId
+    ? taxInvoices.find((invoice) => invoice.numberPrint === selectedSaleId) ||
+      null
+    : null;
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("th-TH", {
@@ -141,11 +158,6 @@ export default function TaxInvoicesPage() {
     setPage(0);
   };
 
-  const handleStatusChange = (value: string) => {
-    setStatus(value);
-    setPage(0);
-  };
-
   const handleDateRangeChange = (range: DateRange | undefined) => {
     setDateRange(range);
     setPage(0);
@@ -153,73 +165,167 @@ export default function TaxInvoicesPage() {
 
   const handleClearFilters = () => {
     setSearchTerm("");
-    setStatus("all");
     setDateRange(undefined);
     setPage(0);
   };
 
-  const hasActiveFilters =
-    searchTerm ||
-    (status && status !== "all") ||
-    dateRange?.from ||
-    dateRange?.to;
+  const hasActiveFilters = searchTerm || dateRange?.from || dateRange?.to;
+
+  const handleViewSale = (saleId: string) => {
+    setSelectedSaleId(saleId);
+    setIsDialogOpen(true);
+  };
+
+  const handleCloseDialog = () => {
+    setIsDialogOpen(false);
+    setSelectedSaleId(null);
+  };
+
+  const closeReceivable = async (
+    invoice: ReceivableBill,
+    paymentMethod: PaymentMethod,
+  ) => {
+    let nameBank = "";
+
+    if (paymentMethod === "transfer") {
+      const promptedBank = window.prompt(
+        `ระบุธนาคารสำหรับปิดลูกหนี้ ${invoice.numberPrint}`,
+        "",
+      );
+
+      if (promptedBank === null) {
+        return;
+      }
+
+      nameBank = promptedBank.trim();
+
+      if (!nameBank) {
+        setActionMessage(null);
+        setActionError("กรุณาระบุธนาคารสำหรับเงินโอน");
+        return;
+      }
+    }
+
+    const paymentLabel =
+      paymentMethod === "cash" ? "เงินสด" : `เงินโอน (${nameBank})`;
+    const confirmed = window.confirm(
+      `ยืนยันปิดลูกหนี้ ${invoice.numberPrint} ด้วย${paymentLabel} ${formatCurrency(
+        invoice.receivableAmount,
+      )}?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setClosingBillNo(invoice.numberPrint);
+      setActionMessage(null);
+      setActionError(null);
+
+      const response = await fetch("/api/tax-invoices", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          numberPrint: invoice.numberPrint,
+          paymentMethod,
+          nameBank,
+        }),
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "ไม่สามารถปรับสถานะลูกหนี้ได้");
+      }
+
+      setActionMessage(`ปิดลูกหนี้ ${invoice.numberPrint} เรียบร้อยแล้ว`);
+      await mutate();
+      handleCloseDialog();
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "ไม่สามารถปรับสถานะลูกหนี้ได้",
+      );
+    } finally {
+      setClosingBillNo(null);
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     const badgeClassName =
       "h-7 rounded-full px-3 text-xs font-bold shadow-none";
 
-    switch (status) {
-      case "ชำระเงินแล้ว":
-        return (
-          <Badge
-            variant="outline"
-            className={cn(
-              badgeClassName,
-              "border-emerald-100 bg-emerald-50 text-main-green dark:border-emerald-500/20 dark:bg-emerald-500/10",
-            )}
-          >
-            ชำระแล้ว
-          </Badge>
-        );
-      case "ค้างชำระ":
-        return (
-          <Badge
-            variant="outline"
-            className={cn(
-              badgeClassName,
-              "border-orange-100 bg-orange-50 text-main-orange dark:border-orange-500/20 dark:bg-orange-500/10",
-            )}
-          >
-            ค้างชำระ
-          </Badge>
-        );
-      case "ยกเลิก":
-        return (
-          <Badge
-            variant="outline"
-            className={cn(
-              badgeClassName,
-              "border-red-100 bg-red-50 text-main-red dark:border-red-500/20 dark:bg-red-500/10",
-            )}
-          >
-            ยกเลิก
-          </Badge>
-        );
-      default:
-        return (
-          <Badge
-            variant="outline"
-            className={cn(badgeClassName, "text-muted-foreground")}
-          >
-            {status || "-"}
-          </Badge>
-        );
-    }
+    return (
+      <Badge
+        variant="outline"
+        className={cn(
+          badgeClassName,
+          "border-orange-100 bg-orange-50 text-main-orange dark:border-orange-500/20 dark:bg-orange-500/10",
+        )}
+      >
+        {status || "ค้างชำระ"}
+      </Badge>
+    );
   };
+
+  const receivablePaymentAction = selectedInvoice ? (
+    <div className="rounded-2xl border border-orange-100 bg-orange-50/60 p-4 dark:border-orange-500/20 dark:bg-orange-500/10">
+      <div className="flex flex-col justify-between gap-3 min-[560px]:flex-row min-[560px]:items-center">
+        <div className="flex flex-col">
+          <span className="text-base font-bold text-card-foreground">
+            ปิดยอดค้าง
+          </span>
+          <span className="text-sm font-semibold text-muted-foreground">
+            ยอดค้างชำระ
+          </span>
+        </div>
+        <span
+          className={cn(
+            outfit.className,
+            "text-2xl font-bold text-main-orange",
+          )}
+        >
+          {formatCurrency(selectedInvoice.receivableAmount)}
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-2 min-[520px]:grid-cols-2">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={closingBillNo === selectedInvoice.numberPrint}
+          onClick={() => closeReceivable(selectedInvoice, "cash")}
+          className="h-10 border-emerald-100 bg-white text-main-green shadow-none hover:border-main-green/40 hover:bg-emerald-50 hover:!text-main-green dark:border-emerald-500/20 dark:bg-card"
+        >
+          {closingBillNo === selectedInvoice.numberPrint ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Banknote className="h-4 w-4" />
+          )}
+          ชำระเงินสด
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={closingBillNo === selectedInvoice.numberPrint}
+          onClick={() => closeReceivable(selectedInvoice, "transfer")}
+          className="h-10 border-blue-100 bg-white text-main-blue shadow-none hover:border-main-blue/40 hover:bg-blue-50 hover:!text-main-blue dark:border-blue-500/20 dark:bg-card"
+        >
+          {closingBillNo === selectedInvoice.numberPrint ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <CreditCard className="h-4 w-4" />
+          )}
+          ชำระเงินโอน
+        </Button>
+      </div>
+    </div>
+  ) : null;
 
   return (
     <div className="p-6 pb-16">
-      <DashboardBreadcrumb label="ใบกำกับภาษี" href="/tax-invoices" />
+      <DashboardBreadcrumb label="ลูกหนี้" href="/tax-invoices" />
       <hr className="my-4 mb-6 hidden w-full min-[1025px]:block" />
 
       <div className="space-y-6">
@@ -231,10 +337,10 @@ export default function TaxInvoicesPage() {
               </div>
               <div className="flex flex-col">
                 <span className="text-primary text-2xl font-bold tracking-tight">
-                  ใบกำกับภาษี
+                  ลูกหนี้
                 </span>
                 <p className="text-foreground font-medium">
-                  รายการใบกำกับภาษีทั้งหมด ({total.toLocaleString()} ใบ)
+                  บิลขายหลักที่ยังค้างชำระ ({total.toLocaleString()} ใบ)
                 </p>
               </div>
             </div>
@@ -243,33 +349,33 @@ export default function TaxInvoicesPage() {
           {/* Summary Cards */}
           <div className="grid gap-4 md:grid-cols-4">
             <KPICard
-              title="ใบกำกับทั้งหมด"
+              title="บิลค้างชำระ"
               value={total}
               unit="ใบ"
               icon={FileText}
               variant="blue"
             />
             <KPICard
-              title="ยอดรวมทั้งหมด"
-              value={totalAmount}
+              title="ยอดบิลก่อนหักรับ"
+              value={summary?.totalAmount || 0}
               format="currency"
               icon={Receipt}
               variant="purple"
             />
             <KPICard
-              title="VAT รวม"
-              value={totalVat}
+              title="รับแล้วบางส่วน"
+              value={summary?.paidAmount || 0}
               format="currency"
-              icon={Receipt}
+              icon={Banknote}
               variant="emerald"
             />
             <KPICard
-              title="ค้างชำระ"
-              value={pendingCount}
-              unit="ใบ"
+              title="ค้างชำระจริง"
+              value={summary?.receivableAmount || 0}
+              format="currency"
               icon={Ban}
               variant="orange"
-              subtitle={`${pendingCount} ใบ`}
+              subtitle={`${summary?.receivableCount || 0} ใบ`}
             />
           </div>
         </div>
@@ -290,19 +396,6 @@ export default function TaxInvoicesPage() {
                     className="pl-10"
                   />
                 </div>
-
-                {/* Status Filter */}
-                <Select value={status} onValueChange={handleStatusChange}>
-                  <SelectTrigger className="w-full md:w-[200px]">
-                    <SelectValue placeholder="สถานะ" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">สถานะทั้งหมด</SelectItem>
-                    <SelectItem value="ชำระเงินแล้ว">ชำระแล้ว</SelectItem>
-                    <SelectItem value="ค้างชำระ">ค้างชำระ</SelectItem>
-                    <SelectItem value="ยกเลิก">ยกเลิก</SelectItem>
-                  </SelectContent>
-                </Select>
 
                 {/* Date Range Picker */}
                 <DateRangePicker
@@ -337,9 +430,6 @@ export default function TaxInvoicesPage() {
                   {searchTerm && (
                     <Badge variant="secondary">ค้นหา: {searchTerm}</Badge>
                   )}
-                  {status && status !== "all" && (
-                    <Badge variant="secondary">สถานะ: {status}</Badge>
-                  )}
                   {dateRange?.from && (
                     <Badge variant="secondary">
                       {format(dateRange.from, "d MMM yyyy")}
@@ -353,7 +443,19 @@ export default function TaxInvoicesPage() {
           </CardContent>
         </Card>
 
-        {/* Tax Invoices Table */}
+        {actionMessage ? (
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-main-green dark:border-emerald-500/20 dark:bg-emerald-500/10">
+            {actionMessage}
+          </div>
+        ) : null}
+
+        {actionError ? (
+          <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-main-red dark:border-red-500/20 dark:bg-red-500/10">
+            {actionError}
+          </div>
+        ) : null}
+
+        {/* Receivable Bills Table */}
         <div className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm">
           <div className="mb-4 flex flex-col justify-between gap-4 min-[720px]:flex-row min-[720px]:items-center">
             <div className="flex items-center gap-3">
@@ -362,10 +464,10 @@ export default function TaxInvoicesPage() {
               </div>
               <div className="flex flex-col">
                 <span className="text-xl font-bold text-card-foreground">
-                  รายการใบกำกับภาษี
+                  รายการลูกหนี้
                 </span>
                 <p className="text-sm font-medium text-muted-foreground">
-                  เลขที่บิลแสดงเป็นข้อความปกติ พร้อมแยกลูกค้า รถ และยอด VAT ให้อ่านง่าย
+                  คลิกที่บิลเพื่อดูรายละเอียดสินค้า การชำระเงิน และสรุปบิล
                 </p>
               </div>
             </div>
@@ -404,7 +506,7 @@ export default function TaxInvoicesPage() {
                 <Search className="h-5 w-5 text-muted-foreground" />
               </div>
               <h3 className="text-lg font-bold text-card-foreground">
-                ไม่พบข้อมูลใบกำกับภาษี
+                ไม่พบข้อมูลลูกหนี้
               </h3>
               <p className="mt-1 text-sm font-medium text-muted-foreground">
                 ลองปรับคำค้นหา สถานะ หรือช่วงวันที่ใหม่อีกครั้ง
@@ -429,10 +531,10 @@ export default function TaxInvoicesPage() {
                         รถ/จังหวัด
                       </TableHead>
                       <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[1020px]:table-cell">
-                        ก่อน VAT
+                        รับแล้ว
                       </TableHead>
                       <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[1120px]:table-cell">
-                        VAT 7%
+                        ค้างจริง
                       </TableHead>
                       <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
                         ยอดรวม
@@ -446,27 +548,33 @@ export default function TaxInvoicesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {taxInvoices.map((invoice) => (
+                    {taxInvoices.map((invoice, index) => (
                       <TableRow
                         key={invoice.numberPrint}
-                        className="group border-border/60 transition-colors duration-200 hover:bg-blue-50/30 dark:hover:bg-blue-500/5"
+                        className="group cursor-pointer border-border/60 transition-colors duration-200 hover:bg-blue-50/30 dark:hover:bg-blue-500/5"
+                        onClick={() => handleViewSale(invoice.numberPrint)}
                       >
                         <TableCell className="px-4 py-4 font-medium">
-                          <div className="flex min-w-0 flex-col">
-                            <span
-                              className={cn(
-                                outfit.className,
-                                "block max-w-[150px] truncate text-sm font-bold text-card-foreground transition-colors group-hover:text-main-blue min-[420px]:max-w-[210px] min-[550px]:max-w-[300px] min-[550px]:text-base min-[1100px]:max-w-[420px]",
-                              )}
-                            >
-                              {invoice.numberPrint || "-"}
-                            </span>
-                            <p className="max-w-[150px] truncate text-sm font-semibold text-muted-foreground min-[420px]:max-w-[210px] min-[550px]:max-w-[300px] min-[640px]:hidden">
-                              {invoice.customerName || "ไม่ระบุลูกค้า"}
-                            </p>
-                            <p className="hidden text-xs font-medium text-muted-foreground min-[560px]:block min-[760px]:hidden">
-                              {formatDate(invoice.date)}
-                            </p>
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-sm font-bold text-main-blue select-none dark:border-blue-500/20 dark:bg-blue-500/10 min-[550px]:h-12 min-[550px]:w-12">
+                              {page * limit + index + 1}
+                            </div>
+                            <div className="flex min-w-0 flex-col">
+                              <span
+                                className={cn(
+                                  outfit.className,
+                                  "max-w-[120px] truncate text-sm font-bold text-card-foreground transition-colors group-hover:text-main-blue min-[420px]:max-w-[180px] min-[550px]:max-w-[260px] min-[550px]:text-base min-[1100px]:max-w-[420px]",
+                                )}
+                              >
+                                {invoice.numberPrint || "-"}
+                              </span>
+                              <p className="max-w-[120px] truncate text-sm font-semibold text-muted-foreground min-[420px]:max-w-[180px] min-[550px]:max-w-[260px] min-[640px]:hidden">
+                                {invoice.customerName || "ไม่ระบุลูกค้า"}
+                              </p>
+                              <p className="hidden text-xs font-medium text-muted-foreground min-[560px]:block min-[760px]:hidden">
+                                {formatDate(invoice.date)}
+                              </p>
+                            </div>
                           </div>
                         </TableCell>
 
@@ -487,9 +595,14 @@ export default function TaxInvoicesPage() {
                         </TableCell>
 
                         <TableCell className="hidden text-right align-middle min-[760px]:table-cell">
-                          <span className="text-sm font-semibold text-card-foreground">
-                            {formatDate(invoice.date)}
-                          </span>
+                          <div className="flex flex-col items-end">
+                            <span className="text-sm font-semibold text-card-foreground">
+                              {formatDate(invoice.date)}
+                            </span>
+                            <span className="text-xs font-medium text-muted-foreground">
+                              คลิกเพื่อดูรายละเอียด
+                            </span>
+                          </div>
                         </TableCell>
 
                         <TableCell className="hidden align-middle min-[900px]:table-cell">
@@ -509,16 +622,16 @@ export default function TaxInvoicesPage() {
                             "hidden text-right text-sm font-semibold text-muted-foreground min-[1020px]:table-cell",
                           )}
                         >
-                          {formatCurrency(invoice.subVatePrice)}
+                          {formatCurrency(invoice.paidAmount)}
                         </TableCell>
 
                         <TableCell
                           className={cn(
                             outfit.className,
-                            "hidden text-right text-sm font-bold text-main-green min-[1120px]:table-cell",
+                            "hidden text-right text-sm font-bold text-main-orange min-[1120px]:table-cell",
                           )}
                         >
-                          {formatCurrency(invoice.vatePrice)}
+                          {formatCurrency(invoice.receivableAmount)}
                         </TableCell>
 
                         <TableCell className="text-right align-middle">
@@ -532,7 +645,7 @@ export default function TaxInvoicesPage() {
                               {formatCurrency(invoice.totalPrice)}
                             </span>
                             <span className="text-xs font-semibold text-muted-foreground min-[1020px]:hidden">
-                              VAT {formatCurrency(invoice.vatePrice)}
+                              ค้าง {formatCurrency(invoice.receivableAmount)}
                             </span>
                           </div>
                         </TableCell>
@@ -605,6 +718,13 @@ export default function TaxInvoicesPage() {
             </>
           )}
         </div>
+
+        <SaleDetailDialog
+          saleId={selectedSaleId}
+          isOpen={isDialogOpen}
+          onClose={handleCloseDialog}
+          paymentAction={receivablePaymentAction}
+        />
       </div>
     </div>
   );

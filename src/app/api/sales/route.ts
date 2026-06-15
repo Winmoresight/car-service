@@ -1,6 +1,6 @@
 /**
  * Sales API
- * GET /api/sales - ดึงรายการบิลขาย
+ * GET /api/sales - ดึงรายการบิลขายที่ชำระเงินแล้ว
  */
 
 import { type NextRequest, NextResponse } from "next/server";
@@ -52,25 +52,25 @@ export async function GET(request: NextRequest) {
     `;
 
     // Build WHERE clause
-    const conditions: string[] = [];
+    const conditions: string[] = [
+      "LTRIM(RTRIM(ISNULL(m.Status, ''))) = N'ชำระเงินแล้ว'",
+    ];
 
     if (search) {
       conditions.push(
-        `(NumberPrintSalePost LIKE @search OR NameCustomer LIKE @search)`,
+        `(m.NumberPrintSalePost LIKE @search OR m.NameCustomer LIKE @search)`,
       );
     }
 
     if (startDate) {
-      conditions.push(`CONVERT(date, DateSalePost) >= @startDate`);
+      conditions.push("CONVERT(date, m.DateSalePost) >= @startDate");
     }
 
     if (endDate) {
-      conditions.push(`CONVERT(date, DateSalePost) <= @endDate`);
+      conditions.push("CONVERT(date, m.DateSalePost) <= @endDate");
     }
 
-    if (conditions.length > 0) {
-      query += ` WHERE ${conditions.join(" AND ")}`;
-    }
+    query += ` WHERE ${conditions.join(" AND ")}`;
 
     query += `
       )
@@ -121,28 +121,28 @@ export async function GET(request: NextRequest) {
     }));
 
     // Get total count
-    let countQuery = `SELECT COUNT(*) as total FROM dbo.MasterSalePost`;
+    let countQuery = `SELECT COUNT(*) as total FROM dbo.MasterSalePost m`;
 
     // Build WHERE clause for count query
-    const countConditions: string[] = [];
+    const countConditions: string[] = [
+      "LTRIM(RTRIM(ISNULL(m.Status, ''))) = N'ชำระเงินแล้ว'",
+    ];
 
     if (search) {
       countConditions.push(
-        `(NumberPrintSalePost LIKE @search OR NameCustomer LIKE @search)`,
+        `(m.NumberPrintSalePost LIKE @search OR m.NameCustomer LIKE @search)`,
       );
     }
 
     if (startDate) {
-      countConditions.push(`CONVERT(date, DateSalePost) >= @startDate`);
+      countConditions.push("CONVERT(date, m.DateSalePost) >= @startDate");
     }
 
     if (endDate) {
-      countConditions.push(`CONVERT(date, DateSalePost) <= @endDate`);
+      countConditions.push("CONVERT(date, m.DateSalePost) <= @endDate");
     }
 
-    if (countConditions.length > 0) {
-      countQuery += ` WHERE ${countConditions.join(" AND ")}`;
-    }
+    countQuery += ` WHERE ${countConditions.join(" AND ")}`;
 
     const [countResult] = await executeQuery<{ total: number }>(countQuery, {
       search: `%${search}%`,
@@ -158,9 +158,7 @@ export async function GET(request: NextRequest) {
       FROM dbo.MasterSalePost m
     `;
 
-    if (conditions.length > 0) {
-      summaryQuery += ` WHERE ${conditions.join(" AND ")}`;
-    }
+    summaryQuery += ` WHERE ${conditions.join(" AND ")}`;
 
     const [summaryResult] = await executeQuery<SalesSummary>(summaryQuery, {
       search: `%${search}%`,

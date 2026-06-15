@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Cancelled Tax Invoices Page - ใบกำกับภาษีที่ถูกยกเลิก
- * แสดงเฉพาะใบกำกับภาษีที่ถูกยกเลิก
+ * Cancelled Sale Bills Page - บิลขายหลักที่ถูกยกเลิก
+ * แสดงเฉพาะบิลขายหลักที่ถูกยกเลิก
  */
 
 import { format } from "date-fns";
@@ -35,13 +35,13 @@ import type { ApiResponse } from "@/types/api";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-interface CancelledTaxInvoice {
+interface CancelledSaleBill {
   numberPrint: string;
   date: string;
   customerName: string;
   nameCar: string;
-  subVatePrice: number;
-  vatePrice: number;
+  cash: number;
+  transfer: number;
   totalPrice: number;
   userName: string;
 }
@@ -49,7 +49,8 @@ interface CancelledTaxInvoice {
 interface CancelledSummary {
   totalCancelled: number;
   totalAmount: number;
-  totalVat: number;
+  totalCash: number;
+  totalTransfer: number;
 }
 
 export default function CancelledTaxInvoicesPage() {
@@ -75,10 +76,10 @@ export default function CancelledTaxInvoicesPage() {
     return `/api/tax-invoices/cancelled?${params.toString()}`;
   };
 
-  // Fetch cancelled tax invoices
+  // Fetch cancelled sale bills
   const { data, error, isLoading } = useSWR<
     ApiResponse<{
-      data: CancelledTaxInvoice[];
+      data: CancelledSaleBill[];
       summary: CancelledSummary;
       limit: number;
       offset: number;
@@ -115,10 +116,7 @@ export default function CancelledTaxInvoicesPage() {
 
   return (
     <div className="p-6 pb-16">
-      <DashboardBreadcrumb
-        label="ใบกำกับภาษียกเลิก"
-        href="/tax-invoices/cancelled"
-      />
+      <DashboardBreadcrumb label="บิลที่ยกเลิก" href="/tax-invoices/cancelled" />
       <hr className="my-4 hidden w-full min-[1025px]:block" />
 
       <div className="space-y-6">
@@ -130,10 +128,10 @@ export default function CancelledTaxInvoicesPage() {
               </div>
               <div className="flex flex-col">
                 <span className="text-primary text-2xl font-bold">
-                  ใบกำกับภาษีที่ถูกยกเลิก
+                  บิลที่ยกเลิก
                 </span>
                 <p className="text-foreground hidden font-medium min-[798px]:block">
-                  รายการใบกำกับภาษีทั้งหมดที่ถูกยกเลิก
+                  รายการบิลขายหลักทั้งหมดที่ถูกยกเลิก
                 </p>
               </div>
             </div>
@@ -141,7 +139,7 @@ export default function CancelledTaxInvoicesPage() {
 
           {/* Summary Cards */}
           {summary && (
-            <div className="grid gap-4 min-[600px]:grid-cols-3">
+            <div className="grid gap-4 min-[600px]:grid-cols-4">
               <KPICard
                 title="ยกเลิกทั้งหมด"
                 value={summary.totalCancelled}
@@ -158,11 +156,18 @@ export default function CancelledTaxInvoicesPage() {
                 variant="orange"
               />
               <KPICard
-                title="VAT ที่ยกเลิก"
-                value={summary.totalVat}
+                title="เงินสดที่ยกเลิก"
+                value={summary.totalCash}
                 format="currency"
                 icon={Receipt}
                 variant="purple"
+              />
+              <KPICard
+                title="เงินโอนที่ยกเลิก"
+                value={summary.totalTransfer}
+                format="currency"
+                icon={Receipt}
+                variant="blue"
               />
             </div>
           )}
@@ -197,19 +202,18 @@ export default function CancelledTaxInvoicesPage() {
               <div className="text-sm text-amber-800">
                 <p className="font-bold">หมายเหตุ</p>
                 <p className="mt-1">
-                  ใบกำกับภาษีที่ถูกยกเลิกจะไม่นับรวมในยอดขาย
-                  แต่จะบันทึกไว้เพื่อการตรวจสอบและอ้างอิง
+                  บิลขายที่ถูกยกเลิกจะไม่นับรวมในยอดขาย แต่จะบันทึกไว้เพื่อการตรวจสอบและอ้างอิง
                 </p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Cancelled Tax Invoices Table */}
+        {/* Cancelled Sale Bills Table */}
         <Card className="border-none shadow-sm ring-1 ring-border/50 overflow-hidden">
           <CardHeader className="bg-red-50 border-b border-red-100">
             <CardTitle className="text-xl font-bold tracking-tight text-red-900">
-              รายการใบกำกับภาษีที่ยกเลิก
+              รายการบิลที่ยกเลิก
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -244,10 +248,10 @@ export default function CancelledTaxInvoicesPage() {
                           ทะเบียนรถ
                         </TableHead>
                         <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
-                          ก่อน VAT
+                          เงินสด
                         </TableHead>
                         <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
-                          VAT 7%
+                          เงินโอน
                         </TableHead>
                         <TableHead className="text-right font-bold text-xs uppercase tracking-wider">
                           ยอดรวม
@@ -263,7 +267,7 @@ export default function CancelledTaxInvoicesPage() {
                           <TableCell colSpan={8} className="text-center py-16">
                             <Ban className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                             <p className="text-muted-foreground font-medium">
-                              ไม่พบใบกำกับภาษีที่ถูกยกเลิก
+                              ไม่พบบิลที่ถูกยกเลิก
                             </p>
                             <p className="text-sm text-muted-foreground mt-1">
                               {dateRange?.from && dateRange?.to
@@ -299,10 +303,10 @@ export default function CancelledTaxInvoicesPage() {
                               {invoice.nameCar || "-"}
                             </TableCell>
                             <TableCell className="text-right font-bold text-muted-foreground line-through">
-                              {formatCurrency(invoice.subVatePrice)}
+                              {formatCurrency(invoice.cash)}
                             </TableCell>
                             <TableCell className="text-right font-bold text-muted-foreground line-through">
-                              {formatCurrency(invoice.vatePrice)}
+                              {formatCurrency(invoice.transfer)}
                             </TableCell>
                             <TableCell className="text-right font-bold text-lg text-red-600 line-through">
                               {formatCurrency(invoice.totalPrice)}

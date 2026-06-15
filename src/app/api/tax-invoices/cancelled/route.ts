@@ -1,19 +1,19 @@
 /**
- * Cancelled Tax Invoices API
- * GET /api/tax-invoices/cancelled - ดึงรายการใบกำกับภาษีที่ถูกยกเลิก
+ * Cancelled Sale Bills API
+ * GET /api/tax-invoices/cancelled - ดึงรายการบิลขายหลักที่ถูกยกเลิก
  */
 
 import { type NextRequest, NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
 import type { ApiResponse } from "@/types/api";
 
-interface CancelledTaxInvoice {
+interface CancelledSaleBill {
   numberPrint: string;
   date: string;
   customerName: string;
   nameCar: string;
-  subVatePrice: number;
-  vatePrice: number;
+  cash: number;
+  transfer: number;
   totalPrice: number;
   userName: string;
 }
@@ -21,7 +21,14 @@ interface CancelledTaxInvoice {
 interface CancelledSummary {
   totalCancelled: number;
   totalAmount: number;
-  totalVat: number;
+  totalCash: number;
+  totalTransfer: number;
+}
+
+function getSafeMoneyExpression(valueExpression: string) {
+  const textExpression = `CONVERT(nvarchar(100), ${valueExpression})`;
+
+  return `ISNULL(CONVERT(money, CASE WHEN ${valueExpression} IS NULL THEN '0' WHEN ISNUMERIC(${textExpression}) = 1 THEN ${textExpression} ELSE '0' END), 0)`;
 }
 
 export async function GET(request: NextRequest) {
@@ -32,41 +39,42 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("startDate") || "";
     const endDate = searchParams.get("endDate") || "";
 
-    // Build query for cancelled invoices
-    let query = `
-      WITH PaginatedData AS (
-        SELECT 
-          NumberPrintPost as numberPrint,
-          DatePost as date,
-          ISNULL(NameCustomer, 'ไม่ระบุ') as customerName,
-          ISNULL(NameCar, '') as nameCar,
-          ISNULL(SubVatePrice, 0) as subVatePrice,
-          ISNULL(VatePrice, 0) as vatePrice,
-          ISNULL(TotalPrice, 0) as totalPrice,
-          ISNULL(NameUser, '') as userName,
-          ROW_NUMBER() OVER (ORDER BY DatePost DESC) as RowNum
-        FROM dbo.MasterPrintPostVate
-        WHERE Status = 'ยกเลิก'
-    `;
+    const conditions = ["LTRIM(RTRIM(ISNULL(Status, ''))) LIKE N'%ยกเลิก%'"];
 
-    // Add date filters
     if (startDate) {
-      query += ` AND CONVERT(date, DatePost) >= @startDate`;
-    }
-    
-    if (endDate) {
-      query += ` AND CONVERT(date, DatePost) <= @endDate`;
+      conditions.push("CONVERT(date, DateSalePost) >= @startDate");
     }
 
-    query += `
+    if (endDate) {
+      conditions.push("CONVERT(date, DateSalePost) <= @endDate");
+    }
+
+    const whereClause = `WHERE ${conditions.join(" AND ")}`;
+
+    const query = `
+      WITH PaginatedData AS (
+        SELECT
+          NumberPrintSalePost as numberPrint,
+          DateSalePost as date,
+          ISNULL(NameCustomer, N'ไม่ระบุ') as customerName,
+          ISNULL(NameCar, '') as nameCar,
+          ${getSafeMoneyExpression("Cash")} as cash,
+          ${getSafeMoneyExpression("Transfer")} as transfer,
+          ${getSafeMoneyExpression("TotalPrice")} as totalPrice,
+          ISNULL(NameSave, '') as userName,
+          ROW_NUMBER() OVER (
+            ORDER BY DateSalePost DESC, NumberPrintSalePost DESC
+          ) as RowNum
+        FROM dbo.MasterSalePost
+        ${whereClause}
       )
       SELECT
         numberPrint,
         date,
         customerName,
         nameCar,
-        subVatePrice,
-        vatePrice,
+        cash,
+        transfer,
         totalPrice,
         userName
       FROM PaginatedData
@@ -74,75 +82,69 @@ export async function GET(request: NextRequest) {
       ORDER BY RowNum
     `;
 
+    const params = {
+      limit,
+      offset,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+    };
+
     const results = await executeQuery<{
       numberPrint: string;
       date: Date;
       customerName: string;
       nameCar: string;
-      subVatePrice: number;
-      vatePrice: number;
+      cash: number;
+      transfer: number;
       totalPrice: number;
       userName: string;
-    }>(query, {
-      limit,
-      offset,
-      startDate: startDate || undefined,
-      endDate: endDate || undefined,
-    });
+    }>(query, params);
 
-    const cancelledInvoices: CancelledTaxInvoice[] = results.map((row) => ({
+    const cancelledBills: CancelledSaleBill[] = results.map((row) => ({
       numberPrint: row.numberPrint,
       date: new Date(row.date).toISOString(),
       customerName: row.customerName,
       nameCar: row.nameCar,
-      subVatePrice: row.subVatePrice,
-      vatePrice: row.vatePrice,
-      totalPrice: row.totalPrice,
+      cash: Number(row.cash) || 0,
+      transfer: Number(row.transfer) || 0,
+      totalPrice: Number(row.totalPrice) || 0,
       userName: row.userName,
     }));
-
-    // Get summary
-    let summaryQuery = `
-      SELECT 
-        COUNT(*) as totalCancelled,
-        ISNULL(SUM(TotalPrice), 0) as totalAmount,
-        ISNULL(SUM(VatePrice), 0) as totalVat
-      FROM dbo.MasterPrintPostVate
-      WHERE Status = 'ยกเลิก'
-    `;
-
-    if (startDate) {
-      summaryQuery += ` AND CONVERT(date, DatePost) >= @startDate`;
-    }
-    
-    if (endDate) {
-      summaryQuery += ` AND CONVERT(date, DatePost) <= @endDate`;
-    }
 
     const [summaryResult] = await executeQuery<{
       totalCancelled: number;
       totalAmount: number;
-      totalVat: number;
-    }>(summaryQuery, {
-      startDate: startDate || undefined,
-      endDate: endDate || undefined,
-    });
+      totalCash: number;
+      totalTransfer: number;
+    }>(
+      `
+        SELECT
+          COUNT(*) as totalCancelled,
+          ISNULL(SUM(${getSafeMoneyExpression("TotalPrice")}), 0) as totalAmount,
+          ISNULL(SUM(${getSafeMoneyExpression("Cash")}), 0) as totalCash,
+          ISNULL(SUM(${getSafeMoneyExpression("Transfer")}), 0) as totalTransfer
+        FROM dbo.MasterSalePost
+        ${whereClause}
+      `,
+      params,
+    );
 
     const summary: CancelledSummary = {
-      totalCancelled: summaryResult.totalCancelled,
-      totalAmount: summaryResult.totalAmount,
-      totalVat: summaryResult.totalVat,
+      totalCancelled: summaryResult?.totalCancelled || 0,
+      totalAmount: summaryResult?.totalAmount || 0,
+      totalCash: summaryResult?.totalCash || 0,
+      totalTransfer: summaryResult?.totalTransfer || 0,
     };
 
     const response: ApiResponse<{
-      data: CancelledTaxInvoice[];
+      data: CancelledSaleBill[];
       summary: CancelledSummary;
       limit: number;
       offset: number;
     }> = {
       success: true,
       data: {
-        data: cancelledInvoices,
+        data: cancelledBills,
         summary,
         limit,
         offset,
@@ -152,12 +154,12 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("Cancelled Tax Invoices API error:", error);
+    console.error("Cancelled Sale Bills API error:", error);
 
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to fetch cancelled tax invoices",
+        error: "Failed to fetch cancelled sale bill data",
         timestamp: new Date().toISOString(),
       },
       { status: 500 },
