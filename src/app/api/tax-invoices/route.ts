@@ -6,6 +6,7 @@
 import sql from "mssql";
 import { type NextRequest, NextResponse } from "next/server";
 import { executeQuery, getPool } from "@/lib/db";
+import { ensureReceivablePaymentLogTable } from "@/lib/receivable-payment-log";
 import type { ApiResponse } from "@/types/api";
 
 interface ReceivableBill {
@@ -355,6 +356,8 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    await ensureReceivablePaymentLogTable();
+
     const pool = await getPool();
     transaction = new sql.Transaction(pool);
 
@@ -368,6 +371,8 @@ export async function PATCH(request: NextRequest) {
       numberPrint: string;
       codeCustomer: string;
       customerName: string;
+      nameCar: string;
+      province: string;
       totalPrice: number;
       cash: number;
       transfer: number;
@@ -378,6 +383,8 @@ export async function PATCH(request: NextRequest) {
         m.NumberPrintSalePost as numberPrint,
         ISNULL(m.CodeCustomer, '') as codeCustomer,
         ISNULL(m.NameCustomer, N'ไม่ระบุ') as customerName,
+        ISNULL(m.NameCar, '') as nameCar,
+        ISNULL(m.Province, '') as province,
         ${getSafeMoneyExpression("m.TotalPrice")} as totalPrice,
         ${getSafeMoneyExpression("m.Cash")} as cash,
         ${getSafeMoneyExpression("m.Transfer")} as transfer,
@@ -463,8 +470,9 @@ export async function PATCH(request: NextRequest) {
       WHERE NumberPrintSalePost = @billNo
     `);
 
+    const paidAt = new Date();
     const receivableRequest = new sql.Request(transaction);
-    receivableRequest.input("datePost", sql.DateTime, new Date());
+    receivableRequest.input("datePost", sql.DateTime, paidAt);
     receivableRequest.input("billNo", billNo);
     receivableRequest.input("customerCode", sale.codeCustomer);
     receivableRequest.input("customerName", sale.customerName);
@@ -498,6 +506,45 @@ export async function PATCH(request: NextRequest) {
         @totalPrice,
         @payMoney,
         @subMoney
+      )
+    `);
+
+    const logRequest = new sql.Request(transaction);
+    logRequest.input("paidAt", sql.DateTime, paidAt);
+    logRequest.input("billNo", billNo);
+    logRequest.input("customerCode", sale.codeCustomer);
+    logRequest.input("customerName", sale.customerName);
+    logRequest.input("nameCar", sale.nameCar);
+    logRequest.input("province", sale.province);
+    logRequest.input("paidAmount", sql.Money, remainingAmount);
+    logRequest.input("paymentMethod", paymentMethod);
+    logRequest.input("nameBank", nameBank);
+    logRequest.input("createdBy", "WEB");
+
+    await logRequest.query(`
+      INSERT INTO dbo.WebReceivablePayments (
+        PaidAt,
+        NumberPrintSalePost,
+        CodeCustomer,
+        NameCustomer,
+        NameCar,
+        Province,
+        PaidAmount,
+        PaymentMethod,
+        NameBank,
+        CreatedBy
+      )
+      VALUES (
+        @paidAt,
+        @billNo,
+        @customerCode,
+        @customerName,
+        @nameCar,
+        @province,
+        @paidAmount,
+        @paymentMethod,
+        @nameBank,
+        @createdBy
       )
     `);
 

@@ -17,6 +17,7 @@ import {
   TrendingDown,
   Wallet,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
@@ -128,6 +129,8 @@ function MoneyBreakdown({
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
+
   // State สำหรับวันที่ที่เลือก (default = วันนี้)
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
     new Date(),
@@ -186,9 +189,7 @@ export default function DashboardPage() {
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
         <div className="rounded-3xl border border-red-100 bg-red-50/50 px-6 py-10 text-center dark:border-red-500/20 dark:bg-red-500/10">
-          <h1 className="mb-2 text-2xl font-bold text-main-red">
-            เกิดข้อผิดพลาด
-          </h1>
+          <h1 className="mb-2 text-2xl font-bold text-main-red">เกิดข้อผิดพลาด</h1>
           <p className="font-medium text-muted-foreground">
             ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้
           </p>
@@ -280,6 +281,7 @@ export default function DashboardPage() {
               icon={Receipt}
               variant="emerald"
               format="currency"
+              onClick={() => router.push("/tax-invoices/payments")}
             />
             <KPICard
               title="รายรับอื่น"

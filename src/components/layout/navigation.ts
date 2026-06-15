@@ -71,6 +71,11 @@ export const mainNavigation = [
 
 export const taxAndReportNavigation = [
   {
+    name: "รับชำระลูกหนี้",
+    href: "/tax-invoices/payments",
+    icon: Receipt,
+  },
+  {
     name: "ใบกำกับเงินสด (PSC)",
     href: "/cash-invoices",
     icon: Banknote,

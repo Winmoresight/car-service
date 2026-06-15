@@ -8,6 +8,7 @@
 import type { NextRequest } from "next/server";
 import { handleApiError, successResponse, withTimeout } from "@/lib/api-utils";
 import { executeQuery } from "@/lib/db";
+import { receivablePaymentLogTableExists } from "@/lib/receivable-payment-log";
 import type { DashboardKPI } from "@/types/api";
 
 interface OtherPaymentSummary {
@@ -293,6 +294,55 @@ async function getOptionalDailyMoneySummary({
   }
 }
 
+async function getReceivablePaymentLogSummary(
+  dateCondition: string,
+  params?: Record<string, unknown>,
+): Promise<OptionalDailyMoneySummary> {
+  try {
+    if (!(await receivablePaymentLogTableExists())) {
+      return zeroOptionalDailyMoney;
+    }
+
+    const [summary] = await executeQuery<OptionalDailyMoneySummary>(
+      `
+        SELECT
+          COUNT(*) as count,
+          ISNULL(SUM(${getSafeMoneyExpression("PaidAmount")}), 0) as total,
+          ISNULL(
+            SUM(
+              CASE
+                WHEN LTRIM(RTRIM(ISNULL(PaymentMethod, ''))) = 'cash'
+                  THEN ${getSafeMoneyExpression("PaidAmount")}
+                ELSE 0
+              END
+            ),
+            0
+          ) as cash,
+          ISNULL(
+            SUM(
+              CASE
+                WHEN LTRIM(RTRIM(ISNULL(PaymentMethod, ''))) = 'transfer'
+                  THEN ${getSafeMoneyExpression("PaidAmount")}
+                ELSE 0
+              END
+            ),
+            0
+          ) as transfer
+        FROM dbo.WebReceivablePayments
+        WHERE CONVERT(date, PaidAt) = ${dateCondition}
+          AND ${getSafeMoneyExpression("PaidAmount")} > 0
+      `,
+      params,
+      false,
+    );
+
+    return summary ?? zeroOptionalDailyMoney;
+  } catch (error) {
+    console.warn("Optional receivable payment log summary failed:", error);
+    return zeroOptionalDailyMoney;
+  }
+}
+
 async function getStockInSummary(
   dateCondition: string,
   params?: Record<string, unknown>,
@@ -381,33 +431,7 @@ export async function GET(request: NextRequest) {
       ] = await Promise.all([
         getOtherPaymentSummary(dateExpression, dateParams),
         getReceivableSummary(),
-        getOptionalDailyMoneySummary({
-          tableName: "MasterPaymentCustomer",
-          dateCondition: dateExpression,
-          params: dateParams,
-          dateCandidates: [
-            "DatePost",
-            "DatePayment",
-            "Datepayment",
-            "DatePay",
-            "DateSave",
-          ],
-          totalCandidates: [
-            "TotalPrice",
-            "TotalPayment",
-            "TotalPay",
-            "TotalMoney",
-            "Amount",
-            "Price",
-          ],
-          cashCandidates: ["Cash", "MoneyCash", "PayCash", "TotalCash"],
-          transferCandidates: [
-            "Transfer",
-            "MoneyTransfer",
-            "PayTransfer",
-            "TotalTransfer",
-          ],
-        }),
+        getReceivablePaymentLogSummary(dateExpression, dateParams),
         getOptionalDailyMoneySummary({
           tableName: "MasterPrintOderBuyProduct",
           dateCondition: dateExpression,
