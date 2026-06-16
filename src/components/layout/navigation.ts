@@ -1,24 +1,29 @@
 import {
-  Ban,
   Banknote,
   FilePlus2,
   FileText,
   History,
   LayoutDashboard,
+  type LucideIcon,
   Package,
   Receipt,
   ShoppingCart,
-  Trash2,
-  TrendingUp,
   Trophy,
+  Truck,
   UserCog,
   Users,
   Warehouse,
 } from "lucide-react";
 
+export interface NavigationItem {
+  name: string;
+  href: string;
+  icon: LucideIcon;
+}
+
 export const mainNavigation = [
   {
-    name: "ภาพรวม",
+    name: "หน้าหลัก",
     href: "/",
     icon: LayoutDashboard,
   },
@@ -33,19 +38,14 @@ export const mainNavigation = [
     icon: FilePlus2,
   },
   {
-    name: "ลูกหนี้",
-    href: "/tax-invoices",
-    icon: FileText,
-  },
-  {
-    name: "รับ-จ่าย",
+    name: "รับจ่าย",
     href: "/payments",
     icon: Receipt,
   },
   {
-    name: "สต็อก",
-    href: "/stock",
-    icon: Warehouse,
+    name: "คู่ค้า",
+    href: "/supplier-bills",
+    icon: Truck,
   },
   {
     name: "ลูกค้า",
@@ -53,9 +53,29 @@ export const mainNavigation = [
     icon: Users,
   },
   {
+    name: "ลูกหนี้",
+    href: "/tax-invoices",
+    icon: FileText,
+  },
+  {
+    name: "รับชำระลูกหนี้",
+    href: "/tax-invoices/payments",
+    icon: Receipt,
+  },
+  {
+    name: "สินค้าขายดี",
+    href: "/reports/top-products",
+    icon: Trophy,
+  },
+  {
     name: "สินค้า",
     href: "/products",
     icon: Package,
+  },
+  {
+    name: "สต็อก",
+    href: "/stock",
+    icon: Warehouse,
   },
   {
     name: "พนักงาน",
@@ -63,44 +83,18 @@ export const mainNavigation = [
     icon: UserCog,
   },
   {
-    name: "วิเคราะห์",
-    href: "/insights",
-    icon: TrendingUp,
-  },
-] as const;
-
-export const taxAndReportNavigation = [
-  {
-    name: "รับชำระลูกหนี้",
-    href: "/tax-invoices/payments",
-    icon: Receipt,
-  },
-  {
-    name: "ใบกำกับเงินสด (PSC)",
+    name: "ใบกำกับเงินสด",
     href: "/cash-invoices",
     icon: Banknote,
-  },
-  {
-    name: "บิลที่ยกเลิก",
-    href: "/tax-invoices/cancelled",
-    icon: Ban,
   },
   {
     name: "ประวัติแก้ไขบิล",
     href: "/bills/edit-history",
     icon: History,
   },
-  {
-    name: "บิลที่ถูกลบ",
-    href: "/bills/deleted",
-    icon: Trash2,
-  },
-  {
-    name: "สินค้าขายดี",
-    href: "/reports/top-products",
-    icon: Trophy,
-  },
-] as const;
+] as const satisfies readonly NavigationItem[];
+
+export const taxAndReportNavigation: readonly NavigationItem[] = [];
 
 export const mobilePrimaryNavigation = [
   mainNavigation[0],
@@ -110,10 +104,10 @@ export const mobilePrimaryNavigation = [
   },
   {
     ...mainNavigation[3],
-    name: "ลูกหนี้",
+    name: "รับจ่าย",
   },
   {
-    ...mainNavigation[4],
-    name: "รับ-จ่าย",
+    ...mainNavigation[7],
+    name: "รับลูกหนี้",
   },
 ] as const;

@@ -249,7 +249,7 @@ async function getOptionalDailyMoneySummary({
   cashCandidates,
   transferCandidates,
 }: {
-  tableName: string;
+  tableName: string | string[];
   dateCondition: string;
   params?: Record<string, unknown>;
   dateCandidates: string[];
@@ -257,8 +257,25 @@ async function getOptionalDailyMoneySummary({
   cashCandidates: string[];
   transferCandidates: string[];
 }): Promise<OptionalDailyMoneySummary> {
+  const tableNames = Array.isArray(tableName) ? tableName : [tableName];
+
   try {
-    const columns = await getTableColumns(tableName);
+    let selectedTableName = "";
+    let columns = new Set<string>();
+
+    for (const candidateTableName of tableNames) {
+      columns = await getTableColumns(candidateTableName);
+
+      if (columns.size > 0) {
+        selectedTableName = candidateTableName;
+        break;
+      }
+    }
+
+    if (!selectedTableName) {
+      return zeroOptionalDailyMoney;
+    }
+
     const dateColumn = getColumn(columns, dateCandidates);
 
     if (!dateColumn) {
@@ -280,7 +297,7 @@ async function getOptionalDailyMoneySummary({
           ISNULL(SUM(${totalExpression}), 0) as total,
           ISNULL(SUM(${cashExpression}), 0) as cash,
           ISNULL(SUM(${transferExpression}), 0) as transfer
-        FROM dbo.${quoteIdentifier(tableName)}
+        FROM dbo.${quoteIdentifier(selectedTableName)}
         WHERE CONVERT(date, ${quoteIdentifier(dateColumn)}) = ${dateCondition}
       `,
       params,
@@ -289,7 +306,7 @@ async function getOptionalDailyMoneySummary({
 
     return summary ?? zeroOptionalDailyMoney;
   } catch (error) {
-    console.warn(`Optional ${tableName} summary failed:`, error);
+    console.warn(`Optional ${tableNames.join(", ")} summary failed:`, error);
     return zeroOptionalDailyMoney;
   }
 }
@@ -433,7 +450,10 @@ export async function GET(request: NextRequest) {
         getReceivableSummary(),
         getReceivablePaymentLogSummary(dateExpression, dateParams),
         getOptionalDailyMoneySummary({
-          tableName: "MasterPrintOderBuyProduct",
+          tableName: [
+            "MasterPrintOrderBuyProduct",
+            "MasterPrintOderBuyProduct",
+          ],
           dateCondition: dateExpression,
           params: dateParams,
           dateCandidates: [

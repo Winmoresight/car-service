@@ -306,6 +306,7 @@ export default function DashboardPage() {
               icon={Package}
               variant="orange"
               format="currency"
+              onClick={() => router.push("/supplier-bills")}
             />
           </div>
         </div>

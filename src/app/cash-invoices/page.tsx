@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Cash Invoices Page - ใบกำกับภาษีเงินสดหน้าร้าน (PSC)
- * แสดงรายการใบกำกับภาษีเงินสดที่มีรหัสขึ้นต้นด้วย psc จาก DetailSalePost
+ * Cash Invoices Page - ใบกำกับเงินสด
+ * แสดงรายการใบกำกับเงินสดจาก DetailSalePost
  */
 
 import { format } from "date-fns";
@@ -225,10 +225,10 @@ export default function CashInvoicesPage() {
               </div>
               <div className="flex flex-col">
                 <span className="text-primary text-2xl font-bold">
-                  ใบกำกับภาษีเงินสดหน้าร้าน (PSC)
+                  ใบกำกับเงินสด
                 </span>
                 <p className="text-foreground hidden font-medium min-[798px]:block">
-                  รายการใบกำกับภาษีเงินสดทั้งหมด ({total.toLocaleString()} รายการ)
+                  รายการใบกำกับเงินสดทั้งหมด ({total.toLocaleString()} รายการ)
                 </p>
               </div>
             </div>
@@ -395,10 +395,10 @@ export default function CashInvoicesPage() {
               </div>
               <div className="flex flex-col">
                 <span className="text-xl font-bold text-card-foreground">
-                  รายการใบกำกับภาษีเงินสด (PSC)
+                  รายการใบกำกับเงินสด
                 </span>
                 <p className="text-sm font-medium text-muted-foreground">
-                  เลขที่บิลแสดงเป็นข้อความปกติ เพื่อรองรับรหัส PSC ที่ยาว
+                  เลขที่บิลแสดงเป็นข้อความปกติ เพื่อรองรับรหัสที่ยาว
                 </p>
               </div>
             </div>
@@ -437,7 +437,7 @@ export default function CashInvoicesPage() {
                 <Search className="h-5 w-5 text-muted-foreground" />
               </div>
               <h3 className="text-lg font-bold text-card-foreground">
-                ไม่พบข้อมูลใบกำกับภาษีเงินสด
+                ไม่พบข้อมูลใบกำกับเงินสด
               </h3>
               <p className="mt-1 text-sm font-medium text-muted-foreground">
                 ลองปรับคำค้นหาหรือช่วงวันที่ใหม่อีกครั้ง

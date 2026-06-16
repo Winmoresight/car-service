@@ -52,7 +52,7 @@ export function Sidebar() {
                 const isActive = pathname === item.href;
                 return (
                   <Link
-                    key={item.name}
+                    key={item.href}
                     href={item.href}
                     className={cn(
                       "group flex items-center px-4 py-2.5 text-base font-semibold rounded-lg transition-all duration-200",
@@ -76,39 +76,40 @@ export function Sidebar() {
             </div>
           </div>
 
-          {/* Tax & Reports */}
-          <div>
-            <p className="px-3 mb-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest">
-              ภาษี & รายงาน
-            </p>
-            <div className="space-y-1">
-              {taxAndReportNavigation.map((item) => {
-                const isActive = pathname === item.href;
-                return (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className={cn(
-                      "group flex items-center px-4 py-2.5 text-base font-semibold rounded-lg transition-all duration-200",
-                      isActive
-                        ? "bg-background text-primary"
-                        : "text-muted-foreground hover:bg-secondary/50 hover:text-primary",
-                    )}
-                  >
-                    <item.icon
+          {taxAndReportNavigation.length > 0 ? (
+            <div>
+              <p className="px-3 mb-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest">
+                ภาษี & รายงาน
+              </p>
+              <div className="space-y-1">
+                {taxAndReportNavigation.map((item) => {
+                  const isActive = pathname === item.href;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
                       className={cn(
-                        "mr-3 h-5 w-5 flex-shrink-0 transition-colors",
+                        "group flex items-center px-4 py-2.5 text-base font-semibold rounded-lg transition-all duration-200",
                         isActive
-                          ? "text-primary"
-                          : "text-muted-foreground group-hover:text-primary",
+                          ? "bg-background text-primary"
+                          : "text-muted-foreground hover:bg-secondary/50 hover:text-primary",
                       )}
-                    />
-                    {item.name}
-                  </Link>
-                );
-              })}
+                    >
+                      <item.icon
+                        className={cn(
+                          "mr-3 h-5 w-5 flex-shrink-0 transition-colors",
+                          isActive
+                            ? "text-primary"
+                            : "text-muted-foreground group-hover:text-primary",
+                        )}
+                      />
+                      {item.name}
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          ) : null}
         </nav>
 
         {/* Footer / User Profile */}

@@ -80,6 +80,47 @@ export interface LossProduct {
   productImage?: string | null;
 }
 
+// Supplier bills / purchase records
+export type SupplierBillPaymentState = "paid" | "unpaid" | "unknown";
+
+export interface SupplierBill {
+  id: string;
+  date: string | null;
+  documentNo: string;
+  supplierCode: string;
+  supplierName: string;
+  discount: number;
+  productDiscount: number;
+  resultAmount: number;
+  totalPrice: number;
+  status: string;
+  checkIn: string;
+  createdBy: string;
+  itemCount: number;
+  detailTotal: number;
+  paymentState: SupplierBillPaymentState;
+  paymentLabel: string;
+}
+
+export interface SupplierBillsSummary {
+  billCount: number;
+  supplierCount: number;
+  totalAmount: number;
+  paidCount: number;
+  paidAmount: number;
+  unpaidCount: number;
+  unpaidAmount: number;
+  unknownStatusCount: number;
+  detailItemCount: number;
+}
+
+export interface SupplierBillsPayload {
+  sourceTable: string | null;
+  detailTable: string | null;
+  items: SupplierBill[];
+  summary: SupplierBillsSummary;
+}
+
 // API Response wrapper - Success
 export interface ApiSuccessResponse<T> {
   success: true;

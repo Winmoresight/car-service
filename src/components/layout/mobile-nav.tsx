@@ -12,6 +12,7 @@ import { useState } from "react";
 import {
   mainNavigation,
   mobilePrimaryNavigation,
+  type NavigationItem,
   taxAndReportNavigation,
 } from "@/components/layout/navigation";
 import { cn } from "@/lib/utils";
@@ -25,7 +26,10 @@ const drawerSections = [
     title: "ภาษี & รายงาน",
     items: taxAndReportNavigation,
   },
-] as const;
+] as const satisfies ReadonlyArray<{
+  title: string;
+  items: readonly NavigationItem[];
+}>;
 
 const isActivePath = (pathname: string, href: string) => pathname === href;
 
@@ -46,7 +50,7 @@ export function MobileNav() {
 
     return (
       <Link
-        key={item.name}
+        key={item.href}
         href={item.href}
         className={cn(
           "relative flex h-full min-w-0 flex-col items-center justify-center px-1 py-2",
@@ -106,46 +110,48 @@ export function MobileNav() {
           </div>
 
           <div className="space-y-5">
-            {drawerSections.map((section) => (
-              <section key={section.title}>
-                <p className="mb-3 text-[11px] font-bold tracking-widest text-muted-foreground uppercase">
-                  {section.title}
-                </p>
-                <div className="grid grid-cols-4 gap-2.5">
-                  {section.items.map((item) => {
-                    const isActive = isActivePath(pathname, item.href);
+            {drawerSections
+              .filter((section) => section.items.length > 0)
+              .map((section) => (
+                <section key={section.title}>
+                  <p className="mb-3 text-[11px] font-bold tracking-widest text-muted-foreground uppercase">
+                    {section.title}
+                  </p>
+                  <div className="grid grid-cols-4 gap-2.5">
+                    {section.items.map((item) => {
+                      const isActive = isActivePath(pathname, item.href);
 
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className={cn(
-                          "group flex min-h-[86px] flex-col items-center justify-start gap-2 rounded-2xl border bg-background px-2 py-3 text-center transition-all duration-200",
-                          isActive
-                            ? "border-main-blue/40 bg-blue-50 text-main-blue shadow-sm dark:bg-blue-500/10"
-                            : "text-muted-foreground hover:border-main-blue/30 hover:text-main-blue",
-                        )}
-                        onClick={() => setIsMenuOpen(false)}
-                      >
-                        <span
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
                           className={cn(
-                            "flex h-10 w-10 items-center justify-center rounded-xl border bg-white transition-colors dark:bg-background/65",
+                            "group flex min-h-[86px] flex-col items-center justify-start gap-2 rounded-2xl border bg-background px-2 py-3 text-center transition-all duration-200",
                             isActive
-                              ? "border-main-blue/30 text-main-blue"
-                              : "text-muted-foreground group-hover:text-main-blue",
+                              ? "border-main-blue/40 bg-blue-50 text-main-blue shadow-sm dark:bg-blue-500/10"
+                              : "text-muted-foreground hover:border-main-blue/30 hover:text-main-blue",
                           )}
+                          onClick={() => setIsMenuOpen(false)}
                         >
-                          <item.icon className="h-5 w-5" strokeWidth={2.5} />
-                        </span>
-                        <span className="line-clamp-2 text-[11px] leading-snug font-bold">
-                          {item.name}
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
+                          <span
+                            className={cn(
+                              "flex h-10 w-10 items-center justify-center rounded-xl border bg-white transition-colors dark:bg-background/65",
+                              isActive
+                                ? "border-main-blue/30 text-main-blue"
+                                : "text-muted-foreground group-hover:text-main-blue",
+                            )}
+                          >
+                            <item.icon className="h-5 w-5" strokeWidth={2.5} />
+                          </span>
+                          <span className="line-clamp-2 text-[11px] leading-snug font-bold">
+                            {item.name}
+                          </span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
           </div>
         </div>
       ) : null}
