@@ -457,7 +457,7 @@ export default function NewBillPage() {
   };
 
   return (
-    <div className="p-6 pb-16">
+    <div className="p-6 pb-16 [&_input]:text-primary [&_textarea]:text-primary">
       <DashboardBreadcrumb label="เปิดบิล" href="/bills/new" />
 
       <hr className="my-4 hidden w-full min-[1025px]:block" />
@@ -752,59 +752,64 @@ export default function NewBillPage() {
                 </Button>
 
                 {items.length > 0 ? (
-                  <div className="overflow-x-auto rounded-[8px] border">
-                    <table className="w-full min-w-[780px] border-collapse text-sm">
-                      <thead className="bg-background dark:bg-secondary">
-                        <tr className="border-b text-left text-primary">
-                          <th className="w-16 px-3 py-3 font-bold">ลำดับ</th>
-                          <th className="px-3 py-3 font-bold">ชื่อรายการ</th>
-                          <th className="w-24 px-3 py-3 text-right font-bold">
-                            จำนวน
-                          </th>
-                          <th className="w-36 px-3 py-3 text-right font-bold">
-                            ราคา
-                          </th>
-                          <th className="w-32 px-3 py-3 text-right font-bold">
-                            ส่วนลด
-                          </th>
-                          <th className="w-32 px-3 py-3 text-right font-bold">
-                            รวม
-                          </th>
-                          <th className="w-14 px-3 py-3" />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {items.map((item, index) => (
-                          <tr
-                            key={item.id}
-                            className="border-b last:border-b-0"
+                  <div className="space-y-3">
+                    <div className="space-y-3 min-[900px]:hidden">
+                      {items.map((item, index) => (
+                        <div
+                          key={item.id}
+                          className="rounded-[8px] border bg-background p-3 dark:bg-secondary"
+                        >
+                          <div className="mb-3 flex items-start justify-between gap-3">
+                            <div className="flex min-w-0 flex-wrap items-center gap-2">
+                              <span className="shrink-0 text-sm font-bold text-primary">
+                                #{index + 1}
+                              </span>
+                              <Badge
+                                variant="outline"
+                                className="rounded-full text-xs font-bold"
+                              >
+                                {item.type === "product" ? "สินค้า" : "บริการ"}
+                              </Badge>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`ลบรายการ ${item.name || index + 1}`}
+                              onClick={() => removeItem(item.id)}
+                              className="h-9 w-9 shrink-0 text-main-red"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+
+                          <label
+                            htmlFor={`mobileItemName-${item.id}`}
+                            className="space-y-1.5"
                           >
-                            <td className="px-3 py-3 text-center font-semibold text-primary">
-                              {index + 1}
-                            </td>
-                            <td className="px-3 py-3">
-                              <div className="flex items-center gap-2">
-                                <Input
-                                  value={item.name}
-                                  onChange={(event) =>
-                                    updateItem(
-                                      item.id,
-                                      "name",
-                                      event.target.value,
-                                    )
-                                  }
-                                  className="h-10 rounded-[8px] bg-background font-semibold dark:bg-secondary"
-                                />
-                                <Badge
-                                  variant="outline"
-                                  className="shrink-0 rounded-full text-xs font-bold"
-                                >
-                                  {item.type === "product" ? "สินค้า" : "บริการ"}
-                                </Badge>
-                              </div>
-                            </td>
-                            <td className="px-3 py-3">
+                            <span className="text-sm font-bold text-primary">
+                              ชื่อรายการ
+                            </span>
+                            <Input
+                              id={`mobileItemName-${item.id}`}
+                              value={item.name}
+                              onChange={(event) =>
+                                updateItem(item.id, "name", event.target.value)
+                              }
+                              className="h-10 rounded-[8px] bg-white font-semibold dark:bg-background"
+                            />
+                          </label>
+
+                          <div className="mt-3 grid grid-cols-2 gap-3">
+                            <label
+                              htmlFor={`mobileItemQuantity-${item.id}`}
+                              className="space-y-1.5"
+                            >
+                              <span className="text-sm font-bold text-primary">
+                                จำนวน
+                              </span>
                               <Input
+                                id={`mobileItemQuantity-${item.id}`}
                                 type="number"
                                 min="1"
                                 inputMode="decimal"
@@ -816,11 +821,18 @@ export default function NewBillPage() {
                                     parseNumberInput(event.target.value),
                                   )
                                 }
-                                className="h-10 rounded-[8px] bg-background text-right font-semibold dark:bg-secondary"
+                                className="h-10 rounded-[8px] bg-white text-right font-semibold dark:bg-background"
                               />
-                            </td>
-                            <td className="px-3 py-3">
+                            </label>
+                            <label
+                              htmlFor={`mobileItemPrice-${item.id}`}
+                              className="space-y-1.5"
+                            >
+                              <span className="text-sm font-bold text-primary">
+                                ราคา
+                              </span>
                               <Input
+                                id={`mobileItemPrice-${item.id}`}
                                 type="number"
                                 min="0"
                                 inputMode="decimal"
@@ -832,11 +844,18 @@ export default function NewBillPage() {
                                     parseNumberInput(event.target.value),
                                   )
                                 }
-                                className="h-10 rounded-[8px] bg-background text-right font-semibold dark:bg-secondary"
+                                className="h-10 rounded-[8px] bg-white text-right font-semibold dark:bg-background"
                               />
-                            </td>
-                            <td className="px-3 py-3">
+                            </label>
+                            <label
+                              htmlFor={`mobileItemDiscount-${item.id}`}
+                              className="space-y-1.5"
+                            >
+                              <span className="text-sm font-bold text-primary">
+                                ส่วนลด
+                              </span>
                               <Input
+                                id={`mobileItemDiscount-${item.id}`}
                                 type="number"
                                 min="0"
                                 inputMode="decimal"
@@ -848,31 +867,149 @@ export default function NewBillPage() {
                                     parseNumberInput(event.target.value),
                                   )
                                 }
-                                className="h-10 rounded-[8px] bg-background text-right font-semibold dark:bg-secondary"
+                                className="h-10 rounded-[8px] bg-white text-right font-semibold dark:bg-background"
                               />
-                            </td>
-                            <td className="px-3 py-3 text-right">
-                              <span
-                                className={`${outfit.className} font-bold text-primary`}
-                              >
-                                {formatCurrency(getItemTotal(item))}
+                            </label>
+                            <div className="space-y-1.5">
+                              <span className="text-sm font-bold text-primary">
+                                รวม
                               </span>
-                            </td>
-                            <td className="px-3 py-3 text-right">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => removeItem(item.id)}
-                                className="h-9 w-9 text-main-red"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </td>
+                              <div className="flex h-10 items-center justify-end rounded-[8px] border bg-white px-2.5 dark:bg-background">
+                                <span
+                                  className={`${outfit.className} truncate font-bold text-primary`}
+                                >
+                                  {formatCurrency(getItemTotal(item))}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="hidden overflow-x-auto rounded-[8px] border min-[900px]:block">
+                      <table className="w-full min-w-[780px] border-collapse text-sm">
+                        <thead className="bg-background dark:bg-secondary">
+                          <tr className="border-b text-left text-primary">
+                            <th className="w-16 px-3 py-3 font-bold">ลำดับ</th>
+                            <th className="px-3 py-3 font-bold">ชื่อรายการ</th>
+                            <th className="w-24 px-3 py-3 text-right font-bold">
+                              จำนวน
+                            </th>
+                            <th className="w-36 px-3 py-3 text-right font-bold">
+                              ราคา
+                            </th>
+                            <th className="w-32 px-3 py-3 text-right font-bold">
+                              ส่วนลด
+                            </th>
+                            <th className="w-32 px-3 py-3 text-right font-bold">
+                              รวม
+                            </th>
+                            <th className="w-14 px-3 py-3" />
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {items.map((item, index) => (
+                            <tr
+                              key={item.id}
+                              className="border-b last:border-b-0"
+                            >
+                              <td className="px-3 py-3 text-center font-semibold text-primary">
+                                {index + 1}
+                              </td>
+                              <td className="px-3 py-3">
+                                <div className="flex items-center gap-2">
+                                  <Input
+                                    value={item.name}
+                                    onChange={(event) =>
+                                      updateItem(
+                                        item.id,
+                                        "name",
+                                        event.target.value,
+                                      )
+                                    }
+                                    className="h-10 rounded-[8px] bg-background font-semibold dark:bg-secondary"
+                                  />
+                                  <Badge
+                                    variant="outline"
+                                    className="shrink-0 rounded-full text-xs font-bold"
+                                  >
+                                    {item.type === "product" ? "สินค้า" : "บริการ"}
+                                  </Badge>
+                                </div>
+                              </td>
+                              <td className="px-3 py-3">
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  inputMode="decimal"
+                                  value={getNumberInputValue(item.quantity)}
+                                  onChange={(event) =>
+                                    updateItem(
+                                      item.id,
+                                      "quantity",
+                                      parseNumberInput(event.target.value),
+                                    )
+                                  }
+                                  className="h-10 rounded-[8px] bg-background text-right font-semibold dark:bg-secondary"
+                                />
+                              </td>
+                              <td className="px-3 py-3">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  inputMode="decimal"
+                                  value={getNumberInputValue(item.unitPrice)}
+                                  onChange={(event) =>
+                                    updateItem(
+                                      item.id,
+                                      "unitPrice",
+                                      parseNumberInput(event.target.value),
+                                    )
+                                  }
+                                  className="h-10 rounded-[8px] bg-background text-right font-semibold dark:bg-secondary"
+                                />
+                              </td>
+                              <td className="px-3 py-3">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  inputMode="decimal"
+                                  value={getNumberInputValue(item.discount)}
+                                  onChange={(event) =>
+                                    updateItem(
+                                      item.id,
+                                      "discount",
+                                      parseNumberInput(event.target.value),
+                                    )
+                                  }
+                                  className="h-10 rounded-[8px] bg-background text-right font-semibold dark:bg-secondary"
+                                />
+                              </td>
+                              <td className="px-3 py-3 text-right">
+                                <span
+                                  className={`${outfit.className} font-bold text-primary`}
+                                >
+                                  {formatCurrency(getItemTotal(item))}
+                                </span>
+                              </td>
+                              <td className="px-3 py-3 text-right">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  aria-label={`ลบรายการ ${item.name || index + 1}`}
+                                  onClick={() => removeItem(item.id)}
+                                  className="h-9 w-9 text-main-red"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 ) : null}
               </div>
