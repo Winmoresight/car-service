@@ -16,7 +16,7 @@ import {
   User,
   Wrench,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { outfit } from "@/components/fonts/fonts";
 import AsyncSearchableSelect from "@/components/ui/async-searchable-select";
@@ -51,21 +51,6 @@ interface DraftItem {
   cost?: number;
   discount: number;
   note?: string;
-}
-
-interface BillDraft {
-  id: number;
-  draftNo: string;
-  status: string;
-  paymentStatus: string;
-  customerName: string | null;
-  phoneCustomer: string | null;
-  nameCar: string | null;
-  province: string | null;
-  brandAndGenerate: string | null;
-  totalPrice: number;
-  items: DraftItem[];
-  createdAt: string;
 }
 
 type DraftItemForm = Omit<DraftItem, "id">;
@@ -107,22 +92,6 @@ function formatCurrency(value: number) {
   }).format(value || 0);
 }
 
-function formatDateTime(dateString: string) {
-  const date = new Date(dateString);
-
-  if (Number.isNaN(date.getTime())) {
-    return "-";
-  }
-
-  return date.toLocaleString("th-TH", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 function getNumberInputValue(value?: number) {
   return value === 0 || value === undefined ? "" : value;
 }
@@ -141,18 +110,6 @@ function getItemTotal(
   item: Pick<DraftItem, "quantity" | "unitPrice" | "discount">,
 ) {
   return Math.max(item.quantity * item.unitPrice - (item.discount || 0), 0);
-}
-
-function getPaymentStatusBadgeClass(status: string) {
-  if (status === "ชำระแล้ว") {
-    return "border-emerald-100 bg-emerald-50 text-main-green dark:border-emerald-500/20 dark:bg-emerald-500/10";
-  }
-
-  if (status === "ชำระบางส่วน") {
-    return "border-blue-100 bg-blue-50 text-main-blue dark:border-blue-500/20 dark:bg-blue-500/10";
-  }
-
-  return "border-orange-100 bg-orange-50 text-main-orange dark:border-orange-500/20 dark:bg-orange-500/10";
 }
 
 async function fetchCatalogOptions(search: string, signal: AbortSignal) {
@@ -178,8 +135,6 @@ async function fetchProductOptions(search: string, signal: AbortSignal) {
 }
 
 export default function NewBillPage() {
-  const [recentDrafts, setRecentDrafts] = useState<BillDraft[]>([]);
-  const [isRecentLoading, setIsRecentLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -239,26 +194,6 @@ export default function NewBillPage() {
       status,
     };
   }, [form.cash, form.transfer, totals.totalPrice]);
-
-  useEffect(() => {
-    async function fetchRecentDrafts() {
-      try {
-        setIsRecentLoading(true);
-        const response = await fetch("/api/bill-drafts?limit=8");
-        const data = await response.json();
-
-        if (data.success) {
-          setRecentDrafts(data.data || []);
-        }
-      } catch {
-        setRecentDrafts([]);
-      } finally {
-        setIsRecentLoading(false);
-      }
-    }
-
-    fetchRecentDrafts();
-  }, []);
 
   const updateForm = (field: keyof typeof form, value: string) => {
     setForm((current) => ({
@@ -445,7 +380,6 @@ export default function NewBillPage() {
       }
 
       setMessage(`เปิดบิล ${data.data.billNo || data.data.draftNo} ในระบบหลักแล้ว`);
-      setRecentDrafts((current) => [data.data, ...current].slice(0, 8));
       resetForm();
     } catch (submitError) {
       setError(
@@ -1227,62 +1161,6 @@ export default function NewBillPage() {
                 )}
                 เปิดบิลในระบบหลัก
               </Button>
-            </section>
-
-            <section className="rounded-2xl border bg-white p-4 shadow-sm dark:bg-background">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-bold text-primary">บิลเปิดล่าสุด</h2>
-                  <p className="text-sm font-semibold text-muted-foreground">
-                    รายการที่ถูกเปิดไว้และยังไม่ชำระ
-                  </p>
-                </div>
-                {isRecentLoading ? (
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                ) : null}
-              </div>
-
-              <div className="space-y-2">
-                {recentDrafts.length === 0 ? (
-                  <div className="rounded-[8px] border bg-background px-4 py-8 text-center text-sm font-semibold text-muted-foreground dark:bg-secondary">
-                    ยังไม่มีบิลเปิดงาน
-                  </div>
-                ) : (
-                  recentDrafts.map((draft) => (
-                    <div
-                      key={draft.draftNo}
-                      className="rounded-[8px] border bg-background p-3 dark:bg-secondary"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <span className="block truncate font-bold text-primary">
-                            {draft.draftNo}
-                          </span>
-                          <p className="mt-1 truncate text-sm font-semibold text-muted-foreground">
-                            {draft.customerName || "ไม่ระบุลูกค้า"} ·{" "}
-                            {draft.nameCar || "ไม่ระบุรถ"}
-                          </p>
-                        </div>
-                        <Badge
-                          className={`shrink-0 rounded-full shadow-none ${getPaymentStatusBadgeClass(
-                            draft.paymentStatus,
-                          )}`}
-                        >
-                          {draft.paymentStatus}
-                        </Badge>
-                      </div>
-                      <div className="mt-3 flex items-end justify-between gap-3">
-                        <span className="text-xs font-semibold text-muted-foreground">
-                          {formatDateTime(draft.createdAt)}
-                        </span>
-                        <span className="font-bold text-primary">
-                          {formatCurrency(draft.totalPrice)} บาท
-                        </span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
             </section>
           </aside>
         </div>
