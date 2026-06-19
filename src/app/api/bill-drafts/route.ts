@@ -77,6 +77,11 @@ interface BillPayment {
   nameBank: string;
 }
 
+interface LegacyCustomerResolution {
+  codeCustomer: string | null;
+  created: boolean;
+}
+
 function sanitizeText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -345,6 +350,214 @@ function getLegacyDetailPrint(body: BillDraftPayload) {
   return truncateText(detail.join("\n"), 4000);
 }
 
+function formatLegacyCustomerCode(code: number) {
+  return String(code).padStart(6, "0");
+}
+
+function getLookupText(value: string) {
+  const text = sanitizeText(value);
+
+  return text && text !== "-" && text !== "0" ? text : "";
+}
+
+async function findLegacyCustomerCode(
+  transaction: sql.Transaction,
+  params: {
+    customerCode: string | null;
+    customerName: string;
+    phoneCustomer: string;
+    nameCar: string;
+  },
+) {
+  if (params.customerCode) {
+    const codeRequest = new sql.Request(transaction);
+    codeRequest.input("customerCode", sql.NVarChar(30), params.customerCode);
+
+    const codeRows = await codeRequest.query<{ CodeCustomer: string | null }>(`
+      SELECT TOP 1 CodeCustomer
+      FROM dbo.Customer WITH (UPDLOCK, HOLDLOCK)
+      WHERE CodeCustomer = @customerCode
+      ORDER BY Code DESC
+    `);
+
+    const existingCode = truncateText(
+      sanitizeText(codeRows.recordset[0]?.CodeCustomer),
+      20,
+    );
+
+    if (existingCode) {
+      return existingCode;
+    }
+  }
+
+  const customerName = getLookupText(params.customerName);
+
+  if (!customerName) {
+    return null;
+  }
+
+  const phoneCustomer = getLookupText(params.phoneCustomer);
+  const nameCar = getLookupText(params.nameCar);
+  const lookupRequest = new sql.Request(transaction);
+  const conditions: string[] = [];
+
+  lookupRequest.input("customerName", sql.NVarChar(sql.MAX), customerName);
+
+  if (phoneCustomer) {
+    lookupRequest.input("phoneCustomer", sql.NVarChar(250), phoneCustomer);
+    conditions.push(
+      "(NameCustomer = @customerName AND PhoneCustomer = @phoneCustomer)",
+    );
+  }
+
+  if (nameCar) {
+    lookupRequest.input("nameCar", sql.NVarChar(250), nameCar);
+    conditions.push("(NameCustomer = @customerName AND NameCar = @nameCar)");
+  }
+
+  if (conditions.length === 0) {
+    conditions.push("NameCustomer = @customerName");
+  }
+
+  const lookupRows = await lookupRequest.query<{
+    CodeCustomer: string | null;
+  }>(`
+    SELECT TOP 1 CodeCustomer
+    FROM dbo.Customer WITH (UPDLOCK, HOLDLOCK)
+    WHERE ${conditions.join(" OR ")}
+    ORDER BY Code DESC
+  `);
+
+  return truncateText(sanitizeText(lookupRows.recordset[0]?.CodeCustomer), 20);
+}
+
+async function createLegacyCustomer(
+  transaction: sql.Transaction,
+  params: {
+    body: BillDraftPayload;
+    customerName: string;
+    nameCar: string;
+    createdAt: Date;
+  },
+) {
+  const insertRequest = new sql.Request(transaction);
+
+  insertRequest.input(
+    "nameCar",
+    sql.NVarChar(250),
+    truncateText(params.nameCar, 250),
+  );
+  insertRequest.input(
+    "province",
+    sql.NVarChar(250),
+    truncateText(sanitizeText(params.body.province), 250),
+  );
+  insertRequest.input(
+    "brandAndGenerate",
+    sql.NVarChar(250),
+    truncateText(sanitizeText(params.body.brandAndGenerate), 250),
+  );
+  insertRequest.input(
+    "mileCar",
+    sql.NVarChar(250),
+    truncateText(sanitizeText(params.body.mileCar), 250),
+  );
+  insertRequest.input("dateRegistration", sql.DateTime, params.createdAt);
+  insertRequest.input(
+    "nameCustomer",
+    sql.NVarChar(sql.MAX),
+    params.customerName,
+  );
+  insertRequest.input(
+    "phoneCustomer",
+    sql.NVarChar(250),
+    truncateText(sanitizeText(params.body.phoneCustomer), 250),
+  );
+  insertRequest.input("caseCustomer", sql.NVarChar(150), "ลูกค้าทั่วไป");
+
+  const insertedRows = await insertRequest.query<{ code: number }>(`
+    INSERT INTO dbo.Customer (
+      NameCar,
+      Province,
+      BrandAndGenerate,
+      MileCar,
+      DateRegistration,
+      NameCustomer,
+      PhoneCustomer,
+      CaseCustomer
+    )
+    VALUES (
+      @nameCar,
+      @province,
+      @brandAndGenerate,
+      @mileCar,
+      @dateRegistration,
+      @nameCustomer,
+      @phoneCustomer,
+      @caseCustomer
+    )
+
+    SELECT CAST(SCOPE_IDENTITY() AS int) AS code
+  `);
+  const code = insertedRows.recordset[0]?.code;
+
+  if (!code) {
+    throw new Error("ไม่สามารถอ่านรหัสลูกค้าที่สร้างใหม่ได้");
+  }
+
+  const codeCustomer = formatLegacyCustomerCode(code);
+  const updateRequest = new sql.Request(transaction);
+
+  updateRequest.input("code", sql.Int, code);
+  updateRequest.input("codeCustomer", sql.NVarChar(30), codeCustomer);
+
+  await updateRequest.query(`
+    UPDATE dbo.Customer
+    SET CodeCustomer = @codeCustomer
+    WHERE Code = @code
+  `);
+
+  return codeCustomer;
+}
+
+async function resolveLegacyCustomer(
+  transaction: sql.Transaction,
+  params: {
+    body: BillDraftPayload;
+    customerName: string;
+    nameCar: string;
+    createdAt: Date;
+  },
+): Promise<LegacyCustomerResolution> {
+  const customerCode = truncateText(sanitizeText(params.body.customerCode), 20);
+  const phoneCustomer = sanitizeText(params.body.phoneCustomer);
+  const existingCustomerCode = await findLegacyCustomerCode(transaction, {
+    customerCode,
+    customerName: params.customerName,
+    phoneCustomer,
+    nameCar: params.nameCar,
+  });
+
+  if (existingCustomerCode) {
+    return {
+      codeCustomer: existingCustomerCode,
+      created: false,
+    };
+  }
+
+  if (!params.customerName) {
+    return {
+      codeCustomer: customerCode,
+      created: false,
+    };
+  }
+
+  return {
+    codeCustomer: await createLegacyCustomer(transaction, params),
+    created: true,
+  };
+}
+
 async function createLegacySaleBill(params: {
   body: BillDraftPayload;
   items: BillDraftItem[];
@@ -358,7 +571,8 @@ async function createLegacySaleBill(params: {
   const transaction = new sql.Transaction(pool);
   const createdAt = new Date();
   const createdBy = truncateText(sanitizeText(body.createdBy) || "Mobile", 250);
-  const customerCode = truncateText(sanitizeText(body.customerCode), 20);
+  let customerCode: string | null = null;
+  let customerCreated = false;
   const itemSummary = truncateText(
     items.map((item) => item.name).join(", "),
     4000,
@@ -367,6 +581,16 @@ async function createLegacySaleBill(params: {
   await transaction.begin();
 
   try {
+    const customerResolution = await resolveLegacyCustomer(transaction, {
+      body,
+      customerName,
+      nameCar,
+      createdAt,
+    });
+
+    customerCode = customerResolution.codeCustomer;
+    customerCreated = customerResolution.created;
+
     const billNo = await createLegacyBillNo(transaction, createdAt);
     const masterRequest = new sql.Request(transaction);
 
@@ -386,7 +610,7 @@ async function createLegacySaleBill(params: {
       "mileCar",
       truncateText(sanitizeText(body.mileCar), 50),
     );
-    masterRequest.input("customerCode", customerCode);
+    masterRequest.input("customerCode", sql.NVarChar(30), customerCode);
     masterRequest.input("customerName", customerName || null);
     masterRequest.input("deposits", sql.Money, 0);
     masterRequest.input("totalReduce", sql.Money, totals.discountTotal);
@@ -485,7 +709,7 @@ async function createLegacySaleBill(params: {
         "typeSale",
         item.type === "product" ? "สินค้า" : "บริการ",
       );
-      detailRequest.input("customerCode", customerCode);
+      detailRequest.input("customerCode", sql.NVarChar(20), customerCode);
       detailRequest.input("createdBy", truncateText(createdBy, 200));
 
       await detailRequest.query(`
@@ -589,7 +813,7 @@ async function createLegacySaleBill(params: {
 
       receivableRequest.input("datePost", sql.DateTime, createdAt);
       receivableRequest.input("billNo", billNo);
-      receivableRequest.input("customerCode", customerCode);
+      receivableRequest.input("customerCode", sql.NVarChar(30), customerCode);
       receivableRequest.input("customerName", customerName || null);
       receivableRequest.input("totalPrice", sql.Money, totals.totalPrice);
       receivableRequest.input("payMoney", sql.Money, payment.paidTotal);
@@ -622,6 +846,8 @@ async function createLegacySaleBill(params: {
     return {
       billNo,
       createdAt,
+      customerCode,
+      customerCreated,
     };
   } catch (error) {
     try {
@@ -849,6 +1075,7 @@ export async function POST(request: NextRequest) {
       nameCar,
     });
     const billNo = legacyBill.billNo;
+    const billCustomerCode = legacyBill.customerCode || null;
     let created: BillDraftRow | null = null;
 
     try {
@@ -921,7 +1148,7 @@ export async function POST(request: NextRequest) {
         {
           draftNo: billNo,
           paymentStatus: payment.draftPaymentStatus,
-          customerCode: sanitizeText(body.customerCode) || null,
+          customerCode: billCustomerCode,
           customerName: customerName || null,
           phoneCustomer: sanitizeText(body.phoneCustomer) || null,
           nameCar: nameCar || null,
@@ -950,7 +1177,7 @@ export async function POST(request: NextRequest) {
           draftNo: billNo,
           status: "เปิดบิล",
           paymentStatus: payment.draftPaymentStatus,
-          customerCode: sanitizeText(body.customerCode) || null,
+          customerCode: billCustomerCode,
           customerName: customerName || null,
           phoneCustomer: sanitizeText(body.phoneCustomer) || null,
           nameCar: nameCar || null,
@@ -975,6 +1202,7 @@ export async function POST(request: NextRequest) {
           ...data,
           billNo,
           legacyBillNo: billNo,
+          customerCreated: legacyBill.customerCreated,
           sourceTable: "MasterSalePost",
         },
       },
