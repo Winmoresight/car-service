@@ -64,9 +64,11 @@ function buildBaseCte(hasWebLog: boolean, dateCondition: string) {
           ISNULL(p.CreatedBy, '') as createdBy,
           'web' as source
         FROM dbo.WebReceivablePayments p
-        LEFT JOIN dbo.MasterSalePost m
+        INNER JOIN dbo.MasterSalePost m
           ON m.NumberPrintSalePost = p.NumberPrintSalePost
         WHERE CONVERT(date, p.PaidAt) = ${dateCondition}
+          AND m.DateSalePost IS NOT NULL
+          AND CONVERT(date, m.DateSalePost) < CONVERT(date, p.PaidAt)
       ),
     `
     : `
@@ -142,6 +144,8 @@ function buildBaseCte(hasWebLog: boolean, dateCondition: string) {
         ORDER BY previous.DatePost DESC
       ) previous_payment
       WHERE CONVERT(date, r.DatePost) = ${dateCondition}
+        AND m.DateSalePost IS NOT NULL
+        AND CONVERT(date, m.DateSalePost) < CONVERT(date, r.DatePost)
         AND ${getSafeMoneyExpression("r.SubMoney")} = 0
         AND ${getSafeMoneyExpression("r.PayMoney")} > 0
         ${legacyDedupe}

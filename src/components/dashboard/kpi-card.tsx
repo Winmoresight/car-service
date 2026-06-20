@@ -4,6 +4,7 @@
  */
 
 import type { LucideIcon } from "lucide-react";
+import Link from "next/link";
 import { outfit } from "@/components/fonts/fonts";
 import { cn } from "@/lib/utils";
 
@@ -19,16 +20,19 @@ interface KPICardProps {
   };
   format?: "currency" | "number" | "percent";
   variant?: "default" | "emerald" | "blue" | "orange" | "purple" | "red";
+  href?: string;
   onClick?: () => void;
 }
 
 export function KPICard({
   title,
   value,
+  subtitle,
   unit,
   icon: Icon,
   format = "number",
   variant = "default",
+  href,
   onClick,
 }: KPICardProps) {
   const variantStyles = {
@@ -66,7 +70,8 @@ export function KPICard({
 
   const cardClassName = cn(
     "col-span-1 w-full rounded-[8px] border bg-background p-4 dark:bg-secondary",
-    onClick && "cursor-pointer text-left transition-shadow hover:shadow-md",
+    (href || onClick) &&
+      "cursor-pointer text-left transition-shadow hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
   );
 
   const content = (
@@ -95,9 +100,22 @@ export function KPICard({
           </span>
           {displayUnit ? <> {displayUnit}</> : null}
         </h3>
+        {subtitle ? (
+          <p className="max-w-full text-right text-sm font-semibold text-muted-foreground min-[600px]:text-left">
+            {subtitle}
+          </p>
+        ) : null}
       </div>
     </div>
   );
+
+  if (href) {
+    return (
+      <Link href={href} className={cardClassName} aria-label={title}>
+        {content}
+      </Link>
+    );
+  }
 
   if (onClick) {
     return (

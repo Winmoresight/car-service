@@ -7,6 +7,8 @@
 
 import { format } from "date-fns";
 import {
+  ArrowDownCircle,
+  ArrowUpCircle,
   Banknote,
   CreditCard,
   FileText,
@@ -17,7 +19,6 @@ import {
   TrendingDown,
   Wallet,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
@@ -27,10 +28,20 @@ import { LossAlertTable } from "@/components/dashboard/loss-alert-table";
 import { SalesChart } from "@/components/dashboard/sales-chart";
 import { TopProductsTable } from "@/components/dashboard/top-products-table";
 import { DatePicker } from "@/components/ui/date-picker";
+import {
+  LargeDialog,
+  LargeDialogBody,
+  LargeDialogContent,
+  LargeDialogDescription,
+  LargeDialogHeader,
+  LargeDialogTitle,
+} from "@/components/ui/large-dialog";
+import { cn } from "@/lib/utils";
 import type {
   ApiResponse,
   DailySales,
   DashboardKPI,
+  DashboardMoneyBreakdownItem,
   LossProduct,
   TopProduct,
 } from "@/types/api";
@@ -50,6 +61,38 @@ function formatNumber(value: number) {
     maximumFractionDigits: 0,
     minimumFractionDigits: 0,
   }).format(value || 0);
+}
+
+function formatDateTime(value: string | null) {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return date.toLocaleDateString("th-TH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getMoneySourceLabel(source: DashboardMoneyBreakdownItem["source"]) {
+  if (source === "sale") {
+    return "ยอดขาย";
+  }
+
+  if (source === "receivable") {
+    return "ลูกหนี้";
+  }
+
+  return "รับ-จ่ายอื่น";
 }
 
 interface MoneyBreakdownRow {
@@ -128,13 +171,156 @@ function MoneyBreakdown({
   );
 }
 
-export default function DashboardPage() {
-  const router = useRouter();
+interface MoneyDetailDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  subtitle: string;
+  totalLabel: string;
+  totalValue: number;
+  icon: LucideIcon;
+  items: DashboardMoneyBreakdownItem[];
+}
 
+function MoneyDetailDialog({
+  open,
+  onOpenChange,
+  title,
+  subtitle,
+  totalLabel,
+  totalValue,
+  icon: Icon,
+  items,
+}: MoneyDetailDialogProps) {
+  const incomingTotal = items
+    .filter((item) => item.direction === "in")
+    .reduce((sum, item) => sum + item.amount, 0);
+  const outgoingTotal = items
+    .filter((item) => item.direction === "out")
+    .reduce((sum, item) => sum + item.amount, 0);
+
+  return (
+    <LargeDialog open={open} onOpenChange={onOpenChange}>
+      <LargeDialogContent size="xl">
+        <LargeDialogHeader>
+          <div className="flex items-start gap-3 pr-10">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] border bg-background text-primary">
+              <Icon className="h-6 w-6" strokeWidth={2.5} />
+            </div>
+            <div>
+              <LargeDialogTitle>{title}</LargeDialogTitle>
+              <LargeDialogDescription>{subtitle}</LargeDialogDescription>
+            </div>
+          </div>
+        </LargeDialogHeader>
+
+        <LargeDialogBody>
+          <div className="grid gap-3 min-[680px]:grid-cols-3">
+            <div className="rounded-[8px] border bg-background p-4">
+              <span className="text-sm font-bold text-muted-foreground">
+                {totalLabel}
+              </span>
+              <p className="mt-1 text-2xl font-bold text-primary">
+                {formatCurrency(totalValue)} บาท
+              </p>
+            </div>
+            <div className="rounded-[8px] border border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-500/20 dark:bg-emerald-500/10">
+              <span className="flex items-center gap-2 text-sm font-bold text-main-green">
+                <ArrowUpCircle className="h-4 w-4" />
+                รับเข้า
+              </span>
+              <p className="mt-1 text-2xl font-bold text-main-green">
+                {formatCurrency(incomingTotal)} บาท
+              </p>
+            </div>
+            <div className="rounded-[8px] border border-red-100 bg-red-50 p-4 dark:border-red-500/20 dark:bg-red-500/10">
+              <span className="flex items-center gap-2 text-sm font-bold text-main-red">
+                <ArrowDownCircle className="h-4 w-4" />
+                จ่ายออก
+              </span>
+              <p className="mt-1 text-2xl font-bold text-main-red">
+                {formatCurrency(outgoingTotal)} บาท
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 overflow-hidden rounded-[8px] border bg-white dark:bg-card">
+            {items.length === 0 ? (
+              <div className="px-4 py-12 text-center">
+                <p className="text-base font-bold text-card-foreground">
+                  ยังไม่มีรายการในวันที่เลือก
+                </p>
+                <p className="mt-1 text-sm font-semibold text-muted-foreground">
+                  ลองเลือกวันที่อื่นเพื่อดูรายการประกอบยอด
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y">
+                {items.map((item) => {
+                  const isOut = item.direction === "out";
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="grid gap-3 px-4 py-3 min-[760px]:grid-cols-[minmax(0,1fr)_150px_170px] min-[760px]:items-center"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className={cn(
+                              "rounded-full border px-2.5 py-1 text-xs font-bold",
+                              item.source === "sale" &&
+                                "border-blue-100 bg-blue-50 text-main-blue dark:border-blue-500/20 dark:bg-blue-500/10",
+                              item.source === "receivable" &&
+                                "border-emerald-100 bg-emerald-50 text-main-green dark:border-emerald-500/20 dark:bg-emerald-500/10",
+                              item.source === "other" &&
+                                "border-orange-100 bg-orange-50 text-main-orange dark:border-orange-500/20 dark:bg-orange-500/10",
+                            )}
+                          >
+                            {getMoneySourceLabel(item.source)}
+                          </span>
+                          <span className="min-w-0 truncate text-base font-bold text-card-foreground">
+                            {item.label}
+                          </span>
+                        </div>
+                        <p className="mt-1 truncate text-sm font-semibold text-muted-foreground">
+                          {item.description || "ไม่ระบุรายละเอียด"}
+                        </p>
+                      </div>
+
+                      <span className="text-sm font-semibold text-muted-foreground min-[760px]:text-right">
+                        {formatDateTime(item.occurredAt)}
+                      </span>
+
+                      <span
+                        className={cn(
+                          "text-lg font-bold min-[760px]:text-right",
+                          isOut ? "text-main-red" : "text-main-green",
+                        )}
+                      >
+                        {isOut ? "-" : "+"}
+                        {formatCurrency(item.amount)} บาท
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </LargeDialogBody>
+      </LargeDialogContent>
+    </LargeDialog>
+  );
+}
+
+export default function DashboardPage() {
   // State สำหรับวันที่ที่เลือก (default = วันนี้)
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
     new Date(),
   );
+  const [moneyDialogType, setMoneyDialogType] = useState<
+    "cash" | "transfer" | null
+  >(null);
 
   // สร้าง URL สำหรับ API พร้อม query parameter
   const dashboardUrl = selectedDate
@@ -184,6 +370,32 @@ export default function DashboardPage() {
     !selectedDate ||
     format(selectedDate, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
   const dateLabel = isSelectedDateToday ? "วันนี้" : "วันที่เลือก";
+  const selectedDateKey = format(selectedDate ?? new Date(), "yyyy-MM-dd");
+  const salesHref = `/sales?startDate=${selectedDateKey}&endDate=${selectedDateKey}`;
+  const receivableHref = `/tax-invoices?startDate=${selectedDateKey}&endDate=${selectedDateKey}`;
+  const receivablePaymentsHref = `/tax-invoices/payments?date=${selectedDateKey}`;
+  const otherIncomeHref = `/payments?type=income&date=${selectedDateKey}`;
+  const otherExpenseHref = `/payments?type=expense&date=${selectedDateKey}`;
+  const selectedMoneyDialog =
+    moneyDialogType === "cash"
+      ? {
+          title: "รายการเงินสดในลิ้นชัก",
+          subtitle: `รายการที่นำมาคิดยอดเงินสด ${dateLabel}`,
+          totalLabel: "เงินสดที่ควรมี",
+          totalValue: kpi?.cashDrawerExpected || 0,
+          icon: Wallet,
+          items: kpi?.cashBreakdownItems || [],
+        }
+      : moneyDialogType === "transfer"
+        ? {
+            title: "รายการเงินโอนสุทธิ",
+            subtitle: `รายการที่นำมาคิดยอดเงินโอน ${dateLabel}`,
+            totalLabel: "เงินโอนสุทธิ",
+            totalValue: kpi?.transferNet || 0,
+            icon: CreditCard,
+            items: kpi?.transferBreakdownItems || [],
+          }
+        : null;
 
   if (hasError) {
     return (
@@ -246,30 +458,34 @@ export default function DashboardPage() {
               icon={Banknote}
               variant="emerald"
               format="currency"
+              href={salesHref}
             />
             <KPICard
               title="เงินสดในลิ้นชัก"
               value={kpi?.cashDrawerExpected || 0}
-              subtitle="ยอดที่ควรตรงกับเงินสดหน้าร้าน"
+              subtitle="คลิกดูรายการประกอบยอด"
               icon={Wallet}
               variant="emerald"
               format="currency"
+              onClick={() => setMoneyDialogType("cash")}
             />
             <KPICard
               title="เงินโอนสุทธิ"
               value={kpi?.transferNet || 0}
-              subtitle="ยอดขายโอน + รับหนี้ - จ่ายโอน"
+              subtitle="คลิกดูรายการประกอบยอด"
               icon={CreditCard}
               variant="blue"
               format="currency"
+              onClick={() => setMoneyDialogType("transfer")}
             />
             <KPICard
               title="ลูกหนี้ค้างชำระ"
-              value={kpi?.receivableTotal || 0}
-              subtitle={`${formatNumber(kpi?.receivableCount || 0)} ใบ`}
+              value={kpi?.receivableCount || 0}
+              unit="ใบ"
+              subtitle={`ยอดค้าง ${formatCurrency(kpi?.receivableTotal || 0)} บาท`}
               icon={FileText}
               variant="orange"
-              format="currency"
+              href={receivableHref}
             />
           </div>
 
@@ -281,7 +497,7 @@ export default function DashboardPage() {
               icon={Receipt}
               variant="emerald"
               format="currency"
-              onClick={() => router.push("/tax-invoices/payments")}
+              href={receivablePaymentsHref}
             />
             <KPICard
               title="รายรับอื่น"
@@ -290,6 +506,7 @@ export default function DashboardPage() {
               icon={Banknote}
               variant="emerald"
               format="currency"
+              href={otherIncomeHref}
             />
             <KPICard
               title="รายจ่ายอื่น"
@@ -298,6 +515,7 @@ export default function DashboardPage() {
               icon={TrendingDown}
               variant="red"
               format="currency"
+              href={otherExpenseHref}
             />
             <KPICard
               title="ใบวางบิลคู่ค้า"
@@ -306,7 +524,7 @@ export default function DashboardPage() {
               icon={Package}
               variant="orange"
               format="currency"
-              onClick={() => router.push("/supplier-bills")}
+              href="/supplier-bills"
             />
           </div>
         </div>
@@ -381,6 +599,23 @@ export default function DashboardPage() {
           <TopProductsTable products={topProducts} />
           <LossAlertTable products={lossProducts} />
         </div>
+
+        {selectedMoneyDialog ? (
+          <MoneyDetailDialog
+            open={moneyDialogType !== null}
+            onOpenChange={(open) => {
+              if (!open) {
+                setMoneyDialogType(null);
+              }
+            }}
+            title={selectedMoneyDialog.title}
+            subtitle={selectedMoneyDialog.subtitle}
+            totalLabel={selectedMoneyDialog.totalLabel}
+            totalValue={selectedMoneyDialog.totalValue}
+            icon={selectedMoneyDialog.icon}
+            items={selectedMoneyDialog.items}
+          />
+        ) : null}
 
         {/* Footer */}
         <div className="mt-8 text-center text-sm text-muted-foreground">

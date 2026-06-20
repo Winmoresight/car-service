@@ -4,7 +4,12 @@
  */
 
 import type { NextRequest } from "next/server";
-import { handleApiError, successResponse, withTimeout } from "@/lib/api-utils";
+import {
+  errorResponse,
+  handleApiError,
+  successResponse,
+  withTimeout,
+} from "@/lib/api-utils";
 import { executeQuery } from "@/lib/db";
 import type {
   SupplierBill,
@@ -43,6 +48,12 @@ interface SupplierBillDetailSummaryRow {
   detailTotal: number | string | null;
 }
 
+interface SupplierBillUpdatePayload {
+  documentNo?: unknown;
+  status?: unknown;
+  totalPrice?: unknown;
+}
+
 const zeroSummary: SupplierBillsSummary = {
   billCount: 0,
   supplierCount: 0,
@@ -73,6 +84,30 @@ function normalizeMoney(value: unknown) {
   return Number(number.toFixed(2));
 }
 
+function normalizeEditableMoney(value: unknown) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number) || number < 0) {
+    return null;
+  }
+
+  return Number(number.toFixed(2));
+}
+
+function getPaymentLabel(status: string, fallbackLabel: string) {
+  const normalizedStatus = status.trim();
+
+  if (normalizedStatus === "ชำระแล้ว" || normalizedStatus === "จ่ายแล้ว") {
+    return "ชำระเงินแล้ว";
+  }
+
+  if (normalizedStatus === "ยังไม่จ่าย") {
+    return "ค้างชำระ";
+  }
+
+  return normalizedStatus || fallbackLabel;
+}
+
 function getSafeMoneyExpression(columnName: string) {
   const quotedColumn = quoteIdentifier(columnName);
   const textExpression = `CONVERT(nvarchar(100), ${quotedColumn})`;
@@ -87,11 +122,38 @@ function getPaymentState(
   paymentState: SupplierBillPaymentState;
   paymentLabel: string;
 } {
+  const normalizedStatus = status.toLowerCase();
   const combined = `${status} ${checkIn}`.trim();
   const normalized = combined.toLowerCase();
 
   if (!combined) {
     return { paymentState: "unknown", paymentLabel: "ไม่ระบุ" };
+  }
+
+  if (
+    normalizedStatus.includes("จ่าย") ||
+    normalizedStatus.includes("ชำระ") ||
+    normalizedStatus.includes("paid") ||
+    normalizedStatus.includes("complete") ||
+    normalizedStatus.includes("done")
+  ) {
+    return {
+      paymentState: "paid",
+      paymentLabel: getPaymentLabel(status, "ชำระเงินแล้ว"),
+    };
+  }
+
+  if (
+    normalizedStatus.includes("ค้าง") ||
+    normalizedStatus.includes("ยังไม่") ||
+    normalizedStatus.includes("ไม่จ่าย") ||
+    normalizedStatus.includes("unpaid") ||
+    normalizedStatus.includes("pending")
+  ) {
+    return {
+      paymentState: "unpaid",
+      paymentLabel: getPaymentLabel(status, "ค้างชำระ"),
+    };
   }
 
   if (
@@ -101,7 +163,10 @@ function getPaymentState(
     normalized.includes("unpaid") ||
     normalized.includes("pending")
   ) {
-    return { paymentState: "unpaid", paymentLabel: status || "ยังไม่จ่าย" };
+    return {
+      paymentState: "unpaid",
+      paymentLabel: getPaymentLabel(status, "ค้างชำระ"),
+    };
   }
 
   if (
@@ -111,10 +176,28 @@ function getPaymentState(
     normalized.includes("complete") ||
     normalized.includes("done")
   ) {
-    return { paymentState: "paid", paymentLabel: status || "จ่ายแล้ว" };
+    return {
+      paymentState: "paid",
+      paymentLabel: getPaymentLabel(status, "ชำระเงินแล้ว"),
+    };
   }
 
   return { paymentState: "unknown", paymentLabel: status || checkIn };
+}
+
+async function getTableColumns(tableName: string) {
+  const rows = await executeQuery<{ columnName: string }>(
+    `
+      SELECT COLUMN_NAME as columnName
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = 'dbo'
+        AND TABLE_NAME = @tableName
+    `,
+    { tableName },
+    false,
+  );
+
+  return new Set(rows.map((row) => row.columnName));
 }
 
 async function resolveTable(candidates: readonly string[]) {
@@ -296,6 +379,72 @@ export async function GET(request: NextRequest) {
     return successResponse(data);
   } catch (error) {
     return handleApiError(error, "Supplier bills API error");
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const data = await withTimeout(async () => {
+      const body = (await request.json()) as SupplierBillUpdatePayload;
+      const documentNo = normalizeText(body.documentNo);
+      const status = normalizeText(body.status);
+      const totalPrice = normalizeEditableMoney(body.totalPrice);
+
+      if (!documentNo) {
+        return errorResponse("กรุณาระบุเลขเอกสารคู่ค้า", 400);
+      }
+
+      if (!status) {
+        return errorResponse("กรุณาระบุสถานะ", 400);
+      }
+
+      if (totalPrice === null) {
+        return errorResponse("กรุณาระบุยอดเงินให้ถูกต้อง", 400);
+      }
+
+      const sourceTable = await resolveTable(masterTableCandidates);
+
+      if (!sourceTable) {
+        return errorResponse("ยังไม่พบตารางบิลคู่ค้าในฐานข้อมูลเดิม", 404);
+      }
+
+      const columns = await getTableColumns(sourceTable);
+      const resultUpdate = columns.has("Result")
+        ? ", Result = @totalPrice"
+        : "";
+
+      const rows = await executeQuery<{ documentNo: string }>(
+        `
+          UPDATE dbo.${quoteIdentifier(sourceTable)}
+          SET
+            Status = @status,
+            TotalPrice = @totalPrice
+            ${resultUpdate}
+          OUTPUT INSERTED.NumberPrintPost as documentNo
+          WHERE NumberPrintPost = @documentNo
+        `,
+        {
+          documentNo,
+          status,
+          totalPrice,
+        },
+        false,
+      );
+
+      if (!rows[0]) {
+        return errorResponse("ไม่พบเอกสารคู่ค้านี้", 404);
+      }
+
+      return successResponse({
+        documentNo: rows[0].documentNo,
+        status,
+        totalPrice,
+      });
+    }, 60000);
+
+    return data;
+  } catch (error) {
+    return handleApiError(error, "Supplier bill update API error");
   }
 }
 

@@ -10,12 +10,16 @@ import {
   CircleHelp,
   ClipboardList,
   Clock3,
+  Loader2,
+  Pencil,
   ReceiptText,
+  Save,
   Search,
   Truck,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import type { FormEvent } from "react";
+import { useEffect, useState } from "react";
 import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { KPICard } from "@/components/dashboard/kpi-card";
@@ -24,6 +28,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  LargeDialog,
+  LargeDialogBody,
+  LargeDialogContent,
+  LargeDialogDescription,
+  LargeDialogHeader,
+  LargeDialogTitle,
+} from "@/components/ui/large-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -42,6 +54,8 @@ import type {
 } from "@/types/api";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
+const supplierStatusOptions = ["ชำระเงินแล้ว", "ค้างชำระ", "รอตรวจสอบ"];
 
 const zeroPayload: SupplierBillsPayload = {
   sourceTable: null,
@@ -141,12 +155,359 @@ function matchesSearch(bill: SupplierBill, searchTerm: string) {
   ].some((value) => value.toLowerCase().includes(normalizedSearch));
 }
 
+function parseMoneyInput(value: string) {
+  const number = Number(value.replace(/,/g, "").trim());
+
+  if (!Number.isFinite(number) || number < 0) {
+    return null;
+  }
+
+  return Number(number.toFixed(2));
+}
+
+function normalizeEditableStatus(value: string) {
+  const trimmedValue = value.trim();
+
+  if (trimmedValue === "ชำระแล้ว" || trimmedValue === "จ่ายแล้ว") {
+    return "ชำระเงินแล้ว";
+  }
+
+  if (trimmedValue === "ยังไม่จ่าย") {
+    return "ค้างชำระ";
+  }
+
+  return trimmedValue;
+}
+
+function getStatusOptionClassName(option: string, isSelected: boolean) {
+  if (option === "ชำระเงินแล้ว") {
+    return isSelected
+      ? "border-emerald-100 bg-emerald-50 text-main-green ring-1 ring-main-green/20 hover:bg-emerald-50 hover:!text-main-green dark:border-emerald-500/20 dark:bg-emerald-500/10"
+      : "border-border bg-background text-muted-foreground hover:border-main-green/30 hover:bg-emerald-50 hover:!text-main-green";
+  }
+
+  if (option === "ค้างชำระ") {
+    return isSelected
+      ? "border-orange-100 bg-orange-50 text-main-orange ring-1 ring-main-orange/20 hover:bg-orange-50 hover:!text-main-orange dark:border-orange-500/20 dark:bg-orange-500/10"
+      : "border-border bg-background text-muted-foreground hover:border-main-orange/30 hover:bg-orange-50 hover:!text-main-orange";
+  }
+
+  return isSelected
+    ? "border-blue-100 bg-blue-50 text-main-blue ring-1 ring-main-blue/20 hover:bg-blue-50 hover:!text-main-blue dark:border-blue-500/20 dark:bg-blue-500/10"
+    : "border-border bg-background text-muted-foreground hover:border-main-blue/30 hover:bg-blue-50 hover:!text-main-blue";
+}
+
+function getEditableBillAmount(bill: SupplierBill) {
+  if (bill.totalPrice > 0) {
+    return bill.totalPrice;
+  }
+
+  if (bill.resultAmount > 0) {
+    return bill.resultAmount;
+  }
+
+  if (bill.detailTotal > 0) {
+    return bill.detailTotal;
+  }
+
+  return 0;
+}
+
+interface SupplierBillEditDialogProps {
+  bill: SupplierBill | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => Promise<void>;
+}
+
+function SupplierBillEditDialog({
+  bill,
+  open,
+  onOpenChange,
+  onSaved,
+}: SupplierBillEditDialogProps) {
+  const [status, setStatus] = useState("");
+  const [amount, setAmount] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!bill || !open) {
+      return;
+    }
+
+    setStatus(normalizeEditableStatus(bill.status || bill.paymentLabel || ""));
+    setAmount(String(getEditableBillAmount(bill)));
+    setErrorMessage(null);
+    setSuccessMessage(null);
+  }, [bill, open]);
+
+  const resetDialog = () => {
+    setStatus("");
+    setAmount("");
+    setIsSaving(false);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+  };
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      resetDialog();
+    }
+
+    onOpenChange(nextOpen);
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!bill) {
+      return;
+    }
+
+    const parsedAmount = parseMoneyInput(amount);
+
+    if (!status.trim()) {
+      setErrorMessage("กรุณาระบุสถานะ");
+      return;
+    }
+
+    if (parsedAmount === null) {
+      setErrorMessage("กรุณาระบุยอดเงินให้ถูกต้อง");
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      setErrorMessage(null);
+      setSuccessMessage(null);
+
+      const response = await fetch("/api/supplier-bills", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          documentNo: bill.documentNo,
+          status: status.trim(),
+          totalPrice: parsedAmount,
+        }),
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "บันทึกข้อมูลคู่ค้าไม่สำเร็จ");
+      }
+
+      setSuccessMessage("บันทึกข้อมูลเรียบร้อยแล้ว");
+      await onSaved();
+      handleOpenChange(false);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "บันทึกข้อมูลคู่ค้าไม่สำเร็จ",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const dateParts = bill ? formatDateParts(bill.date) : { date: "-", time: "" };
+  const currentAmount = bill ? getEditableBillAmount(bill) : 0;
+
+  return (
+    <LargeDialog open={open} onOpenChange={handleOpenChange}>
+      <LargeDialogContent size="lg">
+        <LargeDialogHeader className="gap-2 px-5 py-5 md:px-6">
+          <LargeDialogTitle className="text-xl md:text-2xl">
+            แก้ไขบิลคู่ค้า
+          </LargeDialogTitle>
+          <LargeDialogDescription>
+            {bill
+              ? `${bill.documentNo || "ไม่ระบุเลขเอกสาร"} · ${bill.supplierName || "ไม่ระบุคู่ค้า"}`
+              : "ปรับสถานะและยอดเงินของรายการคู่ค้า"}
+          </LargeDialogDescription>
+        </LargeDialogHeader>
+
+        <LargeDialogBody className="px-5 py-5 md:px-6">
+          {bill ? (
+            <form className="space-y-4" onSubmit={handleSubmit}>
+              <div className="rounded-[8px] border bg-background p-4">
+                <div className="flex flex-col gap-4 min-[720px]:flex-row min-[720px]:items-start min-[720px]:justify-between">
+                  <div className="min-w-0 space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "h-7 rounded-full px-3 text-xs font-bold shadow-none",
+                          getPaymentMeta(bill.paymentState).className,
+                        )}
+                      >
+                        {bill.paymentLabel}
+                      </Badge>
+                      <span className="text-sm font-semibold text-muted-foreground">
+                        {dateParts.date}
+                        {dateParts.time ? ` · ${dateParts.time}` : ""}
+                      </span>
+                    </div>
+
+                    <div>
+                      <p className="truncate text-xl font-bold text-card-foreground">
+                        {bill.supplierName || "ไม่ระบุคู่ค้า"}
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-muted-foreground">
+                        {bill.documentNo || "-"}
+                        {bill.supplierCode ? ` · ${bill.supplierCode}` : ""}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[8px] border bg-white px-4 py-3 text-left dark:bg-card min-[720px]:min-w-[220px] min-[720px]:text-right">
+                    <span className="text-sm font-bold text-muted-foreground">
+                      ยอดปัจจุบัน
+                    </span>
+                    <p className="mt-1 text-2xl font-bold text-primary">
+                      {formatCurrency(currentAmount)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 min-[760px]:grid-cols-[1fr_0.85fr]">
+                <div className="space-y-2">
+                  <span className="block text-sm font-bold text-card-foreground">
+                    สถานะ
+                  </span>
+                  <div className="grid gap-2 min-[420px]:grid-cols-3">
+                    {supplierStatusOptions.map((option) => {
+                      const isSelected = status === option;
+
+                      return (
+                        <Button
+                          key={option}
+                          type="button"
+                          variant="outline"
+                          className={cn(
+                            "h-10 border font-bold shadow-none",
+                            getStatusOptionClassName(option, isSelected),
+                          )}
+                          onClick={() => setStatus(option)}
+                        >
+                          {option}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <label htmlFor="supplier-bill-status" className="sr-only">
+                    สถานะอื่น
+                  </label>
+                  <Input
+                    id="supplier-bill-status"
+                    value={status}
+                    onChange={(event) => setStatus(event.target.value)}
+                    className="h-10 rounded-[8px] font-semibold"
+                    placeholder="พิมพ์สถานะเองเมื่อไม่มีในตัวเลือก"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label
+                    htmlFor="supplier-bill-amount"
+                    className="block text-sm font-bold text-card-foreground"
+                  >
+                    ยอดเงิน
+                  </label>
+                  <div className="relative">
+                    <span className="absolute top-1/2 left-3 -translate-y-1/2 text-lg font-bold text-muted-foreground">
+                      ฿
+                    </span>
+                    <Input
+                      id="supplier-bill-amount"
+                      inputMode="decimal"
+                      value={amount}
+                      onChange={(event) => setAmount(event.target.value)}
+                      className="h-12 rounded-[8px] pr-3 pl-9 text-lg font-bold"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <span className="block text-xs font-semibold text-muted-foreground">
+                    ยอดเดิม {formatCurrency(currentAmount)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid gap-2 rounded-[8px] border bg-muted/25 p-3 text-sm font-semibold min-[620px]:grid-cols-3">
+                <div className="flex items-center justify-between gap-3 min-[620px]:block">
+                  <span className="text-muted-foreground">รายการสินค้า</span>
+                  <p className="font-bold text-card-foreground min-[620px]:mt-1">
+                    {formatNumber(bill.itemCount)} รายการ
+                  </p>
+                </div>
+                <div className="flex items-center justify-between gap-3 min-[620px]:block">
+                  <span className="text-muted-foreground">ส่วนลด</span>
+                  <p className="font-bold text-card-foreground min-[620px]:mt-1">
+                    {formatCurrency(bill.discount + bill.productDiscount)}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between gap-3 min-[620px]:block">
+                  <span className="text-muted-foreground">ผู้บันทึก</span>
+                  <p className="truncate font-bold text-card-foreground min-[620px]:mt-1">
+                    {bill.createdBy || "-"}
+                  </p>
+                </div>
+              </div>
+
+              {errorMessage ? (
+                <div className="rounded-[8px] border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-main-red dark:border-red-500/20 dark:bg-red-500/10">
+                  {errorMessage}
+                </div>
+              ) : null}
+
+              {successMessage ? (
+                <div className="rounded-[8px] border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-main-green dark:border-emerald-500/20 dark:bg-emerald-500/10">
+                  {successMessage}
+                </div>
+              ) : null}
+
+              <div className="flex flex-col-reverse gap-2 border-t pt-4 min-[520px]:flex-row min-[520px]:justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 font-bold"
+                  disabled={isSaving}
+                  onClick={() => handleOpenChange(false)}
+                >
+                  ยกเลิก
+                </Button>
+                <Button
+                  type="submit"
+                  className="h-10 font-bold"
+                  disabled={isSaving}
+                >
+                  {isSaving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  บันทึก
+                </Button>
+              </div>
+            </form>
+          ) : null}
+        </LargeDialogBody>
+      </LargeDialogContent>
+    </LargeDialog>
+  );
+}
+
 export default function SupplierBillsPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedBill, setSelectedBill] = useState<SupplierBill | null>(null);
   const {
     data: supplierBillsData,
     error,
     isLoading,
+    mutate,
   } = useSWR<ApiResponse<SupplierBillsPayload>>(
     "/api/supplier-bills?limit=1000",
     fetcher,
@@ -257,7 +618,7 @@ export default function SupplierBillsPage() {
                 </span>
                 <p className="text-sm font-medium text-muted-foreground">
                   {payload.sourceTable
-                    ? "รายการซื้อเข้าและสถานะจ่ายจากฐานข้อมูลเดิม"
+                    ? "คลิกรายการเพื่อแก้สถานะและยอดเงิน"
                     : "ยังไม่พบข้อมูลบิลคู่ค้าในฐานข้อมูลเดิม"}
                 </p>
               </div>
@@ -338,8 +699,9 @@ export default function SupplierBillsPage() {
                     return (
                       <TableRow
                         key={bill.id}
+                        onClick={() => setSelectedBill(bill)}
                         className={cn(
-                          "group border-border/60 transition-colors duration-200",
+                          "group cursor-pointer border-border/60 transition-colors duration-200",
                           paymentMeta.rowClassName,
                         )}
                       >
@@ -436,6 +798,10 @@ export default function SupplierBillsPage() {
                                 โดย {bill.createdBy}
                               </span>
                             ) : null}
+                            <span className="hidden items-center gap-1 text-xs font-bold text-main-orange min-[720px]:flex">
+                              <Pencil className="h-3 w-3" />
+                              แก้ไข
+                            </span>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -447,6 +813,19 @@ export default function SupplierBillsPage() {
           )}
         </div>
       </div>
+
+      <SupplierBillEditDialog
+        bill={selectedBill}
+        open={selectedBill !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedBill(null);
+          }
+        }}
+        onSaved={async () => {
+          await mutate();
+        }}
+      />
     </div>
   );
 }

@@ -14,7 +14,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { KPICard } from "@/components/dashboard/kpi-card";
@@ -37,6 +37,16 @@ import { cn } from "@/lib/utils";
 import type { ApiResponse } from "@/types/api";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
+function parseDateParam(value: string | null) {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsedDate = new Date(`${value}T00:00:00`);
+
+  return Number.isNaN(parsedDate.getTime()) ? undefined : parsedDate;
+}
 
 interface ReceivablePayment {
   id: string;
@@ -70,6 +80,20 @@ export default function ReceivablePaymentsPage() {
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const limit = 30;
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const selectedDateParam = parseDateParam(params.get("date"));
+    const initialSearch = (params.get("search") || "").trim();
+
+    if (selectedDateParam) {
+      setSelectedDate(selectedDateParam);
+    }
+
+    if (initialSearch) {
+      setSearchTerm(initialSearch);
+    }
+  }, []);
 
   const buildApiUrl = () => {
     const params = new URLSearchParams({

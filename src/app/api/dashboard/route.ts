@@ -9,7 +9,7 @@ import type { NextRequest } from "next/server";
 import { handleApiError, successResponse, withTimeout } from "@/lib/api-utils";
 import { executeQuery } from "@/lib/db";
 import { receivablePaymentLogTableExists } from "@/lib/receivable-payment-log";
-import type { DashboardKPI } from "@/types/api";
+import type { DashboardKPI, DashboardMoneyBreakdownItem } from "@/types/api";
 
 interface OtherPaymentSummary {
   other_count: number;
@@ -36,6 +36,45 @@ interface OptionalDailyMoneySummary {
 interface StockInSummary {
   stock_in_count: number;
   stock_in_quantity: number;
+}
+
+interface DailySaleMoneyRow {
+  number_print: string;
+  date_post: Date | null;
+  customer_name: string;
+  name_car: string;
+  province: string;
+  cash: number;
+  transfer: number;
+}
+
+interface ReceivablePaymentMoneyRow {
+  id: string;
+  paid_at: Date | null;
+  number_print: string;
+  customer_name: string;
+  name_car: string;
+  province: string;
+  paid_amount: number;
+  payment_method: string;
+  name_bank: string;
+}
+
+interface OtherPaymentMoneyRow {
+  order_num: number;
+  paid_at: Date | null;
+  document_no: string;
+  payment_name: string;
+  money_cash: number;
+  money_transfer: number;
+  is_income: number;
+  name_bank: string;
+  remark: string;
+}
+
+interface DashboardMoneyBreakdown {
+  cash: DashboardMoneyBreakdownItem[];
+  transfer: DashboardMoneyBreakdownItem[];
 }
 
 const zeroOtherPayment: OtherPaymentSummary = {
@@ -65,6 +104,11 @@ const zeroStockIn: StockInSummary = {
   stock_in_quantity: 0,
 };
 
+const zeroMoneyBreakdown: DashboardMoneyBreakdown = {
+  cash: [],
+  transfer: [],
+};
+
 function quoteIdentifier(identifier: string) {
   return `[${identifier.replaceAll("]", "]]")}]`;
 }
@@ -86,6 +130,38 @@ function getSafeMoneyExpression(valueExpression: string) {
   const textExpression = `CONVERT(nvarchar(100), ${valueExpression})`;
 
   return `ISNULL(CONVERT(money, CASE WHEN ${valueExpression} IS NULL THEN '0' WHEN ISNUMERIC(${textExpression}) = 1 THEN ${textExpression} ELSE '0' END), 0)`;
+}
+
+function normalizeText(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeMoney(value: unknown) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return 0;
+  }
+
+  return Number(number.toFixed(2));
+}
+
+function toISOStringOrNull(value: Date | null) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date.toISOString();
+}
+
+function compactDescription(parts: string[]) {
+  return parts.map(normalizeText).filter(Boolean).join(" · ");
 }
 
 function getMoneyExpression(
@@ -172,7 +248,10 @@ async function getOtherPaymentSummary(
   }
 }
 
-async function getReceivableSummary(): Promise<ReceivableSummary> {
+async function getReceivableSummary(
+  dateCondition: string,
+  params?: Record<string, unknown>,
+): Promise<ReceivableSummary> {
   try {
     const [summary] = await executeQuery<ReceivableSummary>(
       `
@@ -184,6 +263,7 @@ async function getReceivableSummary(): Promise<ReceivableSummary> {
             ${getSafeMoneyExpression("Transfer")} as transfer
           FROM dbo.MasterSalePost
           WHERE LTRIM(RTRIM(ISNULL(Status, ''))) = N'ค้างชำระ'
+            AND CONVERT(date, DateSalePost) = ${dateCondition}
         ),
         latest_receivable AS (
           SELECT
@@ -229,7 +309,7 @@ async function getReceivableSummary(): Promise<ReceivableSummary> {
           ) as receivable_total
         FROM normalized
       `,
-      undefined,
+      params,
       false,
     );
 
@@ -324,12 +404,12 @@ async function getReceivablePaymentLogSummary(
       `
         SELECT
           COUNT(*) as count,
-          ISNULL(SUM(${getSafeMoneyExpression("PaidAmount")}), 0) as total,
+          ISNULL(SUM(${getSafeMoneyExpression("p.PaidAmount")}), 0) as total,
           ISNULL(
             SUM(
               CASE
-                WHEN LTRIM(RTRIM(ISNULL(PaymentMethod, ''))) = 'cash'
-                  THEN ${getSafeMoneyExpression("PaidAmount")}
+                WHEN LTRIM(RTRIM(ISNULL(p.PaymentMethod, ''))) = 'cash'
+                  THEN ${getSafeMoneyExpression("p.PaidAmount")}
                 ELSE 0
               END
             ),
@@ -338,16 +418,20 @@ async function getReceivablePaymentLogSummary(
           ISNULL(
             SUM(
               CASE
-                WHEN LTRIM(RTRIM(ISNULL(PaymentMethod, ''))) = 'transfer'
-                  THEN ${getSafeMoneyExpression("PaidAmount")}
+                WHEN LTRIM(RTRIM(ISNULL(p.PaymentMethod, ''))) = 'transfer'
+                  THEN ${getSafeMoneyExpression("p.PaidAmount")}
                 ELSE 0
               END
             ),
             0
           ) as transfer
-        FROM dbo.WebReceivablePayments
-        WHERE CONVERT(date, PaidAt) = ${dateCondition}
-          AND ${getSafeMoneyExpression("PaidAmount")} > 0
+        FROM dbo.WebReceivablePayments p
+        INNER JOIN dbo.MasterSalePost m
+          ON m.NumberPrintSalePost = p.NumberPrintSalePost
+        WHERE CONVERT(date, p.PaidAt) = ${dateCondition}
+          AND m.DateSalePost IS NOT NULL
+          AND CONVERT(date, m.DateSalePost) < CONVERT(date, p.PaidAt)
+          AND ${getSafeMoneyExpression("p.PaidAmount")} > 0
       `,
       params,
       false,
@@ -357,6 +441,286 @@ async function getReceivablePaymentLogSummary(
   } catch (error) {
     console.warn("Optional receivable payment log summary failed:", error);
     return zeroOptionalDailyMoney;
+  }
+}
+
+async function getDailySaleMoneyItems(
+  dateCondition: string,
+  params?: Record<string, unknown>,
+): Promise<DashboardMoneyBreakdownItem[]> {
+  try {
+    const cashExpression = getSafeMoneyExpression("m.Cash");
+    const transferExpression = getSafeMoneyExpression("m.Transfer");
+    const rows = await executeQuery<DailySaleMoneyRow>(
+      `
+        SELECT
+          ISNULL(m.NumberPrintSalePost, '') as number_print,
+          m.DateSalePost as date_post,
+          ISNULL(m.NameCustomer, N'ไม่ระบุลูกค้า') as customer_name,
+          ISNULL(m.NameCar, '') as name_car,
+          ISNULL(m.Province, '') as province,
+          ${cashExpression} as cash,
+          ${transferExpression} as transfer
+        FROM dbo.MasterSalePost m
+        WHERE CONVERT(date, m.DateSalePost) = ${dateCondition}
+          AND (${cashExpression} > 0 OR ${transferExpression} > 0)
+        ORDER BY m.DateSalePost DESC, m.NumberPrintSalePost DESC
+      `,
+      params,
+      false,
+    );
+
+    return rows.flatMap((row) => {
+      const numberPrint = normalizeText(row.number_print);
+      const description =
+        compactDescription([row.customer_name, row.name_car, row.province]) ||
+        "ไม่ระบุรายละเอียด";
+      const baseItem = {
+        label: numberPrint ? `บิลขาย ${numberPrint}` : "บิลขาย",
+        description,
+        occurredAt: toISOStringOrNull(row.date_post),
+        direction: "in" as const,
+        source: "sale" as const,
+      };
+      const items: DashboardMoneyBreakdownItem[] = [];
+      const cash = normalizeMoney(row.cash);
+      const transfer = normalizeMoney(row.transfer);
+
+      if (cash > 0) {
+        items.push({
+          ...baseItem,
+          id: `sale-cash-${numberPrint || items.length}`,
+          amount: cash,
+          method: "cash",
+        });
+      }
+
+      if (transfer > 0) {
+        items.push({
+          ...baseItem,
+          id: `sale-transfer-${numberPrint || items.length}`,
+          amount: transfer,
+          method: "transfer",
+        });
+      }
+
+      return items;
+    });
+  } catch (error) {
+    console.warn("Optional daily sale money items failed:", error);
+    return [];
+  }
+}
+
+async function getReceivablePaymentLogItems(
+  dateCondition: string,
+  params?: Record<string, unknown>,
+): Promise<DashboardMoneyBreakdownItem[]> {
+  try {
+    if (!(await receivablePaymentLogTableExists())) {
+      return [];
+    }
+
+    const rows = await executeQuery<ReceivablePaymentMoneyRow>(
+      `
+        SELECT
+          CAST(p.ID AS nvarchar(50)) as id,
+          p.PaidAt as paid_at,
+          ISNULL(p.NumberPrintSalePost, '') as number_print,
+          ISNULL(p.NameCustomer, ISNULL(m.NameCustomer, N'ไม่ระบุลูกค้า')) as customer_name,
+          ISNULL(p.NameCar, ISNULL(m.NameCar, '')) as name_car,
+          ISNULL(p.Province, ISNULL(m.Province, '')) as province,
+          ${getSafeMoneyExpression("p.PaidAmount")} as paid_amount,
+          CASE
+            WHEN LTRIM(RTRIM(ISNULL(p.PaymentMethod, ''))) = 'transfer'
+              THEN 'transfer'
+            ELSE 'cash'
+          END as payment_method,
+          ISNULL(p.NameBank, ISNULL(m.NameBank, '')) as name_bank
+        FROM dbo.WebReceivablePayments p
+        INNER JOIN dbo.MasterSalePost m
+          ON m.NumberPrintSalePost = p.NumberPrintSalePost
+        WHERE CONVERT(date, p.PaidAt) = ${dateCondition}
+          AND m.DateSalePost IS NOT NULL
+          AND CONVERT(date, m.DateSalePost) < CONVERT(date, p.PaidAt)
+          AND ${getSafeMoneyExpression("p.PaidAmount")} > 0
+        ORDER BY p.PaidAt DESC, p.NumberPrintSalePost DESC
+      `,
+      params,
+      false,
+    );
+
+    return rows
+      .map((row): DashboardMoneyBreakdownItem | null => {
+        const amount = normalizeMoney(row.paid_amount);
+
+        if (amount <= 0) {
+          return null;
+        }
+
+        const numberPrint = normalizeText(row.number_print);
+        const method =
+          normalizeText(row.payment_method) === "transfer"
+            ? "transfer"
+            : "cash";
+        const description =
+          compactDescription([
+            row.customer_name,
+            row.name_car,
+            row.province,
+            method === "transfer" ? row.name_bank : "",
+          ]) || "ไม่ระบุรายละเอียด";
+
+        return {
+          id: `receivable-${method}-${normalizeText(row.id) || numberPrint}`,
+          label: numberPrint ? `รับชำระลูกหนี้ ${numberPrint}` : "รับชำระลูกหนี้",
+          description,
+          occurredAt: toISOStringOrNull(row.paid_at),
+          amount,
+          direction: "in",
+          method,
+          source: "receivable",
+        };
+      })
+      .filter((item): item is DashboardMoneyBreakdownItem => item !== null);
+  } catch (error) {
+    console.warn("Optional receivable payment log items failed:", error);
+    return [];
+  }
+}
+
+async function getOtherPaymentMoneyItems(
+  dateCondition: string,
+  params?: Record<string, unknown>,
+): Promise<DashboardMoneyBreakdownItem[]> {
+  try {
+    const rows = await executeQuery<OtherPaymentMoneyRow>(
+      `
+        WITH normalized AS (
+          SELECT
+            ISNULL(OrderNum, 0) as order_num,
+            Datepayment as paid_at,
+            ISNULL(NumberPrintPost, '') as document_no,
+            ABS(ISNULL(MoneyCash, 0)) as money_cash,
+            ABS(ISNULL(MoneyTransfer, 0)) as money_transfer,
+            ${getSafeMoneyExpression("Debit")} as debit_value,
+            ${getSafeMoneyExpression("Credit")} as credit_value,
+            ISNULL(NameExpensesORIncome, '') as payment_name,
+            ISNULL(NameBank, '') as name_bank,
+            ISNULL(Remark, '') as remark
+          FROM dbo.Payment
+          WHERE CONVERT(date, Datepayment) = ${dateCondition}
+            AND (
+              CodeStaff = 0
+              OR CodeStaff IS NULL
+              OR NameSure = ''
+              OR NameSure IS NULL
+            )
+            AND (ABS(ISNULL(MoneyCash, 0)) > 0 OR ABS(ISNULL(MoneyTransfer, 0)) > 0)
+        ),
+        classified AS (
+          SELECT
+            *,
+            CASE
+              WHEN credit_value > 0 AND debit_value <= 0 THEN 1
+              WHEN payment_name LIKE N'%รายรับ%' THEN 1
+              ELSE 0
+            END as is_income
+          FROM normalized
+        )
+        SELECT
+          order_num,
+          paid_at,
+          document_no,
+          payment_name,
+          money_cash,
+          money_transfer,
+          is_income,
+          name_bank,
+          remark
+        FROM classified
+        ORDER BY paid_at DESC, order_num DESC
+      `,
+      params,
+      false,
+    );
+
+    return rows.flatMap((row) => {
+      const paymentName = normalizeText(row.payment_name);
+      const documentNo = normalizeText(row.document_no);
+      const direction = row.is_income === 1 ? "in" : "out";
+      const description =
+        compactDescription([documentNo, row.name_bank, row.remark]) ||
+        (direction === "in" ? "รายการรับเงินอื่น" : "รายการจ่ายเงินอื่น");
+      const baseItem = {
+        label: paymentName || (direction === "in" ? "รายรับอื่น" : "รายจ่ายอื่น"),
+        description,
+        occurredAt: toISOStringOrNull(row.paid_at),
+        direction,
+        source: "other" as const,
+      };
+      const items: DashboardMoneyBreakdownItem[] = [];
+      const cash = normalizeMoney(row.money_cash);
+      const transfer = normalizeMoney(row.money_transfer);
+      const rowId = `${row.order_num || documentNo || items.length}`;
+
+      if (cash > 0) {
+        items.push({
+          ...baseItem,
+          id: `other-cash-${rowId}`,
+          amount: cash,
+          method: "cash",
+        });
+      }
+
+      if (transfer > 0) {
+        items.push({
+          ...baseItem,
+          id: `other-transfer-${rowId}`,
+          amount: transfer,
+          method: "transfer",
+        });
+      }
+
+      return items;
+    });
+  } catch (error) {
+    console.warn("Optional other payment money items failed:", error);
+    return [];
+  }
+}
+
+async function getMoneyBreakdown(
+  dateCondition: string,
+  params?: Record<string, unknown>,
+): Promise<DashboardMoneyBreakdown> {
+  try {
+    const items = (
+      await Promise.all([
+        getDailySaleMoneyItems(dateCondition, params),
+        getReceivablePaymentLogItems(dateCondition, params),
+        getOtherPaymentMoneyItems(dateCondition, params),
+      ])
+    )
+      .flat()
+      .sort((first, second) => {
+        const firstTime = first.occurredAt
+          ? new Date(first.occurredAt).getTime()
+          : 0;
+        const secondTime = second.occurredAt
+          ? new Date(second.occurredAt).getTime()
+          : 0;
+
+        return secondTime - firstTime;
+      });
+
+    return {
+      cash: items.filter((item) => item.method === "cash"),
+      transfer: items.filter((item) => item.method === "transfer"),
+    };
+  } catch (error) {
+    console.warn("Optional dashboard money breakdown failed:", error);
+    return zeroMoneyBreakdown;
   }
 }
 
@@ -445,9 +809,10 @@ export async function GET(request: NextRequest) {
         receivableCollected,
         supplierBills,
         stockIn,
+        moneyBreakdown,
       ] = await Promise.all([
         getOtherPaymentSummary(dateExpression, dateParams),
-        getReceivableSummary(),
+        getReceivableSummary(dateExpression, dateParams),
         getReceivablePaymentLogSummary(dateExpression, dateParams),
         getOptionalDailyMoneySummary({
           tableName: [
@@ -481,6 +846,7 @@ export async function GET(request: NextRequest) {
           ],
         }),
         getStockInSummary(dateExpression, dateParams),
+        getMoneyBreakdown(dateExpression, dateParams),
       ]);
 
       // คำนวณอัตรากำไรขั้นต้น
@@ -522,6 +888,8 @@ export async function GET(request: NextRequest) {
         receivableCollectedCash: receivableCollected.cash,
         receivableCollectedTransfer: receivableCollected.transfer,
         receivableCollectedCount: receivableCollected.count,
+        cashBreakdownItems: moneyBreakdown.cash,
+        transferBreakdownItems: moneyBreakdown.transfer,
         supplierBillTotal: supplierBills.total,
         supplierBillCount: supplierBills.count,
         stockInCount: stockIn.stock_in_count,

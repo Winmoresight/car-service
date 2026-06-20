@@ -67,18 +67,58 @@ interface Summary {
   creditCount: number;
 }
 
+type PaymentFilter = "all" | "income" | "expense" | "salary";
+
+function parseDateParam(value: string | null) {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsedDate = new Date(`${value}T00:00:00`);
+
+  return Number.isNaN(parsedDate.getTime()) ? undefined : parsedDate;
+}
+
+function isPaymentFilter(value: string | null): value is PaymentFilter {
+  return (
+    value === "all" ||
+    value === "income" ||
+    value === "expense" ||
+    value === "salary"
+  );
+}
+
 export default function PaymentsPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "income" | "expense" | "salary">(
-    "all",
-  );
+  const [filter, setFilter] = useState<PaymentFilter>("all");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
     new Date(),
   );
   const [limit, setLimit] = useState(20);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const initialType = params.get("type");
+    const initialDate = parseDateParam(
+      params.get("date") || params.get("dateFrom"),
+    );
+    const requestedLimit = Number(params.get("limit"));
+
+    if (isPaymentFilter(initialType)) {
+      setFilter(initialType);
+    }
+
+    if (initialDate) {
+      setSelectedDate(initialDate);
+    }
+
+    if ([20, 50, 100, 200].includes(requestedLimit)) {
+      setLimit(requestedLimit);
+    }
+  }, []);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("th-TH", {

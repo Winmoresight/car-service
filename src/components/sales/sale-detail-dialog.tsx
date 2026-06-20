@@ -14,7 +14,6 @@ import {
   Package,
   Phone,
   Receipt,
-  TrendingUp,
   User,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -636,86 +635,6 @@ export function SaleDetailDialog({
                     </Table>
                   </div>
                 )}
-              </div>
-
-              <div className="rounded-3xl border bg-card p-4 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-emerald-50 dark:border-emerald-500/20 dark:bg-emerald-500/10">
-                    <TrendingUp className="h-6 w-6 text-main-green" />
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-xl font-bold text-card-foreground">
-                      สรุปกำไร
-                    </span>
-                    <p className="text-sm font-medium text-muted-foreground">
-                      ภาพรวมยอดขาย ต้นทุน และกำไรของบิลนี้
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-4 rounded-2xl border bg-white p-4 dark:bg-card">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between gap-4 text-base">
-                      <span className="font-medium text-muted-foreground">
-                        ยอดรวม
-                      </span>
-                      <span
-                        className={cn(
-                          outfit.className,
-                          "text-lg font-bold text-card-foreground",
-                        )}
-                      >
-                        {formatCurrency(saleDetail.totalPrice)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-4 text-base">
-                      <span className="font-medium text-muted-foreground">
-                        ต้นทุนรวม
-                      </span>
-                      <span
-                        className={cn(
-                          outfit.className,
-                          "text-lg font-bold text-card-foreground",
-                        )}
-                      >
-                        {formatCurrency(saleDetail.totalCost)}
-                      </span>
-                    </div>
-                    <div className="h-px bg-border" />
-                    <div className="flex items-center justify-between gap-4">
-                      <span className="text-lg font-bold text-card-foreground">
-                        กำไรรวม
-                      </span>
-                      <span
-                        className={cn(
-                          outfit.className,
-                          "text-3xl font-bold",
-                          saleDetail.totalProfit >= 0
-                            ? "text-main-green"
-                            : "text-main-red",
-                        )}
-                      >
-                        {formatCurrency(saleDetail.totalProfit)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-4">
-                      <span className="font-medium text-muted-foreground">
-                        % กำไร
-                      </span>
-                      <span
-                        className={cn(
-                          outfit.className,
-                          "text-lg font-bold",
-                          saleDetail.totalProfit >= 0
-                            ? "text-main-green"
-                            : "text-main-red",
-                        )}
-                      >
-                        {formatProfitMargin(saleDetail)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           ) : null}

@@ -3,6 +3,17 @@
  * Type definitions for API endpoints
  */
 
+export interface DashboardMoneyBreakdownItem {
+  id: string;
+  label: string;
+  description: string;
+  occurredAt: string | null;
+  amount: number;
+  direction: "in" | "out";
+  method: "cash" | "transfer";
+  source: "sale" | "receivable" | "other";
+}
+
 // Dashboard KPI
 export interface DashboardKPI {
   // วันนี้
@@ -32,6 +43,10 @@ export interface DashboardKPI {
   receivableCollectedCash: number;
   receivableCollectedTransfer: number;
   receivableCollectedCount: number;
+
+  // รายการย่อยสำหรับตรวจเงินสด/เงินโอน
+  cashBreakdownItems: DashboardMoneyBreakdownItem[];
+  transferBreakdownItems: DashboardMoneyBreakdownItem[];
 
   // คู่ค้า / สินค้าเข้าร้าน
   supplierBillTotal: number;

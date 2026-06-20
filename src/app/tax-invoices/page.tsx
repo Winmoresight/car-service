@@ -17,7 +17,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { DateRange } from "react-day-picker";
 import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
@@ -42,6 +42,16 @@ import { cn } from "@/lib/utils";
 import type { ApiResponse } from "@/types/api";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
+function parseDateParam(value: string | null) {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsedDate = new Date(`${value}T00:00:00`);
+
+  return Number.isNaN(parsedDate.getTime()) ? undefined : parsedDate;
+}
 
 interface ReceivableBill {
   numberPrint: string;
@@ -80,6 +90,24 @@ export default function TaxInvoicesPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const limit = 20;
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const initialSearch = (params.get("search") || "").trim();
+    const startDate = parseDateParam(params.get("startDate"));
+    const endDate = parseDateParam(params.get("endDate"));
+
+    if (initialSearch) {
+      setSearchTerm(initialSearch);
+    }
+
+    if (startDate || endDate) {
+      setDateRange({
+        from: startDate ?? endDate,
+        to: endDate ?? startDate,
+      });
+    }
+  }, []);
 
   // สร้าง URL สำหรับ API พร้อม query parameters
   const buildApiUrl = () => {
