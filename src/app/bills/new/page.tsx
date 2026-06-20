@@ -202,6 +202,17 @@ export default function NewBillPage() {
     }));
   };
 
+  const updateManualCustomerForm = (
+    field: "customerName" | "phoneCustomer",
+    value: string,
+  ) => {
+    setForm((current) => ({
+      ...current,
+      customerCode: "",
+      [field]: value,
+    }));
+  };
+
   const getDefaultPaymentAmount = () =>
     totals.totalPrice > 0 ? String(totals.totalPrice) : "";
 
@@ -379,7 +390,11 @@ export default function NewBillPage() {
         throw new Error(data.error || "ไม่สามารถสร้างบิลได้");
       }
 
-      setMessage(`เปิดบิล ${data.data.billNo || data.data.draftNo} ในระบบหลักแล้ว`);
+      setMessage(
+        `เปิดบิล ${data.data.billNo || data.data.draftNo} ในระบบหลักแล้ว${
+          data.data.customerCreated ? " และสร้างลูกค้าใหม่แล้ว" : ""
+        }`,
+      );
       resetForm();
     } catch (submitError) {
       setError(
@@ -495,7 +510,10 @@ export default function NewBillPage() {
                       id="customerName"
                       value={form.customerName}
                       onChange={(event) =>
-                        updateForm("customerName", event.target.value)
+                        updateManualCustomerForm(
+                          "customerName",
+                          event.target.value,
+                        )
                       }
                       className="h-11 rounded-xl"
                     />
@@ -508,7 +526,10 @@ export default function NewBillPage() {
                       id="phoneCustomer"
                       value={form.phoneCustomer}
                       onChange={(event) =>
-                        updateForm("phoneCustomer", event.target.value)
+                        updateManualCustomerForm(
+                          "phoneCustomer",
+                          event.target.value,
+                        )
                       }
                       inputMode="tel"
                       className="h-11 rounded-xl"
