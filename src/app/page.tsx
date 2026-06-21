@@ -379,18 +379,18 @@ export default function DashboardPage() {
   const selectedMoneyDialog =
     moneyDialogType === "cash"
       ? {
-          title: "รายการเงินสดในลิ้นชัก",
-          subtitle: `รายการที่นำมาคิดยอดเงินสด ${dateLabel}`,
-          totalLabel: "เงินสดที่ควรมี",
+          title: "รายการยอดขายเงินสด",
+          subtitle: `บิลขายที่รับเงินสด ${dateLabel}`,
+          totalLabel: "ยอดขายเงินสด",
           totalValue: kpi?.cashDrawerExpected || 0,
           icon: Wallet,
           items: kpi?.cashBreakdownItems || [],
         }
       : moneyDialogType === "transfer"
         ? {
-            title: "รายการเงินโอนสุทธิ",
-            subtitle: `รายการที่นำมาคิดยอดเงินโอน ${dateLabel}`,
-            totalLabel: "เงินโอนสุทธิ",
+            title: "รายการยอดขายเงินโอน",
+            subtitle: `บิลขายที่รับเงินโอน ${dateLabel}`,
+            totalLabel: "ยอดขายเงินโอน",
             totalValue: kpi?.transferNet || 0,
             icon: CreditCard,
             items: kpi?.transferBreakdownItems || [],
@@ -463,16 +463,16 @@ export default function DashboardPage() {
             <KPICard
               title="เงินสดในลิ้นชัก"
               value={kpi?.cashDrawerExpected || 0}
-              subtitle="คลิกดูรายการประกอบยอด"
+              subtitle="เฉพาะยอดขายเงินสด"
               icon={Wallet}
               variant="emerald"
               format="currency"
               onClick={() => setMoneyDialogType("cash")}
             />
             <KPICard
-              title="เงินโอนสุทธิ"
+              title="ยอดขายเงินโอน"
               value={kpi?.transferNet || 0}
-              subtitle="คลิกดูรายการประกอบยอด"
+              subtitle="เฉพาะยอดขายเงินโอน"
               icon={CreditCard}
               variant="blue"
               format="currency"
@@ -480,11 +480,11 @@ export default function DashboardPage() {
             />
             <KPICard
               title="ลูกหนี้ค้างชำระ"
-              value={kpi?.receivableCount || 0}
-              unit="ใบ"
-              subtitle={`ยอดค้าง ${formatCurrency(kpi?.receivableTotal || 0)} บาท`}
+              value={kpi?.receivableTotal || 0}
+              subtitle={`${formatNumber(kpi?.receivableCount || 0)} ใบ`}
               icon={FileText}
               variant="orange"
+              format="currency"
               href={receivableHref}
             />
           </div>
@@ -509,9 +509,9 @@ export default function DashboardPage() {
               href={otherIncomeHref}
             />
             <KPICard
-              title="รายจ่ายอื่น"
+              title="รายจ่ายรวม"
               value={kpi?.otherExpense || 0}
-              subtitle="รวมค่าใช้จ่ายที่ไม่ใช่ยอดขาย"
+              subtitle="รวมค่าใช้จ่ายและพนักงาน"
               icon={TrendingDown}
               variant="red"
               format="currency"
@@ -532,8 +532,8 @@ export default function DashboardPage() {
         <div className="grid gap-4 xl:grid-cols-2">
           <MoneyBreakdown
             title="ตรวจเงินสด"
-            subtitle="ใช้เทียบกับเงินในลิ้นชักตอนปิดวัน"
-            totalLabel="เงินสดที่ควรมี"
+            subtitle="เฉพาะยอดขายเงินสดของวันที่เลือก"
+            totalLabel="ยอดขายเงินสด"
             totalValue={kpi?.cashDrawerExpected || 0}
             icon={Wallet}
             rows={[
@@ -542,28 +542,13 @@ export default function DashboardPage() {
                 amount: kpi?.todayCash || 0,
                 type: "in",
               },
-              {
-                label: "ลูกหนี้จ่ายสด",
-                amount: kpi?.receivableCollectedCash || 0,
-                type: "in",
-              },
-              {
-                label: "รายรับอื่นเงินสด",
-                amount: kpi?.otherIncomeCash || 0,
-                type: "in",
-              },
-              {
-                label: "รายจ่ายเงินสด",
-                amount: kpi?.otherExpenseCash || 0,
-                type: "out",
-              },
             ]}
           />
 
           <MoneyBreakdown
             title="ตรวจเงินโอน"
-            subtitle="ยอดสุทธิจากรายการรับเข้าและจ่ายออกผ่านบัญชี"
-            totalLabel="เงินโอนสุทธิ"
+            subtitle="เฉพาะยอดขายเงินโอนของวันที่เลือก"
+            totalLabel="ยอดขายเงินโอน"
             totalValue={kpi?.transferNet || 0}
             icon={CreditCard}
             rows={[
@@ -571,21 +556,6 @@ export default function DashboardPage() {
                 label: "ยอดขายเงินโอน",
                 amount: kpi?.todayTransfer || 0,
                 type: "in",
-              },
-              {
-                label: "ลูกหนี้จ่ายโอน",
-                amount: kpi?.receivableCollectedTransfer || 0,
-                type: "in",
-              },
-              {
-                label: "รายรับอื่นเงินโอน",
-                amount: kpi?.otherIncomeTransfer || 0,
-                type: "in",
-              },
-              {
-                label: "รายจ่ายเงินโอน",
-                amount: kpi?.otherExpenseTransfer || 0,
-                type: "out",
               },
             ]}
           />

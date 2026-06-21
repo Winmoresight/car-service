@@ -11,7 +11,6 @@ import {
   ClipboardList,
   Clock3,
   Loader2,
-  Pencil,
   ReceiptText,
   Save,
   Search,
@@ -55,7 +54,9 @@ import type {
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-const supplierStatusOptions = ["ชำระเงินแล้ว", "ค้างชำระ", "รอตรวจสอบ"];
+const supplierStatusOptions = ["ชำระเงินแล้ว", "ค้างชำระ"] as const;
+
+type SupplierEditableStatus = (typeof supplierStatusOptions)[number];
 
 const zeroPayload: SupplierBillsPayload = {
   sourceTable: null,
@@ -125,8 +126,8 @@ function getPaymentMeta(paymentState: SupplierBillPaymentState) {
     return {
       icon: Clock3,
       className:
-        "border-orange-100 bg-orange-50 text-main-orange dark:border-orange-500/20 dark:bg-orange-500/10",
-      rowClassName: "hover:bg-orange-50/40 dark:hover:bg-orange-500/5",
+        "border-red-100 bg-red-50 text-main-red dark:border-red-500/20 dark:bg-red-500/10",
+      rowClassName: "hover:bg-red-50/40 dark:hover:bg-red-500/5",
     };
   }
 
@@ -179,6 +180,20 @@ function normalizeEditableStatus(value: string) {
   return trimmedValue;
 }
 
+function isSupplierStatusOption(
+  value: string,
+): value is SupplierEditableStatus {
+  return supplierStatusOptions.some((option) => option === value);
+}
+
+function normalizeDialogStatus(value: string) {
+  const normalizedStatus = normalizeEditableStatus(value);
+
+  return isSupplierStatusOption(normalizedStatus)
+    ? normalizedStatus
+    : "ค้างชำระ";
+}
+
 function getStatusOptionClassName(option: string, isSelected: boolean) {
   if (option === "ชำระเงินแล้ว") {
     return isSelected
@@ -188,13 +203,11 @@ function getStatusOptionClassName(option: string, isSelected: boolean) {
 
   if (option === "ค้างชำระ") {
     return isSelected
-      ? "border-orange-100 bg-orange-50 text-main-orange ring-1 ring-main-orange/20 hover:bg-orange-50 hover:!text-main-orange dark:border-orange-500/20 dark:bg-orange-500/10"
-      : "border-border bg-background text-muted-foreground hover:border-main-orange/30 hover:bg-orange-50 hover:!text-main-orange";
+      ? "border-red-100 bg-red-50 text-main-red ring-1 ring-main-red/20 hover:bg-red-50 hover:!text-main-red dark:border-red-500/20 dark:bg-red-500/10"
+      : "border-border bg-background text-muted-foreground hover:border-main-red/30 hover:bg-red-50 hover:!text-main-red";
   }
 
-  return isSelected
-    ? "border-blue-100 bg-blue-50 text-main-blue ring-1 ring-main-blue/20 hover:bg-blue-50 hover:!text-main-blue dark:border-blue-500/20 dark:bg-blue-500/10"
-    : "border-border bg-background text-muted-foreground hover:border-main-blue/30 hover:bg-blue-50 hover:!text-main-blue";
+  return "";
 }
 
 function getEditableBillAmount(bill: SupplierBill) {
@@ -237,7 +250,7 @@ function SupplierBillEditDialog({
       return;
     }
 
-    setStatus(normalizeEditableStatus(bill.status || bill.paymentLabel || ""));
+    setStatus(normalizeDialogStatus(bill.status || bill.paymentLabel || ""));
     setAmount(String(getEditableBillAmount(bill)));
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -268,8 +281,8 @@ function SupplierBillEditDialog({
 
     const parsedAmount = parseMoneyInput(amount);
 
-    if (!status.trim()) {
-      setErrorMessage("กรุณาระบุสถานะ");
+    if (!isSupplierStatusOption(status)) {
+      setErrorMessage("กรุณาเลือกสถานะชำระเงินแล้วหรือค้างชำระ");
       return;
     }
 
@@ -290,7 +303,7 @@ function SupplierBillEditDialog({
         },
         body: JSON.stringify({
           documentNo: bill.documentNo,
-          status: status.trim(),
+          status,
           totalPrice: parsedAmount,
         }),
       });
@@ -319,7 +332,7 @@ function SupplierBillEditDialog({
     <LargeDialog open={open} onOpenChange={handleOpenChange}>
       <LargeDialogContent size="lg">
         <LargeDialogHeader className="gap-2 px-5 py-5 md:px-6">
-          <LargeDialogTitle className="text-xl md:text-2xl">
+          <LargeDialogTitle className="text-primary text-xl md:text-2xl">
             แก้ไขบิลคู่ค้า
           </LargeDialogTitle>
           <LargeDialogDescription>
@@ -332,7 +345,7 @@ function SupplierBillEditDialog({
         <LargeDialogBody className="px-5 py-5 md:px-6">
           {bill ? (
             <form className="space-y-4" onSubmit={handleSubmit}>
-              <div className="rounded-[8px] border bg-background p-4">
+              <div className="rounded-[8px] border bg-[#FCFCFC] p-4">
                 <div className="flex flex-col gap-4 min-[720px]:flex-row min-[720px]:items-start min-[720px]:justify-between">
                   <div className="min-w-0 space-y-3">
                     <div className="flex flex-wrap items-center gap-2">
@@ -378,7 +391,7 @@ function SupplierBillEditDialog({
                   <span className="block text-sm font-bold text-card-foreground">
                     สถานะ
                   </span>
-                  <div className="grid gap-2 min-[420px]:grid-cols-3">
+                  <div className="grid gap-2 min-[420px]:grid-cols-2">
                     {supplierStatusOptions.map((option) => {
                       const isSelected = status === option;
 
@@ -398,16 +411,6 @@ function SupplierBillEditDialog({
                       );
                     })}
                   </div>
-                  <label htmlFor="supplier-bill-status" className="sr-only">
-                    สถานะอื่น
-                  </label>
-                  <Input
-                    id="supplier-bill-status"
-                    value={status}
-                    onChange={(event) => setStatus(event.target.value)}
-                    className="h-10 rounded-[8px] font-semibold"
-                    placeholder="พิมพ์สถานะเองเมื่อไม่มีในตัวเลือก"
-                  />
                 </div>
 
                 <div className="space-y-2">
@@ -455,6 +458,73 @@ function SupplierBillEditDialog({
                     {bill.createdBy || "-"}
                   </p>
                 </div>
+              </div>
+
+              <div className="overflow-hidden rounded-[8px] border bg-white dark:bg-card">
+                <div className="flex items-center justify-between gap-3 border-b bg-muted/25 px-3 py-2">
+                  <span className="text-sm font-bold text-card-foreground">
+                    รายการสินค้า
+                  </span>
+                  <span className="text-xs font-bold text-muted-foreground">
+                    {formatNumber(bill.lineItems.length || bill.itemCount)}{" "}
+                    รายการ
+                  </span>
+                </div>
+
+                {bill.lineItems.length > 0 ? (
+                  <div className="max-h-[280px] divide-y overflow-y-auto">
+                    {bill.lineItems.map((item, index) => (
+                      <div
+                        key={item.id || `${bill.id}-${index}`}
+                        className="grid gap-3 px-3 py-3 min-[640px]:grid-cols-[minmax(0,1fr)_120px_130px] min-[640px]:items-center"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-bold text-card-foreground">
+                            {item.name || "ไม่ระบุสินค้า"}
+                          </p>
+                          <p className="mt-1 truncate text-xs font-semibold text-muted-foreground">
+                            {item.barcode || "ไม่มีบาร์โค้ด"}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3 text-sm font-semibold min-[640px]:block min-[640px]:text-right">
+                          <span className="text-muted-foreground min-[640px]:hidden">
+                            จำนวน
+                          </span>
+                          <span className="text-card-foreground">
+                            {formatNumber(item.quantity)}
+                            {item.unit ? ` ${item.unit}` : ""}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3 min-[640px]:block min-[640px]:text-right">
+                          <span className="text-sm font-semibold text-muted-foreground min-[640px]:hidden">
+                            รวม
+                          </span>
+                          <div>
+                            <p
+                              className={cn(
+                                outfit.className,
+                                "text-sm font-bold text-card-foreground",
+                              )}
+                            >
+                              {formatCurrency(item.total)}
+                            </p>
+                            {item.discount > 0 ? (
+                              <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
+                                ส่วนลด {formatCurrency(item.discount)}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="px-4 py-6 text-center text-sm font-semibold text-muted-foreground">
+                    ยังไม่มีรายละเอียดสินค้าในฐานข้อมูลเดิมของบิลนี้
+                  </div>
+                )}
               </div>
 
               {errorMessage ? (
@@ -618,7 +688,7 @@ export default function SupplierBillsPage() {
                 </span>
                 <p className="text-sm font-medium text-muted-foreground">
                   {payload.sourceTable
-                    ? "คลิกรายการเพื่อแก้สถานะและยอดเงิน"
+                    ? "ติดตามสถานะและยอดเงินของรายการคู่ค้า"
                     : "ยังไม่พบข้อมูลบิลคู่ค้าในฐานข้อมูลเดิม"}
                 </p>
               </div>
@@ -798,10 +868,6 @@ export default function SupplierBillsPage() {
                                 โดย {bill.createdBy}
                               </span>
                             ) : null}
-                            <span className="hidden items-center gap-1 text-xs font-bold text-main-orange min-[720px]:flex">
-                              <Pencil className="h-3 w-3" />
-                              แก้ไข
-                            </span>
                           </div>
                         </TableCell>
                       </TableRow>

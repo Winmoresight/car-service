@@ -13,6 +13,7 @@ import {
 import { executeQuery } from "@/lib/db";
 import type {
   SupplierBill,
+  SupplierBillLineItem,
   SupplierBillPaymentState,
   SupplierBillsPayload,
   SupplierBillsSummary,
@@ -27,6 +28,8 @@ const detailTableCandidates = [
   "DetailPrintOrderBuyProduct",
   "DetailPrintOderBuyProduct",
 ] as const;
+
+const editableSupplierStatuses = new Set(["ชำระเงินแล้ว", "ค้างชำระ"]);
 
 interface SupplierBillRow {
   date: Date | null;
@@ -44,6 +47,14 @@ interface SupplierBillRow {
 
 interface SupplierBillDetailSummaryRow {
   documentNo: string | null;
+  rowNo: number | string | null;
+  orderNo: string | null;
+  barcode: string | null;
+  name: string | null;
+  quantity: number | string | null;
+  unit: string | null;
+  unitPrice: number | string | null;
+  discount: number | string | null;
   itemCount: number;
   detailTotal: number | string | null;
 }
@@ -131,19 +142,6 @@ function getPaymentState(
   }
 
   if (
-    normalizedStatus.includes("จ่าย") ||
-    normalizedStatus.includes("ชำระ") ||
-    normalizedStatus.includes("paid") ||
-    normalizedStatus.includes("complete") ||
-    normalizedStatus.includes("done")
-  ) {
-    return {
-      paymentState: "paid",
-      paymentLabel: getPaymentLabel(status, "ชำระเงินแล้ว"),
-    };
-  }
-
-  if (
     normalizedStatus.includes("ค้าง") ||
     normalizedStatus.includes("ยังไม่") ||
     normalizedStatus.includes("ไม่จ่าย") ||
@@ -153,6 +151,19 @@ function getPaymentState(
     return {
       paymentState: "unpaid",
       paymentLabel: getPaymentLabel(status, "ค้างชำระ"),
+    };
+  }
+
+  if (
+    normalizedStatus.includes("จ่าย") ||
+    normalizedStatus.includes("ชำระ") ||
+    normalizedStatus.includes("paid") ||
+    normalizedStatus.includes("complete") ||
+    normalizedStatus.includes("done")
+  ) {
+    return {
+      paymentState: "paid",
+      paymentLabel: getPaymentLabel(status, "ชำระเงินแล้ว"),
     };
   }
 
@@ -224,39 +235,108 @@ async function resolveTable(candidates: readonly string[]) {
   return rows[0]?.tableName ?? null;
 }
 
-async function getDetailSummary(detailTable: string | null) {
-  if (!detailTable) {
-    return new Map<string, { itemCount: number; detailTotal: number }>();
+async function getDetailSummary(
+  detailTable: string | null,
+  documentNumbers: string[],
+) {
+  const uniqueDocumentNumbers = Array.from(
+    new Set(documentNumbers.map((value) => value.trim()).filter(Boolean)),
+  );
+
+  if (!detailTable || uniqueDocumentNumbers.length === 0) {
+    return new Map<
+      string,
+      {
+        itemCount: number;
+        detailTotal: number;
+        lineItems: SupplierBillLineItem[];
+      }
+    >();
   }
 
   try {
+    const params = Object.fromEntries(
+      uniqueDocumentNumbers.map((documentNo, index) => [
+        `documentNo${index}`,
+        documentNo,
+      ]),
+    );
+    const documentPlaceholders = uniqueDocumentNumbers
+      .map((_, index) => `@documentNo${index}`)
+      .join(", ");
     const rows = await executeQuery<SupplierBillDetailSummaryRow>(
       `
         SELECT
           NumberPrintPost as documentNo,
-          COUNT(*) as itemCount,
-          ISNULL(SUM(${getSafeMoneyExpression("SumPrice")}), 0) as detailTotal
+          AddRows as rowNo,
+          AddOder as orderNo,
+          ISNULL(BarCode, '') as barcode,
+          ISNULL(NameProduct, '') as name,
+          ${getSafeMoneyExpression("NumProduct")} as quantity,
+          ISNULL(MeterProduct, '') as unit,
+          ${getSafeMoneyExpression("SalePrice")} as unitPrice,
+          ${getSafeMoneyExpression("ReducePrice")} as discount,
+          ${getSafeMoneyExpression("SumPrice")} as detailTotal,
+          COUNT(*) OVER (PARTITION BY NumberPrintPost) as itemCount
         FROM dbo.${quoteIdentifier(detailTable)}
-        GROUP BY NumberPrintPost
+        WHERE NumberPrintPost IN (${documentPlaceholders})
+        ORDER BY NumberPrintPost, AddRows, AddOder
       `,
-      undefined,
+      params,
       false,
     );
 
-    return new Map(
-      rows
-        .filter((row) => normalizeText(row.documentNo))
-        .map((row) => [
-          normalizeText(row.documentNo),
-          {
-            itemCount: Number(row.itemCount) || 0,
-            detailTotal: normalizeMoney(row.detailTotal),
-          },
-        ]),
-    );
+    const detailMap = new Map<
+      string,
+      {
+        itemCount: number;
+        detailTotal: number;
+        lineItems: SupplierBillLineItem[];
+      }
+    >();
+
+    rows.forEach((row, index) => {
+      const documentNo = normalizeText(row.documentNo);
+
+      if (!documentNo) {
+        return;
+      }
+
+      const existing = detailMap.get(documentNo) ?? {
+        itemCount: 0,
+        detailTotal: 0,
+        lineItems: [],
+      };
+      const rowNo = normalizeText(row.rowNo);
+      const orderNo = normalizeText(row.orderNo);
+      const total = normalizeMoney(row.detailTotal);
+
+      existing.itemCount = Number(row.itemCount) || existing.itemCount;
+      existing.detailTotal += total;
+      existing.lineItems.push({
+        id: `${documentNo}-${rowNo || orderNo || index}`,
+        barcode: normalizeText(row.barcode),
+        name: normalizeText(row.name) || "ไม่ระบุสินค้า",
+        quantity: normalizeMoney(row.quantity),
+        unit: normalizeText(row.unit),
+        unitPrice: normalizeMoney(row.unitPrice),
+        discount: normalizeMoney(row.discount),
+        total,
+      });
+      detailMap.set(documentNo, existing);
+    });
+
+    return detailMap;
   } catch (error) {
     console.warn(`Supplier bill detail summary failed:`, error);
-    return new Map<string, { itemCount: number; detailTotal: number }>();
+    return new Map<
+      string,
+      {
+        itemCount: number;
+        detailTotal: number;
+        lineItems: SupplierBillLineItem[];
+      }
+    >();
   }
 }
 
@@ -314,7 +394,6 @@ export async function GET(request: NextRequest) {
         };
       }
 
-      const detailSummary = await getDetailSummary(detailTable);
       const rows = await executeQuery<SupplierBillRow>(
         `
           SELECT TOP (@limit)
@@ -341,6 +420,10 @@ export async function GET(request: NextRequest) {
         { limit, q },
         false,
       );
+      const detailSummary = await getDetailSummary(
+        detailTable,
+        rows.map((row) => normalizeText(row.documentNo)),
+      );
 
       const items: SupplierBill[] = rows.map((row, index) => {
         const documentNo = normalizeText(row.documentNo);
@@ -364,6 +447,7 @@ export async function GET(request: NextRequest) {
           createdBy: normalizeText(row.createdBy),
           itemCount: detail?.itemCount ?? 0,
           detailTotal: detail?.detailTotal ?? 0,
+          lineItems: detail?.lineItems ?? [],
           ...payment,
         };
       });
@@ -387,15 +471,18 @@ export async function PATCH(request: NextRequest) {
     const data = await withTimeout(async () => {
       const body = (await request.json()) as SupplierBillUpdatePayload;
       const documentNo = normalizeText(body.documentNo);
-      const status = normalizeText(body.status);
+      const status = getPaymentLabel(
+        normalizeText(body.status),
+        normalizeText(body.status),
+      );
       const totalPrice = normalizeEditableMoney(body.totalPrice);
 
       if (!documentNo) {
         return errorResponse("กรุณาระบุเลขเอกสารคู่ค้า", 400);
       }
 
-      if (!status) {
-        return errorResponse("กรุณาระบุสถานะ", 400);
+      if (!editableSupplierStatuses.has(status)) {
+        return errorResponse("กรุณาเลือกสถานะชำระเงินแล้วหรือค้างชำระ", 400);
       }
 
       if (totalPrice === null) {

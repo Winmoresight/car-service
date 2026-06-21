@@ -38,6 +38,12 @@ interface Payment {
   TypeDetail: number;
 }
 
+function getSafeMoneyExpression(valueExpression: string) {
+  const textExpression = `LTRIM(RTRIM(CONVERT(nvarchar(100), ${valueExpression})))`;
+
+  return `ISNULL(CONVERT(money, CASE WHEN ${valueExpression} IS NULL THEN '0' WHEN ${textExpression} IN ('', '-', '.', ',', '-.', '-,') THEN '0' WHEN ${textExpression} LIKE '%[^0-9.,-]%' THEN '0' WHEN ISNUMERIC(${textExpression}) = 1 THEN ${textExpression} ELSE '0' END), 0)`;
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -47,7 +53,16 @@ export async function GET(request: Request) {
     const dateFrom = searchParams.get("dateFrom");
     const dateTo = searchParams.get("dateTo");
     const paymentType = searchParams.get("type"); // 'salary' | 'income' | 'expense' | 'all'
+    const scope = searchParams.get("scope"); // 'other' excludes employee payments
     const params: Record<string, unknown> = { limit };
+    const totalPriceExpression = getSafeMoneyExpression("TotalPrice");
+    const debitExpression = getSafeMoneyExpression("Debit");
+    const creditExpression = getSafeMoneyExpression("Credit");
+    const moneyCashExpression = getSafeMoneyExpression("MoneyCash");
+    const moneyTransferExpression = getSafeMoneyExpression("MoneyTransfer");
+    const hasEmployeeExpression =
+      "CodeStaff > 0 AND NameSure IS NOT NULL AND NameSure != ''";
+    const hasMoneyExpression = `(${totalPriceExpression} > 0 OR ${debitExpression} > 0 OR ${creditExpression} > 0)`;
 
     let query = `
       SELECT TOP (@limit)
@@ -64,15 +79,15 @@ export async function GET(request: Request) {
         PriceToWorkDay,
         NumdateWork,
         PriceBonus,
-        TotalPrice,
+        ${totalPriceExpression} as TotalPrice,
         TotalCarriedForward,
         Datepayment,
         NameExpensesORIncome,
         CodeTypepayment,
-        Debit,
-        Credit,
-        MoneyCash,
-        MoneyTransfer,
+        ${debitExpression} as Debit,
+        ${creditExpression} as Credit,
+        ${moneyCashExpression} as MoneyCash,
+        ${moneyTransferExpression} as MoneyTransfer,
         Codebank,
         NameBank,
         Cardbank,
@@ -86,15 +101,17 @@ export async function GET(request: Request) {
 
     // กรองตามประเภท
     if (paymentType === "salary") {
-      query += ` AND CodeStaff > 0 AND NameSure IS NOT NULL AND NameSure != ''`;
+      query += ` AND ${hasEmployeeExpression}`;
     } else if (paymentType === "income") {
-      query += ` AND Debit > 0 AND (Credit IS NULL OR Credit = 0)`;
+      query += ` AND ${creditExpression} > 0 AND ${debitExpression} = 0 AND NOT (${hasEmployeeExpression})`;
     } else if (paymentType === "expense") {
-      query += `
-        AND Credit > 0
-        AND (Debit IS NULL OR Debit = 0)
-        AND (CodeStaff = 0 OR CodeStaff IS NULL OR NameSure = '' OR NameSure IS NULL)
-      `;
+      const otherExpenseCondition = `(${debitExpression} > 0 AND ${creditExpression} = 0 AND NOT (${hasEmployeeExpression}))`;
+      const employeeExpenseCondition = `(${hasEmployeeExpression} AND ${hasMoneyExpression})`;
+
+      query +=
+        scope === "other"
+          ? ` AND ${otherExpenseCondition}`
+          : ` AND (${otherExpenseCondition} OR ${employeeExpenseCondition})`;
     }
 
     // กรองตามวันที่
@@ -112,14 +129,23 @@ export async function GET(request: Request) {
     const payments = await executeQuery<Payment>(query, params);
 
     // แปลงค่า Debit และ Credit เป็นตัวเลข และป้องกัน NaN
-    const normalizedPayments = payments.map((p) => ({
-      ...p,
-      Debit: Number(p.Debit) || 0,
-      Credit: Number(p.Credit) || 0,
-      TotalPrice: Number(p.TotalPrice) || 0,
-      MoneyCash: Number(p.MoneyCash) || 0,
-      MoneyTransfer: Number(p.MoneyTransfer) || 0,
-    }));
+    const normalizedPayments = payments.map((p) => {
+      const totalPrice = Number(p.TotalPrice) || 0;
+      const debit = Number(p.Debit) || 0;
+      const credit = Number(p.Credit) || 0;
+      const hasEmployee =
+        p.CodeStaff > 0 && Boolean(p.NameSure && p.NameSure !== "");
+      const employeeExpense = Math.abs(totalPrice || debit || credit);
+
+      return {
+        ...p,
+        Debit: hasEmployee ? employeeExpense : debit,
+        Credit: hasEmployee ? 0 : credit,
+        TotalPrice: totalPrice || employeeExpense,
+        MoneyCash: Number(p.MoneyCash) || 0,
+        MoneyTransfer: Number(p.MoneyTransfer) || 0,
+      };
+    });
 
     // คำนวณสรุป
     const summary = {

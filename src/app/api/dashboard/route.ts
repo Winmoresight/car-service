@@ -48,30 +48,6 @@ interface DailySaleMoneyRow {
   transfer: number;
 }
 
-interface ReceivablePaymentMoneyRow {
-  id: string;
-  paid_at: Date | null;
-  number_print: string;
-  customer_name: string;
-  name_car: string;
-  province: string;
-  paid_amount: number;
-  payment_method: string;
-  name_bank: string;
-}
-
-interface OtherPaymentMoneyRow {
-  order_num: number;
-  paid_at: Date | null;
-  document_no: string;
-  payment_name: string;
-  money_cash: number;
-  money_transfer: number;
-  is_income: number;
-  name_bank: string;
-  remark: string;
-}
-
 interface DashboardMoneyBreakdown {
   cash: DashboardMoneyBreakdownItem[];
   transfer: DashboardMoneyBreakdownItem[];
@@ -202,35 +178,43 @@ async function getOtherPaymentSummary(
       `
         WITH normalized AS (
           SELECT
-            ABS(ISNULL(TotalPrice, 0)) as total_price,
-            ABS(ISNULL(MoneyCash, 0)) as money_cash,
-            ABS(ISNULL(MoneyTransfer, 0)) as money_transfer,
+            ABS(${getSafeMoneyExpression("TotalPrice")}) as total_price,
+            ABS(${getSafeMoneyExpression("MoneyCash")}) as money_cash,
+            ABS(${getSafeMoneyExpression("MoneyTransfer")}) as money_transfer,
             ${getSafeMoneyExpression("Debit")} as debit_value,
             ${getSafeMoneyExpression("Credit")} as credit_value,
+            CASE
+              WHEN CodeStaff > 0
+                AND NameSure IS NOT NULL
+                AND NameSure != ''
+                THEN 1
+              ELSE 0
+            END as has_employee,
             ISNULL(NameExpensesORIncome, '') as payment_name
           FROM dbo.Payment
           WHERE CONVERT(date, Datepayment) = ${dateCondition}
-            AND (
-              CodeStaff = 0
-              OR CodeStaff IS NULL
-              OR NameSure = ''
-              OR NameSure IS NULL
-            )
         ),
         classified AS (
           SELECT
             *,
             CASE
+              WHEN has_employee = 1 THEN 0
               WHEN credit_value > 0 AND debit_value <= 0 THEN 1
               WHEN payment_name LIKE N'%รายรับ%' THEN 1
               ELSE 0
-            END as is_income
+            END as is_income,
+            CASE
+              WHEN has_employee = 1 AND total_price > 0 THEN total_price
+              WHEN has_employee = 1 AND debit_value > 0 THEN debit_value
+              WHEN has_employee = 1 THEN credit_value
+              ELSE total_price
+            END as effective_total
           FROM normalized
         )
         SELECT
           COUNT(*) as other_count,
-          ISNULL(SUM(CASE WHEN is_income = 1 THEN total_price ELSE 0 END), 0) as income_total,
-          ISNULL(SUM(CASE WHEN is_income = 0 THEN total_price ELSE 0 END), 0) as expense_total,
+          ISNULL(SUM(CASE WHEN is_income = 1 THEN effective_total ELSE 0 END), 0) as income_total,
+          ISNULL(SUM(CASE WHEN is_income = 0 THEN effective_total ELSE 0 END), 0) as expense_total,
           ISNULL(SUM(CASE WHEN is_income = 1 THEN money_cash ELSE 0 END), 0) as income_cash,
           ISNULL(SUM(CASE WHEN is_income = 0 THEN money_cash ELSE 0 END), 0) as expense_cash,
           ISNULL(SUM(CASE WHEN is_income = 1 THEN money_transfer ELSE 0 END), 0) as income_transfer,
@@ -512,198 +496,13 @@ async function getDailySaleMoneyItems(
   }
 }
 
-async function getReceivablePaymentLogItems(
-  dateCondition: string,
-  params?: Record<string, unknown>,
-): Promise<DashboardMoneyBreakdownItem[]> {
-  try {
-    if (!(await receivablePaymentLogTableExists())) {
-      return [];
-    }
-
-    const rows = await executeQuery<ReceivablePaymentMoneyRow>(
-      `
-        SELECT
-          CAST(p.ID AS nvarchar(50)) as id,
-          p.PaidAt as paid_at,
-          ISNULL(p.NumberPrintSalePost, '') as number_print,
-          ISNULL(p.NameCustomer, ISNULL(m.NameCustomer, N'ไม่ระบุลูกค้า')) as customer_name,
-          ISNULL(p.NameCar, ISNULL(m.NameCar, '')) as name_car,
-          ISNULL(p.Province, ISNULL(m.Province, '')) as province,
-          ${getSafeMoneyExpression("p.PaidAmount")} as paid_amount,
-          CASE
-            WHEN LTRIM(RTRIM(ISNULL(p.PaymentMethod, ''))) = 'transfer'
-              THEN 'transfer'
-            ELSE 'cash'
-          END as payment_method,
-          ISNULL(p.NameBank, ISNULL(m.NameBank, '')) as name_bank
-        FROM dbo.WebReceivablePayments p
-        INNER JOIN dbo.MasterSalePost m
-          ON m.NumberPrintSalePost = p.NumberPrintSalePost
-        WHERE CONVERT(date, p.PaidAt) = ${dateCondition}
-          AND m.DateSalePost IS NOT NULL
-          AND CONVERT(date, m.DateSalePost) < CONVERT(date, p.PaidAt)
-          AND ${getSafeMoneyExpression("p.PaidAmount")} > 0
-        ORDER BY p.PaidAt DESC, p.NumberPrintSalePost DESC
-      `,
-      params,
-      false,
-    );
-
-    return rows
-      .map((row): DashboardMoneyBreakdownItem | null => {
-        const amount = normalizeMoney(row.paid_amount);
-
-        if (amount <= 0) {
-          return null;
-        }
-
-        const numberPrint = normalizeText(row.number_print);
-        const method =
-          normalizeText(row.payment_method) === "transfer"
-            ? "transfer"
-            : "cash";
-        const description =
-          compactDescription([
-            row.customer_name,
-            row.name_car,
-            row.province,
-            method === "transfer" ? row.name_bank : "",
-          ]) || "ไม่ระบุรายละเอียด";
-
-        return {
-          id: `receivable-${method}-${normalizeText(row.id) || numberPrint}`,
-          label: numberPrint ? `รับชำระลูกหนี้ ${numberPrint}` : "รับชำระลูกหนี้",
-          description,
-          occurredAt: toISOStringOrNull(row.paid_at),
-          amount,
-          direction: "in",
-          method,
-          source: "receivable",
-        };
-      })
-      .filter((item): item is DashboardMoneyBreakdownItem => item !== null);
-  } catch (error) {
-    console.warn("Optional receivable payment log items failed:", error);
-    return [];
-  }
-}
-
-async function getOtherPaymentMoneyItems(
-  dateCondition: string,
-  params?: Record<string, unknown>,
-): Promise<DashboardMoneyBreakdownItem[]> {
-  try {
-    const rows = await executeQuery<OtherPaymentMoneyRow>(
-      `
-        WITH normalized AS (
-          SELECT
-            ISNULL(OrderNum, 0) as order_num,
-            Datepayment as paid_at,
-            ISNULL(NumberPrintPost, '') as document_no,
-            ABS(ISNULL(MoneyCash, 0)) as money_cash,
-            ABS(ISNULL(MoneyTransfer, 0)) as money_transfer,
-            ${getSafeMoneyExpression("Debit")} as debit_value,
-            ${getSafeMoneyExpression("Credit")} as credit_value,
-            ISNULL(NameExpensesORIncome, '') as payment_name,
-            ISNULL(NameBank, '') as name_bank,
-            ISNULL(Remark, '') as remark
-          FROM dbo.Payment
-          WHERE CONVERT(date, Datepayment) = ${dateCondition}
-            AND (
-              CodeStaff = 0
-              OR CodeStaff IS NULL
-              OR NameSure = ''
-              OR NameSure IS NULL
-            )
-            AND (ABS(ISNULL(MoneyCash, 0)) > 0 OR ABS(ISNULL(MoneyTransfer, 0)) > 0)
-        ),
-        classified AS (
-          SELECT
-            *,
-            CASE
-              WHEN credit_value > 0 AND debit_value <= 0 THEN 1
-              WHEN payment_name LIKE N'%รายรับ%' THEN 1
-              ELSE 0
-            END as is_income
-          FROM normalized
-        )
-        SELECT
-          order_num,
-          paid_at,
-          document_no,
-          payment_name,
-          money_cash,
-          money_transfer,
-          is_income,
-          name_bank,
-          remark
-        FROM classified
-        ORDER BY paid_at DESC, order_num DESC
-      `,
-      params,
-      false,
-    );
-
-    return rows.flatMap((row) => {
-      const paymentName = normalizeText(row.payment_name);
-      const documentNo = normalizeText(row.document_no);
-      const direction = row.is_income === 1 ? "in" : "out";
-      const description =
-        compactDescription([documentNo, row.name_bank, row.remark]) ||
-        (direction === "in" ? "รายการรับเงินอื่น" : "รายการจ่ายเงินอื่น");
-      const baseItem = {
-        label: paymentName || (direction === "in" ? "รายรับอื่น" : "รายจ่ายอื่น"),
-        description,
-        occurredAt: toISOStringOrNull(row.paid_at),
-        direction,
-        source: "other" as const,
-      };
-      const items: DashboardMoneyBreakdownItem[] = [];
-      const cash = normalizeMoney(row.money_cash);
-      const transfer = normalizeMoney(row.money_transfer);
-      const rowId = `${row.order_num || documentNo || items.length}`;
-
-      if (cash > 0) {
-        items.push({
-          ...baseItem,
-          id: `other-cash-${rowId}`,
-          amount: cash,
-          method: "cash",
-        });
-      }
-
-      if (transfer > 0) {
-        items.push({
-          ...baseItem,
-          id: `other-transfer-${rowId}`,
-          amount: transfer,
-          method: "transfer",
-        });
-      }
-
-      return items;
-    });
-  } catch (error) {
-    console.warn("Optional other payment money items failed:", error);
-    return [];
-  }
-}
-
 async function getMoneyBreakdown(
   dateCondition: string,
   params?: Record<string, unknown>,
 ): Promise<DashboardMoneyBreakdown> {
   try {
-    const items = (
-      await Promise.all([
-        getDailySaleMoneyItems(dateCondition, params),
-        getReceivablePaymentLogItems(dateCondition, params),
-        getOtherPaymentMoneyItems(dateCondition, params),
-      ])
-    )
-      .flat()
-      .sort((first, second) => {
+    const items = (await getDailySaleMoneyItems(dateCondition, params)).sort(
+      (first, second) => {
         const firstTime = first.occurredAt
           ? new Date(first.occurredAt).getTime()
           : 0;
@@ -712,7 +511,8 @@ async function getMoneyBreakdown(
           : 0;
 
         return secondTime - firstTime;
-      });
+      },
+    );
 
     return {
       cash: items.filter((item) => item.method === "cash"),
@@ -855,16 +655,8 @@ export async function GET(request: NextRequest) {
           ? (monthResult.total_profit / monthResult.total_sales) * 100
           : 0;
 
-      const cashDrawerExpected =
-        todayResult.total_cash +
-        receivableCollected.cash +
-        otherPayment.income_cash -
-        otherPayment.expense_cash;
-      const transferNet =
-        todayResult.total_transfer +
-        receivableCollected.transfer +
-        otherPayment.income_transfer -
-        otherPayment.expense_transfer;
+      const cashDrawerExpected = todayResult.total_cash;
+      const transferNet = todayResult.total_transfer;
 
       // สร้าง response
       const kpi: DashboardKPI = {

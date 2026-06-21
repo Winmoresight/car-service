@@ -12,6 +12,7 @@ import {
   Receipt,
   Users,
 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { KPICard } from "@/components/dashboard/kpi-card";
@@ -68,6 +69,9 @@ interface Summary {
 }
 
 type PaymentFilter = "all" | "income" | "expense" | "salary";
+type PaymentScope = "all" | "other";
+
+const allowedLimits = [20, 50, 100, 200];
 
 function parseDateParam(value: string | null) {
   if (!value) {
@@ -88,37 +92,81 @@ function isPaymentFilter(value: string | null): value is PaymentFilter {
   );
 }
 
+function getFilterFromParams(params: URLSearchParams): PaymentFilter {
+  const type = params.get("type");
+
+  return isPaymentFilter(type) ? type : "all";
+}
+
+function getSelectedDateFromParams(params: URLSearchParams) {
+  return (
+    parseDateParam(params.get("date") || params.get("dateFrom")) ?? new Date()
+  );
+}
+
+function getLimitFromParams(params: URLSearchParams) {
+  const requestedLimit = Number(params.get("limit"));
+
+  return allowedLimits.includes(requestedLimit) ? requestedLimit : 20;
+}
+
+function getScopeFromParams(params: URLSearchParams): PaymentScope {
+  return params.get("scope") === "other" ? "other" : "all";
+}
+
+function isSameSelectedDate(first: Date | undefined, second: Date | undefined) {
+  if (!first && !second) {
+    return true;
+  }
+
+  if (!first || !second) {
+    return false;
+  }
+
+  return format(first, "yyyy-MM-dd") === format(second, "yyyy-MM-dd");
+}
+
 export default function PaymentsPage() {
+  const searchParams = useSearchParams();
+  const queryString = searchParams.toString();
+  const initialParams = new URLSearchParams(queryString);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<PaymentFilter>("all");
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
-    new Date(),
+  const [filter, setFilter] = useState<PaymentFilter>(() =>
+    getFilterFromParams(initialParams),
   );
-  const [limit, setLimit] = useState(20);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(() =>
+    getSelectedDateFromParams(initialParams),
+  );
+  const [limit, setLimit] = useState(() => getLimitFromParams(initialParams));
+  const [paymentScope, setPaymentScope] = useState<PaymentScope>(() =>
+    getScopeFromParams(initialParams),
+  );
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const initialType = params.get("type");
-    const initialDate = parseDateParam(
-      params.get("date") || params.get("dateFrom"),
+    const params = new URLSearchParams(queryString);
+    const nextFilter = getFilterFromParams(params);
+    const nextSelectedDate = getSelectedDateFromParams(params);
+    const nextLimit = getLimitFromParams(params);
+    const nextScope = getScopeFromParams(params);
+
+    setFilter((currentFilter) =>
+      currentFilter === nextFilter ? currentFilter : nextFilter,
     );
-    const requestedLimit = Number(params.get("limit"));
-
-    if (isPaymentFilter(initialType)) {
-      setFilter(initialType);
-    }
-
-    if (initialDate) {
-      setSelectedDate(initialDate);
-    }
-
-    if ([20, 50, 100, 200].includes(requestedLimit)) {
-      setLimit(requestedLimit);
-    }
-  }, []);
+    setSelectedDate((currentSelectedDate) =>
+      isSameSelectedDate(currentSelectedDate, nextSelectedDate)
+        ? currentSelectedDate
+        : nextSelectedDate,
+    );
+    setLimit((currentLimit) =>
+      currentLimit === nextLimit ? currentLimit : nextLimit,
+    );
+    setPaymentScope((currentScope) =>
+      currentScope === nextScope ? currentScope : nextScope,
+    );
+  }, [queryString]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("th-TH", {
@@ -165,25 +213,24 @@ export default function PaymentsPage() {
     if (hasEmployee) {
       return {
         label: "พนักงาน",
-        className: isCredit
-          ? "bg-red-50 text-main-red border-red-100 dark:bg-red-500/10 dark:border-red-500/20"
-          : "bg-orange-50 text-main-orange border-orange-100 dark:bg-orange-500/10 dark:border-orange-500/20",
+        className:
+          "bg-red-50 text-main-red border-red-100 dark:bg-red-500/10 dark:border-red-500/20",
       };
     }
 
     if (isDebit && !isCredit) {
       return {
-        label: "รายรับ",
+        label: "รายจ่าย",
         className:
-          "bg-emerald-50 text-main-green border-emerald-100 dark:bg-emerald-500/10 dark:border-emerald-500/20",
+          "bg-red-50 text-main-red border-red-100 dark:bg-red-500/10 dark:border-red-500/20",
       };
     }
 
     if (isCredit && !isDebit) {
       return {
-        label: "รายจ่าย",
+        label: "รายรับ",
         className:
-          "bg-red-50 text-main-red border-red-100 dark:bg-red-500/10 dark:border-red-500/20",
+          "bg-emerald-50 text-main-green border-emerald-100 dark:bg-emerald-500/10 dark:border-emerald-500/20",
       };
     }
 
@@ -219,9 +266,12 @@ export default function PaymentsPage() {
   };
 
   useEffect(() => {
+    let shouldIgnoreResponse = false;
+
     async function fetchPayments() {
       try {
         setLoading(true);
+        setError(null);
         const params = new URLSearchParams({
           limit: limit.toString(),
           type: filter,
@@ -233,22 +283,40 @@ export default function PaymentsPage() {
           params.set("dateTo", date);
         }
 
+        if (paymentScope === "other") {
+          params.set("scope", paymentScope);
+        }
+
         const res = await fetch(`/api/payments?${params.toString()}`);
         const data = await res.json();
+
+        if (shouldIgnoreResponse) {
+          return;
+        }
 
         if (data.success) {
           setPayments(data.data);
           setSummary(data.summary);
+        } else {
+          setError(data.error || "เกิดข้อผิดพลาด");
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
+        if (!shouldIgnoreResponse) {
+          setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
+        }
       } finally {
-        setLoading(false);
+        if (!shouldIgnoreResponse) {
+          setLoading(false);
+        }
       }
     }
 
     fetchPayments();
-  }, [filter, limit, selectedDate]);
+
+    return () => {
+      shouldIgnoreResponse = true;
+    };
+  }, [filter, limit, paymentScope, selectedDate]);
 
   if (loading) {
     return (
@@ -299,14 +367,20 @@ export default function PaymentsPage() {
             <div className="flex flex-wrap gap-2">
               <Button
                 variant={filter === "all" ? "default" : "outline"}
-                onClick={() => setFilter("all")}
+                onClick={() => {
+                  setFilter("all");
+                  setPaymentScope("all");
+                }}
                 className="font-bold"
               >
                 ทั้งหมด
               </Button>
               <Button
                 variant={filter === "income" ? "default" : "outline"}
-                onClick={() => setFilter("income")}
+                onClick={() => {
+                  setFilter("income");
+                  setPaymentScope("all");
+                }}
                 className="font-bold"
               >
                 <ArrowUpCircle className="mr-2 h-4 w-4" />
@@ -314,7 +388,10 @@ export default function PaymentsPage() {
               </Button>
               <Button
                 variant={filter === "expense" ? "default" : "outline"}
-                onClick={() => setFilter("expense")}
+                onClick={() => {
+                  setFilter("expense");
+                  setPaymentScope("all");
+                }}
                 className="font-bold"
               >
                 <ArrowDownCircle className="mr-2 h-4 w-4" />
@@ -322,7 +399,10 @@ export default function PaymentsPage() {
               </Button>
               <Button
                 variant={filter === "salary" ? "default" : "outline"}
-                onClick={() => setFilter("salary")}
+                onClick={() => {
+                  setFilter("salary");
+                  setPaymentScope("all");
+                }}
                 className="font-bold"
               >
                 <Users className="mr-2 h-4 w-4" />
@@ -385,17 +465,17 @@ export default function PaymentsPage() {
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <KPICard
                   title="รายรับ"
-                  value={summary.totalDebit || 0}
+                  value={summary.totalCredit || 0}
                   format="currency"
-                  subtitle={`${summary.debitCount || 0} รายการ`}
+                  subtitle={`${summary.creditCount || 0} รายการ`}
                   icon={ArrowUpCircle}
                   variant="emerald"
                 />
                 <KPICard
                   title="รายจ่าย"
-                  value={summary.totalCredit || 0}
+                  value={summary.totalDebit || 0}
                   format="currency"
-                  subtitle={`${summary.creditCount || 0} รายการ`}
+                  subtitle={`${summary.debitCount || 0} รายการ`}
                   icon={ArrowDownCircle}
                   variant="red"
                 />
@@ -586,19 +666,6 @@ export default function PaymentsPage() {
                           <div className="flex flex-col items-end gap-1.5">
                             {payment.Debit > 0 && (
                               <div className="flex items-center gap-1.5">
-                                <ArrowUpCircle className="h-4 w-4 text-main-green" />
-                                <span
-                                  className={cn(
-                                    outfit.className,
-                                    "text-sm font-bold text-main-green",
-                                  )}
-                                >
-                                  +{formatCurrency(payment.Debit)}
-                                </span>
-                              </div>
-                            )}
-                            {payment.Credit > 0 && (
-                              <div className="flex items-center gap-1.5">
                                 <ArrowDownCircle className="h-4 w-4 text-main-red" />
                                 <span
                                   className={cn(
@@ -606,7 +673,20 @@ export default function PaymentsPage() {
                                     "text-sm font-bold text-main-red",
                                   )}
                                 >
-                                  -{formatCurrency(payment.Credit)}
+                                  -{formatCurrency(payment.Debit)}
+                                </span>
+                              </div>
+                            )}
+                            {payment.Credit > 0 && (
+                              <div className="flex items-center gap-1.5">
+                                <ArrowUpCircle className="h-4 w-4 text-main-green" />
+                                <span
+                                  className={cn(
+                                    outfit.className,
+                                    "text-sm font-bold text-main-green",
+                                  )}
+                                >
+                                  +{formatCurrency(payment.Credit)}
                                 </span>
                               </div>
                             )}
@@ -675,15 +755,15 @@ export default function PaymentsPage() {
                             {/* แสดง Debit/Credit ในมุมมอง mobile */}
                             <div className="flex flex-wrap justify-end gap-2 min-[900px]:hidden">
                               {payment.Debit > 0 && (
-                                <span className="flex items-center gap-1 text-xs font-semibold text-main-green">
-                                  <ArrowUpCircle className="h-3 w-3" />
-                                  รับ {formatCurrency(payment.Debit)}
+                                <span className="flex items-center gap-1 text-xs font-semibold text-main-red">
+                                  <ArrowDownCircle className="h-3 w-3" />
+                                  จ่าย {formatCurrency(payment.Debit)}
                                 </span>
                               )}
                               {payment.Credit > 0 && (
-                                <span className="flex items-center gap-1 text-xs font-semibold text-main-red">
-                                  <ArrowDownCircle className="h-3 w-3" />
-                                  จ่าย {formatCurrency(payment.Credit)}
+                                <span className="flex items-center gap-1 text-xs font-semibold text-main-green">
+                                  <ArrowUpCircle className="h-3 w-3" />
+                                  รับ {formatCurrency(payment.Credit)}
                                 </span>
                               )}
                             </div>

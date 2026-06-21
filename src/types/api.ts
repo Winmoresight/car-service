@@ -98,6 +98,17 @@ export interface LossProduct {
 // Supplier bills / purchase records
 export type SupplierBillPaymentState = "paid" | "unpaid" | "unknown";
 
+export interface SupplierBillLineItem {
+  id: string;
+  barcode: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  discount: number;
+  total: number;
+}
+
 export interface SupplierBill {
   id: string;
   date: string | null;
@@ -113,6 +124,7 @@ export interface SupplierBill {
   createdBy: string;
   itemCount: number;
   detailTotal: number;
+  lineItems: SupplierBillLineItem[];
   paymentState: SupplierBillPaymentState;
   paymentLabel: string;
 }
