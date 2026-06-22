@@ -43,11 +43,6 @@ export const mainNavigation = [
     icon: Receipt,
   },
   {
-    name: "คู่ค้า",
-    href: "/supplier-bills",
-    icon: Truck,
-  },
-  {
     name: "ลูกค้า",
     href: "/customers",
     icon: Users,
@@ -76,6 +71,11 @@ export const mainNavigation = [
     name: "สต็อก",
     href: "/stock",
     icon: Warehouse,
+  },
+  {
+    name: "คู่ค้า",
+    href: "/supplier-bills",
+    icon: Truck,
   },
   {
     name: "พนักงาน",

@@ -188,7 +188,7 @@ export function SaleDetailDialog({
     <LargeDialog open={isOpen} onOpenChange={handleOpenChange}>
       <LargeDialogContent size="2xl">
         <LargeDialogHeader>
-          <LargeDialogTitle>
+          <LargeDialogTitle className="text-primary">
             {saleDetail ? `รายละเอียดบิล ${saleDetail.id}` : "รายละเอียดบิลขาย"}
           </LargeDialogTitle>
           <LargeDialogDescription>

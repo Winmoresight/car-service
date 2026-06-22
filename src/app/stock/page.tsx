@@ -7,18 +7,34 @@
 
 import {
   AlertCircle,
+  CheckCircle2,
   Clock,
+  Loader2,
   type LucideIcon,
   Package,
+  Plus,
+  Save,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
-import { useState } from "react";
+import { type FormEvent, useCallback, useEffect, useState } from "react";
 import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { outfit } from "@/components/fonts/fonts";
+import AsyncSearchableSelect from "@/components/ui/async-searchable-select";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  LargeDialog,
+  LargeDialogBody,
+  LargeDialogContent,
+  LargeDialogDescription,
+  LargeDialogFooter,
+  LargeDialogHeader,
+  LargeDialogTitle,
+} from "@/components/ui/large-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -30,9 +46,16 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import type { ApiResponse } from "@/types/api";
+import type {
+  ApiResponse,
+  PaginatedPayload,
+  StockCatalogOption,
+  StockProductCatalogPayload,
+  StockProductCreateResult,
+} from "@/types/api";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
+const STOCK_LIST_LIMIT = 50;
 
 interface StockItem {
   barCode: string;
@@ -52,25 +75,172 @@ interface StockMovement {
   company?: string;
 }
 
+interface ProductDraft {
+  categoryId: string;
+  name: string;
+  unit: string;
+  packageQuantity: string;
+  packageUnit: string;
+  costPrice: string;
+  retailPrice: string;
+}
+
+function createEmptyProductDraft(): ProductDraft {
+  return {
+    categoryId: "25",
+    name: "",
+    unit: "",
+    packageQuantity: "1",
+    packageUnit: "",
+    costPrice: "",
+    retailPrice: "",
+  };
+}
+
+function getResponseErrorMessage<T>(response: ApiResponse<T>) {
+  return response.success ? "" : response.error;
+}
+
+function getPreviewBarcode(categoryId: string, barcodeSuffix?: number) {
+  if (!barcodeSuffix) {
+    return "";
+  }
+
+  const normalizedCategoryId = Number.parseInt(categoryId || "25", 10) || 25;
+
+  return `${normalizedCategoryId}${String(barcodeSuffix).padStart(4, "0")}`;
+}
+
+function filterCatalogOptions(
+  options: StockCatalogOption[],
+  search: string,
+  signal: AbortSignal,
+) {
+  if (signal.aborted) {
+    return [];
+  }
+
+  const normalizedSearch = search.trim().toLowerCase();
+
+  if (!normalizedSearch) {
+    return options;
+  }
+
+  return options.filter((option) =>
+    option.name.toLowerCase().includes(normalizedSearch),
+  );
+}
+
 export default function StockPage() {
   const [activeTab, setActiveTab] = useState("summary");
+  const [isCreateProductOpen, setIsCreateProductOpen] = useState(false);
+  const [productDraft, setProductDraft] = useState<ProductDraft>(() =>
+    createEmptyProductDraft(),
+  );
+  const [createProductError, setCreateProductError] = useState<string | null>(
+    null,
+  );
+  const [createProductSuccess, setCreateProductSuccess] = useState<
+    string | null
+  >(null);
+  const [isCreatingProduct, setIsCreatingProduct] = useState(false);
+  const selectedCategoryId =
+    Number.parseInt(productDraft.categoryId || "25", 10) || 25;
 
   // Fetch stock summary
-  const { data: summaryData, isLoading: summaryLoading } = useSWR<
-    ApiResponse<StockItem[]>
-  >("/api/stock?type=summary&limit=50", fetcher, { refreshInterval: 30000 });
+  const {
+    data: summaryData,
+    isLoading: summaryLoading,
+    mutate: mutateSummary,
+  } = useSWR<ApiResponse<PaginatedPayload<StockItem>>>(
+    `/api/stock?type=summary&limit=${STOCK_LIST_LIMIT}`,
+    fetcher,
+    { refreshInterval: 30000 },
+  );
 
   // Fetch recent movements
-  const { data: movementsData, isLoading: movementsLoading } = useSWR<
-    ApiResponse<StockMovement[]>
-  >("/api/stock?type=movements&limit=100", fetcher, {
-    refreshInterval: 30000,
-  });
+  const {
+    data: movementsData,
+    isLoading: movementsLoading,
+    mutate: mutateMovements,
+  } = useSWR<ApiResponse<PaginatedPayload<StockMovement>>>(
+    `/api/stock?type=movements&limit=${STOCK_LIST_LIMIT}`,
+    fetcher,
+    {
+      refreshInterval: 30000,
+    },
+  );
+  const {
+    data: productCatalogData,
+    isLoading: productCatalogLoading,
+    mutate: mutateProductCatalog,
+  } = useSWR<ApiResponse<StockProductCatalogPayload>>(
+    isCreateProductOpen
+      ? `/api/stock?type=catalog&categoryId=${selectedCategoryId}`
+      : null,
+    fetcher,
+  );
 
   const stockItems =
-    summaryData?.success && summaryData.data ? summaryData.data : [];
+    summaryData?.success && summaryData.data?.items
+      ? summaryData.data.items
+      : [];
   const movements =
-    movementsData?.success && movementsData.data ? movementsData.data : [];
+    movementsData?.success && movementsData.data?.items
+      ? movementsData.data.items
+      : [];
+  const productCatalog =
+    productCatalogData?.success && productCatalogData.data
+      ? productCatalogData.data
+      : null;
+  const previewBarcode = getPreviewBarcode(
+    productDraft.categoryId,
+    productCatalog?.nextBarcodeSuffix,
+  );
+  const selectedCategory = productCatalog?.categories.find(
+    (category) => String(category.id) === productDraft.categoryId,
+  );
+  const fetchCategoryOptions = useCallback(
+    async (search: string, signal: AbortSignal) =>
+      filterCatalogOptions(productCatalog?.categories ?? [], search, signal),
+    [productCatalog?.categories],
+  );
+  const fetchUnitOptions = useCallback(
+    async (search: string, signal: AbortSignal) =>
+      filterCatalogOptions(productCatalog?.units ?? [], search, signal),
+    [productCatalog?.units],
+  );
+
+  useEffect(() => {
+    if (!isCreateProductOpen || !productCatalog) {
+      return;
+    }
+
+    setProductDraft((current) => {
+      const categoryId =
+        current.categoryId ||
+        (productCatalog.categories[0]?.id
+          ? String(productCatalog.categories[0].id)
+          : "");
+      const unit = current.unit || productCatalog.units[0]?.name || "";
+      const packageUnit = current.packageUnit || unit;
+
+      if (
+        current.categoryId === categoryId &&
+        current.unit === unit &&
+        current.packageUnit === packageUnit
+      ) {
+        return current;
+      }
+
+      return {
+        ...current,
+        categoryId,
+        unit,
+        packageUnit,
+      };
+    });
+  }, [isCreateProductOpen, productCatalog]);
 
   // Calculate stats
   const totalItems = stockItems.length;
@@ -188,6 +358,78 @@ export default function StockPage() {
     };
   };
 
+  const updateProductDraft = (updates: Partial<ProductDraft>) => {
+    setProductDraft((current) => ({ ...current, ...updates }));
+  };
+
+  const handleCreateProductOpenChange = (open: boolean) => {
+    setIsCreateProductOpen(open);
+
+    if (open) {
+      setCreateProductError(null);
+      setCreateProductSuccess(null);
+      return;
+    }
+
+    setIsCreatingProduct(false);
+  };
+
+  const handleCreateProductSubmit = async (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
+    setCreateProductError(null);
+    setCreateProductSuccess(null);
+
+    try {
+      setIsCreatingProduct(true);
+
+      const response = await fetch("/api/stock", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          categoryId: Number.parseInt(productDraft.categoryId, 10),
+          name: productDraft.name,
+          unit: productDraft.unit,
+          packageQuantity: productDraft.packageQuantity,
+          packageUnit: productDraft.packageUnit || productDraft.unit,
+          costPrice: productDraft.costPrice,
+          retailPrice: productDraft.retailPrice,
+        }),
+      });
+      const result =
+        (await response.json()) as ApiResponse<StockProductCreateResult>;
+
+      if (!response.ok || !result.success) {
+        throw new Error(getResponseErrorMessage(result) || "เพิ่มสินค้าไม่สำเร็จ");
+      }
+
+      setCreateProductSuccess(
+        `เพิ่ม ${result.data.name} แล้ว รหัส ${result.data.productCode} บาร์โค้ด ${result.data.barcode}`,
+      );
+      setProductDraft((current) => ({
+        ...createEmptyProductDraft(),
+        categoryId: current.categoryId,
+        unit: current.unit,
+        packageUnit: current.packageUnit || current.unit,
+      }));
+
+      await Promise.all([
+        mutateSummary(),
+        mutateMovements(),
+        mutateProductCatalog(),
+      ]);
+    } catch (error) {
+      setCreateProductError(
+        error instanceof Error ? error.message : "เพิ่มสินค้าไม่สำเร็จ",
+      );
+    } finally {
+      setIsCreatingProduct(false);
+    }
+  };
+
   return (
     <div className="p-6 pb-16">
       <DashboardBreadcrumb label="สต็อก" href="/stock" />
@@ -208,6 +450,14 @@ export default function StockPage() {
                 </p>
               </div>
             </div>
+            <Button
+              type="button"
+              className="h-10 w-full rounded-[8px] font-bold min-[520px]:w-fit"
+              onClick={() => handleCreateProductOpenChange(true)}
+            >
+              <Plus className="h-4 w-4" />
+              เพิ่มสินค้า
+            </Button>
           </div>
 
           {/* Stats Cards */}
@@ -679,6 +929,263 @@ export default function StockPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <LargeDialog
+        open={isCreateProductOpen}
+        onOpenChange={handleCreateProductOpenChange}
+      >
+        <LargeDialogContent size="xl">
+          <form
+            className="flex min-h-0 flex-1 flex-col"
+            onSubmit={handleCreateProductSubmit}
+          >
+            <LargeDialogHeader className="pr-16">
+              <div className="flex items-start gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] border border-blue-100 bg-blue-50 text-main-blue dark:border-blue-500/20 dark:bg-blue-500/10">
+                  <Package className="h-6 w-6" />
+                </div>
+                <div className="min-w-0">
+                  <LargeDialogTitle>เพิ่มสินค้า</LargeDialogTitle>
+                  <LargeDialogDescription>
+                    รหัสสินค้า บาร์โค้ด และจำนวนคงเหลือเริ่มต้นจะถูกกำหนดโดยระบบ
+                  </LargeDialogDescription>
+                </div>
+              </div>
+            </LargeDialogHeader>
+
+            <LargeDialogBody className="space-y-5">
+              <div className="grid gap-3 rounded-[8px] border bg-white p-4 min-[760px]:grid-cols-3 dark:bg-card">
+                <div className="space-y-2">
+                  <span className="block text-sm font-bold text-muted-foreground">
+                    รหัสสินค้า
+                  </span>
+                  <Input
+                    value={productCatalog?.nextProductCode ?? ""}
+                    readOnly
+                    placeholder={productCatalogLoading ? "กำลังเตรียม" : ""}
+                    className="h-11 rounded-[8px] bg-muted/30 font-bold text-main-blue shadow-none"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <span className="block text-sm font-bold text-muted-foreground">
+                    บาร์โค้ด
+                  </span>
+                  <Input
+                    value={previewBarcode}
+                    readOnly
+                    placeholder={productCatalogLoading ? "กำลังเตรียม" : ""}
+                    className="h-11 rounded-[8px] bg-muted/30 font-bold text-main-blue shadow-none"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <span className="block text-sm font-bold text-muted-foreground">
+                    จำนวนคงเหลือ
+                  </span>
+                  <Input
+                    value="0"
+                    readOnly
+                    className="h-11 rounded-[8px] bg-muted/30 text-right font-bold shadow-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 rounded-[8px] border bg-card p-4 min-[760px]:grid-cols-2">
+                <div className="space-y-2">
+                  <span className="block text-sm font-bold text-card-foreground">
+                    ประเภทสินค้า
+                  </span>
+                  <AsyncSearchableSelect<StockCatalogOption>
+                    selectedLabel={selectedCategory?.name}
+                    placeholder="เลือกประเภทสินค้า"
+                    searchPlaceholder="ค้นหาประเภทสินค้า..."
+                    emptyMessage="ไม่พบประเภทสินค้า"
+                    disabled={productCatalogLoading || !productCatalog}
+                    fetchOptions={fetchCategoryOptions}
+                    getOptionKey={(category) => String(category.id)}
+                    getOptionLabel={(category) => category.name}
+                    isOptionSelected={(category) =>
+                      String(category.id) === productDraft.categoryId
+                    }
+                    onSelect={(category) =>
+                      updateProductDraft({ categoryId: String(category.id) })
+                    }
+                    triggerClassName="h-11 rounded-[8px] bg-white font-bold dark:bg-background"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label
+                    htmlFor="stock-product-name"
+                    className="block text-sm font-bold text-card-foreground"
+                  >
+                    ชื่อสินค้า
+                  </label>
+                  <Input
+                    id="stock-product-name"
+                    value={productDraft.name}
+                    onChange={(event) =>
+                      updateProductDraft({ name: event.target.value })
+                    }
+                    className="h-11 rounded-[8px] bg-white font-semibold dark:bg-background"
+                    placeholder="ชื่อสินค้า"
+                  />
+                </div>
+
+                <div className="grid gap-3 min-[520px]:grid-cols-[1fr_120px_1fr] min-[760px]:col-span-2">
+                  <div className="space-y-2">
+                    <span className="block text-sm font-bold text-card-foreground">
+                      หน่วย
+                    </span>
+                    <AsyncSearchableSelect<StockCatalogOption>
+                      selectedLabel={productDraft.unit}
+                      placeholder="เลือกหน่วย"
+                      searchPlaceholder="ค้นหาหน่วย..."
+                      emptyMessage="ไม่พบหน่วย"
+                      disabled={productCatalogLoading || !productCatalog}
+                      fetchOptions={fetchUnitOptions}
+                      getOptionKey={(unit) => String(unit.id)}
+                      getOptionLabel={(unit) => unit.name}
+                      isOptionSelected={(unit) =>
+                        unit.name === productDraft.unit
+                      }
+                      onSelect={(unit) =>
+                        updateProductDraft({
+                          unit: unit.name,
+                          packageUnit: productDraft.packageUnit || unit.name,
+                        })
+                      }
+                      triggerClassName="h-11 rounded-[8px] bg-white font-bold dark:bg-background"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="stock-product-package-quantity"
+                      className="block text-sm font-bold text-card-foreground"
+                    >
+                      จำนวนบรรจุ
+                    </label>
+                    <Input
+                      id="stock-product-package-quantity"
+                      inputMode="numeric"
+                      value={productDraft.packageQuantity}
+                      onChange={(event) =>
+                        updateProductDraft({
+                          packageQuantity: event.target.value,
+                        })
+                      }
+                      className="h-11 rounded-[8px] bg-white text-right font-semibold dark:bg-background"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <span className="block text-sm font-bold text-card-foreground">
+                      หน่วยบรรจุ
+                    </span>
+                    <AsyncSearchableSelect<StockCatalogOption>
+                      selectedLabel={productDraft.packageUnit}
+                      placeholder="เลือกหน่วยบรรจุ"
+                      searchPlaceholder="ค้นหาหน่วยบรรจุ..."
+                      emptyMessage="ไม่พบหน่วยบรรจุ"
+                      disabled={productCatalogLoading || !productCatalog}
+                      fetchOptions={fetchUnitOptions}
+                      getOptionKey={(unit) => String(unit.id)}
+                      getOptionLabel={(unit) => unit.name}
+                      isOptionSelected={(unit) =>
+                        unit.name === productDraft.packageUnit
+                      }
+                      onSelect={(unit) =>
+                        updateProductDraft({ packageUnit: unit.name })
+                      }
+                      triggerClassName="h-11 rounded-[8px] bg-white font-bold dark:bg-background"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label
+                    htmlFor="stock-product-cost"
+                    className="block text-sm font-bold text-card-foreground"
+                  >
+                    ราคาทุน
+                  </label>
+                  <Input
+                    id="stock-product-cost"
+                    inputMode="decimal"
+                    value={productDraft.costPrice}
+                    onChange={(event) =>
+                      updateProductDraft({ costPrice: event.target.value })
+                    }
+                    className="h-11 rounded-[8px] bg-white text-right font-semibold dark:bg-background"
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label
+                    htmlFor="stock-product-retail"
+                    className="block text-sm font-bold text-card-foreground"
+                  >
+                    ราคาปลีก
+                  </label>
+                  <Input
+                    id="stock-product-retail"
+                    inputMode="decimal"
+                    value={productDraft.retailPrice}
+                    onChange={(event) =>
+                      updateProductDraft({ retailPrice: event.target.value })
+                    }
+                    className="h-11 rounded-[8px] bg-white text-right font-semibold dark:bg-background"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
+              {createProductError ? (
+                <div className="flex items-start gap-2 rounded-[8px] border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-main-red dark:border-red-500/20 dark:bg-red-500/10">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{createProductError}</span>
+                </div>
+              ) : null}
+
+              {createProductSuccess ? (
+                <div className="flex items-start gap-2 rounded-[8px] border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-main-green dark:border-emerald-500/20 dark:bg-emerald-500/10">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{createProductSuccess}</span>
+                </div>
+              ) : null}
+            </LargeDialogBody>
+
+            <LargeDialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 rounded-[8px] font-bold"
+                disabled={isCreatingProduct}
+                onClick={() => handleCreateProductOpenChange(false)}
+              >
+                ยกเลิก
+              </Button>
+              <Button
+                type="submit"
+                className="h-10 rounded-[8px] font-bold"
+                disabled={
+                  isCreatingProduct || productCatalogLoading || !productCatalog
+                }
+              >
+                {isCreatingProduct ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                บันทึกสินค้า
+              </Button>
+            </LargeDialogFooter>
+          </form>
+        </LargeDialogContent>
+      </LargeDialog>
     </div>
   );
 }

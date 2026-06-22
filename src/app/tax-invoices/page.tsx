@@ -28,6 +28,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -80,12 +88,21 @@ interface ReceivableSummary {
 
 type PaymentMethod = "cash" | "transfer";
 
+interface CloseReceivableDialogState {
+  invoice: ReceivableBill;
+  paymentMethod: PaymentMethod;
+}
+
 export default function TaxInvoicesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(0);
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [closingBillNo, setClosingBillNo] = useState<string | null>(null);
+  const [closeDialogState, setCloseDialogState] =
+    useState<CloseReceivableDialogState | null>(null);
+  const [transferBankName, setTransferBankName] = useState("");
+  const [closeDialogError, setCloseDialogError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
@@ -209,42 +226,27 @@ export default function TaxInvoicesPage() {
     setSelectedSaleId(null);
   };
 
-  const closeReceivable = async (
+  const openCloseReceivableDialog = (
     invoice: ReceivableBill,
     paymentMethod: PaymentMethod,
   ) => {
-    let nameBank = "";
+    setCloseDialogState({ invoice, paymentMethod });
+    setTransferBankName("");
+    setCloseDialogError(null);
+  };
 
-    if (paymentMethod === "transfer") {
-      const promptedBank = window.prompt(
-        `ระบุธนาคารสำหรับปิดลูกหนี้ ${invoice.numberPrint}`,
-        "",
-      );
+  const handleCloseReceivableDialog = () => {
+    setCloseDialogState(null);
+    setTransferBankName("");
+    setCloseDialogError(null);
+  };
 
-      if (promptedBank === null) {
-        return;
-      }
-
-      nameBank = promptedBank.trim();
-
-      if (!nameBank) {
-        setActionMessage(null);
-        setActionError("กรุณาระบุธนาคารสำหรับเงินโอน");
-        return;
-      }
-    }
-
-    const paymentLabel =
-      paymentMethod === "cash" ? "เงินสด" : `เงินโอน (${nameBank})`;
-    const confirmed = window.confirm(
-      `ยืนยันปิดลูกหนี้ ${invoice.numberPrint} ด้วย${paymentLabel} ${formatCurrency(
-        invoice.receivableAmount,
-      )}?`,
-    );
-
-    if (!confirmed) {
+  const closeReceivable = async (nameBank: string) => {
+    if (!closeDialogState) {
       return;
     }
+
+    const { invoice, paymentMethod } = closeDialogState;
 
     try {
       setClosingBillNo(invoice.numberPrint);
@@ -271,6 +273,7 @@ export default function TaxInvoicesPage() {
       setActionMessage(`ปิดลูกหนี้ ${invoice.numberPrint} เรียบร้อยแล้ว`);
       await mutate();
       handleCloseDialog();
+      handleCloseReceivableDialog();
     } catch (err) {
       setActionError(
         err instanceof Error ? err.message : "ไม่สามารถปรับสถานะลูกหนี้ได้",
@@ -298,7 +301,7 @@ export default function TaxInvoicesPage() {
   };
 
   const receivablePaymentAction = selectedInvoice ? (
-    <div className="rounded-2xl border border-orange-100 bg-orange-50/60 p-4 dark:border-orange-500/20 dark:bg-orange-500/10">
+    <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
       <div className="flex flex-col justify-between gap-3 min-[560px]:flex-row min-[560px]:items-center">
         <div className="flex flex-col">
           <span className="text-base font-bold text-card-foreground">
@@ -323,7 +326,7 @@ export default function TaxInvoicesPage() {
           type="button"
           variant="outline"
           disabled={closingBillNo === selectedInvoice.numberPrint}
-          onClick={() => closeReceivable(selectedInvoice, "cash")}
+          onClick={() => openCloseReceivableDialog(selectedInvoice, "cash")}
           className="h-10 border-emerald-100 bg-white text-main-green shadow-none hover:border-main-green/40 hover:bg-emerald-50 hover:!text-main-green dark:border-emerald-500/20 dark:bg-card"
         >
           {closingBillNo === selectedInvoice.numberPrint ? (
@@ -337,7 +340,7 @@ export default function TaxInvoicesPage() {
           type="button"
           variant="outline"
           disabled={closingBillNo === selectedInvoice.numberPrint}
-          onClick={() => closeReceivable(selectedInvoice, "transfer")}
+          onClick={() => openCloseReceivableDialog(selectedInvoice, "transfer")}
           className="h-10 border-blue-100 bg-white text-main-blue shadow-none hover:border-main-blue/40 hover:bg-blue-50 hover:!text-main-blue dark:border-blue-500/20 dark:bg-card"
         >
           {closingBillNo === selectedInvoice.numberPrint ? (
@@ -350,6 +353,17 @@ export default function TaxInvoicesPage() {
       </div>
     </div>
   ) : null;
+
+  const selectedCloseInvoice = closeDialogState?.invoice ?? null;
+  const selectedCloseMethod = closeDialogState?.paymentMethod ?? null;
+  const selectedCloseMethodLabel =
+    selectedCloseMethod === "cash" ? "เงินสด" : "เงินโอน";
+  const SelectedCloseMethodIcon =
+    selectedCloseMethod === "cash" ? Banknote : CreditCard;
+  const selectedCloseMethodColor =
+    selectedCloseMethod === "cash"
+      ? "border-emerald-100 bg-emerald-50 text-main-green dark:border-emerald-500/20 dark:bg-emerald-500/10"
+      : "border-blue-100 bg-blue-50 text-main-blue dark:border-blue-500/20 dark:bg-blue-500/10";
 
   return (
     <div className="p-6 pb-16">
@@ -753,6 +767,127 @@ export default function TaxInvoicesPage() {
           onClose={handleCloseDialog}
           paymentAction={receivablePaymentAction}
         />
+
+        <Dialog
+          open={closeDialogState !== null}
+          onOpenChange={(open) => {
+            if (!open) {
+              handleCloseReceivableDialog();
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>ยืนยันปิดลูกหนี้</DialogTitle>
+              <DialogDescription>
+                ตรวจสอบยอดและวิธีชำระก่อนบันทึกสถานะลูกหนี้
+              </DialogDescription>
+            </DialogHeader>
+
+            {selectedCloseInvoice && selectedCloseMethod ? (
+              <div className="space-y-4">
+                <div className="flex items-start justify-between gap-3 rounded-2xl border bg-muted/30 p-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-muted-foreground">
+                      เลขที่บิล
+                    </p>
+                    <p className="truncate text-base font-bold text-card-foreground">
+                      {selectedCloseInvoice.numberPrint}
+                    </p>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "h-7 rounded-full px-3 text-xs font-bold shadow-none",
+                      selectedCloseMethodColor,
+                    )}
+                  >
+                    <SelectedCloseMethodIcon className="h-3.5 w-3.5" />
+                    {selectedCloseMethodLabel}
+                  </Badge>
+                </div>
+
+                <div className="flex items-center justify-between rounded-2xl border bg-background px-4 py-3">
+                  <span className="text-sm font-semibold text-muted-foreground">
+                    ยอดที่ต้องรับ
+                  </span>
+                  <span
+                    className={cn(
+                      outfit.className,
+                      "text-xl font-bold text-card-foreground",
+                    )}
+                  >
+                    {formatCurrency(selectedCloseInvoice.receivableAmount)}
+                  </span>
+                </div>
+
+                {selectedCloseMethod === "transfer" ? (
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="transfer-bank-name"
+                      className="text-sm font-semibold text-card-foreground"
+                    >
+                      ระบุธนาคาร
+                    </label>
+                    <Input
+                      id="transfer-bank-name"
+                      value={transferBankName}
+                      onChange={(e) => {
+                        setTransferBankName(e.target.value);
+                        if (closeDialogError) {
+                          setCloseDialogError(null);
+                        }
+                      }}
+                      placeholder="เช่น KBank, SCB, Bangkok Bank"
+                      autoComplete="off"
+                      className="h-10"
+                      aria-invalid={closeDialogError ? "true" : "false"}
+                    />
+                  </div>
+                ) : null}
+
+                {closeDialogError ? (
+                  <p className="text-sm font-semibold text-main-red">
+                    {closeDialogError}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCloseReceivableDialog}
+                disabled={closingBillNo !== null}
+                className="h-10"
+              >
+                ยกเลิก
+              </Button>
+              <Button
+                type="button"
+                onClick={async () => {
+                  if (
+                    closeDialogState?.paymentMethod === "transfer" &&
+                    !transferBankName.trim()
+                  ) {
+                    setCloseDialogError("กรุณาระบุธนาคารสำหรับเงินโอน");
+                    return;
+                  }
+
+                  await closeReceivable(transferBankName.trim());
+                }}
+                disabled={closingBillNo !== null || !closeDialogState}
+                className="h-10 gap-2"
+              >
+                {closingBillNo !== null ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : null}
+                ยืนยันปิดยอด
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

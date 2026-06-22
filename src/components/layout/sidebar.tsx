@@ -19,7 +19,7 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <div className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 bg-white border-r border-border">
+    <div className="hidden min-[1025px]:flex min-[1025px]:w-64 min-[1025px]:flex-col min-[1025px]:fixed min-[1025px]:inset-y-0 bg-white border-r border-border">
       <div className="flex flex-col flex-grow pt-6 pb-4 overflow-y-auto">
         {/* Logo/Title */}
         <div className="flex items-center flex-shrink-0 px-6 mb-8">

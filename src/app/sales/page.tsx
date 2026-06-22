@@ -8,10 +8,10 @@
 import { format } from "date-fns";
 import {
   Banknote,
+  CreditCard,
   Download,
   FileText,
   Search,
-  TrendingUp,
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -24,6 +24,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -48,6 +55,26 @@ function parseDateParam(value: string | null) {
   return Number.isNaN(parsedDate.getTime()) ? undefined : parsedDate;
 }
 
+function getTodayRange(): DateRange {
+  const today = new Date();
+
+  return {
+    from: today,
+    to: today,
+  };
+}
+
+function isSameDateRange(first: DateRange | undefined, second: DateRange) {
+  if (!first?.from || !first?.to || !second.from || !second.to) {
+    return false;
+  }
+
+  return (
+    format(first.from, "yyyy-MM-dd") === format(second.from, "yyyy-MM-dd") &&
+    format(first.to, "yyyy-MM-dd") === format(second.to, "yyyy-MM-dd")
+  );
+}
+
 interface SaleItem {
   id: string;
   date: string;
@@ -60,19 +87,57 @@ interface SaleItem {
   itemCount: number;
 }
 
+type PaymentMethodFilter = "all" | "cash" | "transfer";
+
+const allowedLimits = [20, 50, 100, 200];
+
+function getPaymentMethodFilterLabel(value: PaymentMethodFilter) {
+  if (value === "cash") {
+    return "เงินสด";
+  }
+
+  if (value === "transfer") {
+    return "เงินโอน";
+  }
+
+  return "ทั้งหมด";
+}
+
+function getLimitFromParams(params: URLSearchParams) {
+  const requestedLimit = Number(params.get("limit"));
+
+  return allowedLimits.includes(requestedLimit) ? requestedLimit : 20;
+}
+
+function getPaymentMethodFromParams(params: URLSearchParams) {
+  const method = params.get("paymentMethod");
+
+  if (method === "cash" || method === "transfer") {
+    return method;
+  }
+
+  return "all";
+}
+
 export default function SalesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(0);
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
-  const limit = 20;
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(() =>
+    getTodayRange(),
+  );
+  const [limit, setLimit] = useState(20);
+  const [paymentMethod, setPaymentMethod] =
+    useState<PaymentMethodFilter>("all");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const initialSearch = (params.get("search") || "").trim();
     const startDate = parseDateParam(params.get("startDate"));
     const endDate = parseDateParam(params.get("endDate"));
+    const initialLimit = getLimitFromParams(params);
+    const initialPaymentMethod = getPaymentMethodFromParams(params);
 
     if (initialSearch) {
       setSearchTerm(initialSearch);
@@ -83,7 +148,12 @@ export default function SalesPage() {
         from: startDate ?? endDate,
         to: endDate ?? startDate,
       });
+    } else {
+      setDateRange(getTodayRange());
     }
+
+    setLimit(initialLimit);
+    setPaymentMethod(initialPaymentMethod);
   }, []);
 
   // สร้าง URL สำหรับ API พร้อม query parameters
@@ -105,6 +175,10 @@ export default function SalesPage() {
       params.append("endDate", format(dateRange.to, "yyyy-MM-dd"));
     }
 
+    if (paymentMethod !== "all") {
+      params.append("paymentMethod", paymentMethod);
+    }
+
     return `/api/sales?${params.toString()}`;
   };
 
@@ -118,6 +192,8 @@ export default function SalesPage() {
       summary?: {
         totalSales: number;
         totalProfit: number;
+        totalCash: number;
+        totalTransfer: number;
       };
     }>
   >(buildApiUrl(), fetcher, {
@@ -132,6 +208,8 @@ export default function SalesPage() {
   const summary =
     data?.success && data?.data?.summary ? data.data.summary : null;
   const totalPages = Math.ceil(total / limit);
+  const todayRange = getTodayRange();
+  const isDefaultTodayRange = isSameDateRange(dateRange, todayRange);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("th-TH", {
@@ -191,13 +269,22 @@ export default function SalesPage() {
     setPage(0); // Reset to first page
   };
 
-  const handleClearFilters = () => {
-    setSearchTerm("");
-    setDateRange(undefined);
+  const handlePaymentMethodChange = (
+    nextPaymentMethod: PaymentMethodFilter,
+  ) => {
+    setPaymentMethod(nextPaymentMethod);
     setPage(0);
   };
 
-  const hasActiveFilters = searchTerm || dateRange?.from || dateRange?.to;
+  const handleClearFilters = () => {
+    setSearchTerm("");
+    setDateRange(todayRange);
+    setPaymentMethod("all");
+    setPage(0);
+  };
+
+  const hasActiveFilters =
+    searchTerm || paymentMethod !== "all" || !isDefaultTodayRange;
 
   const handleViewSale = (saleId: string) => {
     setSelectedSaleId(saleId);
@@ -243,7 +330,7 @@ export default function SalesPage() {
           </div>
 
           {/* Summary Cards */}
-          <div className="grid min-[600px]:grid-cols-3 gap-4">
+          <div className="grid gap-4 min-[600px]:grid-cols-2 xl:grid-cols-4">
             <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
               <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
                 <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
@@ -291,18 +378,40 @@ export default function SalesPage() {
             <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
               <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
                 <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
-                  <TrendingUp
+                  <Banknote
                     strokeWidth={2.5}
                     className="text-main-green w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
                   />
                 </div>
                 <div className="flex flex-col items-end min-[600px]:items-start gap-1">
                   <span className="text-primary text-lg font-semibold">
-                    กำไรรวม
+                    เงินสด
                   </span>
                   <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
                     <span className={`${outfit.className}`}>
-                      {(summary?.totalProfit || 0).toLocaleString()}
+                      {(summary?.totalCash || 0).toLocaleString()}
+                    </span>{" "}
+                    บาท
+                  </h3>
+                </div>
+              </div>
+            </div>
+
+            <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
+              <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
+                <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
+                  <CreditCard
+                    strokeWidth={2.5}
+                    className="text-main-blue w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
+                  />
+                </div>
+                <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                  <span className="text-primary text-lg font-semibold">
+                    เงินโอน
+                  </span>
+                  <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
+                    <span className={`${outfit.className}`}>
+                      {(summary?.totalTransfer || 0).toLocaleString()}
                     </span>{" "}
                     บาท
                   </h3>
@@ -324,11 +433,53 @@ export default function SalesPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant={paymentMethod === "all" ? "default" : "outline"}
+                  onClick={() => handlePaymentMethodChange("all")}
+                  className="font-bold"
+                >
+                  ทั้งหมด
+                </Button>
+                <Button
+                  variant={paymentMethod === "cash" ? "default" : "outline"}
+                  onClick={() => handlePaymentMethodChange("cash")}
+                  className="font-bold"
+                >
+                  <Banknote className="mr-2 h-4 w-4" />
+                  เงินสด
+                </Button>
+                <Button
+                  variant={paymentMethod === "transfer" ? "default" : "outline"}
+                  onClick={() => handlePaymentMethodChange("transfer")}
+                  className="font-bold"
+                >
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  เงินโอน
+                </Button>
+              </div>
               <DateRangePicker
                 dateRange={dateRange}
                 onDateRangeChange={handleDateRangeChange}
                 placeholder="เลือกช่วงวันที่"
               />
+              <Select
+                value={limit.toString()}
+                onValueChange={(value) => {
+                  setLimit(Number(value));
+                  setPage(0);
+                }}
+              >
+                <SelectTrigger className="h-8 w-full rounded-full px-4 font-bold min-[520px]:w-[150px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="20">20 รายการ</SelectItem>
+                  <SelectItem value="50">50 รายการ</SelectItem>
+                  <SelectItem value="100">100 รายการ</SelectItem>
+                  <SelectItem value="200">200 รายการ</SelectItem>
+                </SelectContent>
+              </Select>
               {hasActiveFilters && (
                 <Button
                   variant="ghost"
@@ -349,10 +500,15 @@ export default function SalesPage() {
               {searchTerm && (
                 <Badge variant="secondary">ค้นหา: {searchTerm}</Badge>
               )}
-              {dateRange?.from && (
+              {dateRange?.from && dateRange?.to && !isDefaultTodayRange && (
                 <Badge variant="secondary">
                   {format(dateRange.from, "d MMM yyyy")}
                   {dateRange.to && ` - ${format(dateRange.to, "d MMM yyyy")}`}
+                </Badge>
+              )}
+              {paymentMethod !== "all" && (
+                <Badge variant="secondary">
+                  ชำระ: {getPaymentMethodFilterLabel(paymentMethod)}
                 </Badge>
               )}
             </div>

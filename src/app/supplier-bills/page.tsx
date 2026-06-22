@@ -10,11 +10,15 @@ import {
   CircleHelp,
   ClipboardList,
   Clock3,
+  FilePlus2,
   Loader2,
+  Plus,
   ReceiptText,
   Save,
   Search,
+  Trash2,
   Truck,
+  UserPlus,
   X,
 } from "lucide-react";
 import type { FormEvent } from "react";
@@ -23,6 +27,7 @@ import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { outfit } from "@/components/fonts/fonts";
+import AsyncSearchableSelect from "@/components/ui/async-searchable-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,6 +40,13 @@ import {
   LargeDialogHeader,
   LargeDialogTitle,
 } from "@/components/ui/large-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -49,7 +61,9 @@ import type {
   ApiResponse,
   SupplierBill,
   SupplierBillPaymentState,
+  SupplierBillsCatalogPayload,
   SupplierBillsPayload,
+  SupplierCatalogProduct,
 } from "@/types/api";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -224,6 +238,140 @@ function getEditableBillAmount(bill: SupplierBill) {
   }
 
   return 0;
+}
+
+interface SupplierBillDraftLine {
+  id: string;
+  barcode: string;
+  name: string;
+  quantity: string;
+  unit: string;
+  unitPrice: string;
+  discount: string;
+  cost: string;
+  caseProduct: number;
+}
+
+interface NewSupplierDraft {
+  name: string;
+  type: string;
+  address: string;
+  phone: string;
+  taxId: string;
+  detail: string;
+}
+
+const defaultSupplierBillStatus: SupplierEditableStatus = "ค้างชำระ";
+
+function getTodayInputDate() {
+  const today = new Date();
+
+  return [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, "0"),
+    String(today.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function createEmptyLine(): SupplierBillDraftLine {
+  return {
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    barcode: "",
+    name: "",
+    quantity: "1",
+    unit: "",
+    unitPrice: "",
+    discount: "",
+    cost: "",
+    caseProduct: 25,
+  };
+}
+
+function createEmptySupplier(): NewSupplierDraft {
+  return {
+    name: "",
+    type: "",
+    address: "",
+    phone: "",
+    taxId: "",
+    detail: "",
+  };
+}
+
+function getMoneyInputValue(value: number) {
+  return value > 0 ? String(value) : "";
+}
+
+function parsePositiveNumberInput(value: string) {
+  const parsed = parseMoneyInput(value);
+
+  return parsed !== null && parsed > 0 ? parsed : null;
+}
+
+function getDraftLineTotal(item: SupplierBillDraftLine) {
+  const quantity = parsePositiveNumberInput(item.quantity) ?? 0;
+  const unitPrice = parseMoneyInput(item.unitPrice) ?? 0;
+  const discount = parseMoneyInput(item.discount) ?? 0;
+
+  return Number(Math.max(quantity * unitPrice - discount, 0).toFixed(2));
+}
+
+function getDraftTotals(
+  items: SupplierBillDraftLine[],
+  specialDiscountInput: string,
+) {
+  const subTotal = Number(
+    items
+      .reduce((sum, item) => {
+        const quantity = parsePositiveNumberInput(item.quantity) ?? 0;
+        const unitPrice = parseMoneyInput(item.unitPrice) ?? 0;
+
+        return sum + quantity * unitPrice;
+      }, 0)
+      .toFixed(2),
+  );
+  const productDiscount = Number(
+    items
+      .reduce((sum, item) => sum + (parseMoneyInput(item.discount) ?? 0), 0)
+      .toFixed(2),
+  );
+  const specialDiscount = parseMoneyInput(specialDiscountInput) ?? 0;
+
+  return {
+    subTotal,
+    productDiscount,
+    specialDiscount,
+    totalPrice: Number(
+      Math.max(subTotal - productDiscount - specialDiscount, 0).toFixed(2),
+    ),
+  };
+}
+
+async function fetchSupplierProductOptions(
+  search: string,
+  signal: AbortSignal,
+) {
+  const params = new URLSearchParams({ q: search });
+  const response = await fetch(`/api/supplier-bills/catalog?${params}`, {
+    signal,
+  });
+  const result =
+    (await response.json()) as ApiResponse<SupplierBillsCatalogPayload>;
+
+  return result.success && result.data ? result.data.products : [];
+}
+
+function uniqueCatalogOptionsByName<T extends { name: string }>(options: T[]) {
+  const seenNames = new Set<string>();
+
+  return options.filter((option) => {
+    if (seenNames.has(option.name)) {
+      return false;
+    }
+
+    seenNames.add(option.name);
+    return true;
+  });
 }
 
 interface SupplierBillEditDialogProps {
@@ -570,9 +718,801 @@ function SupplierBillEditDialog({
   );
 }
 
+interface SupplierBillCreateDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated: () => Promise<void>;
+}
+
+function SupplierBillCreateDialog({
+  open,
+  onOpenChange,
+  onCreated,
+}: SupplierBillCreateDialogProps) {
+  const [supplierMode, setSupplierMode] = useState<"existing" | "new">(
+    "existing",
+  );
+  const [selectedSupplierCode, setSelectedSupplierCode] = useState("");
+  const [newSupplier, setNewSupplier] =
+    useState<NewSupplierDraft>(createEmptySupplier);
+  const [billDate, setBillDate] = useState(getTodayInputDate);
+  const [status, setStatus] = useState<SupplierEditableStatus>(
+    defaultSupplierBillStatus,
+  );
+  const [createdBy, setCreatedBy] = useState("admin");
+  const [specialDiscount, setSpecialDiscount] = useState("");
+  const [items, setItems] = useState<SupplierBillDraftLine[]>([
+    createEmptyLine(),
+  ]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const { data: catalogData, isLoading: catalogLoading } = useSWR<
+    ApiResponse<SupplierBillsCatalogPayload>
+  >(open ? "/api/supplier-bills/catalog" : null, fetcher);
+  const catalog =
+    catalogData?.success && catalogData.data ? catalogData.data : null;
+  const suppliers = catalog?.suppliers ?? [];
+  const selectedSupplier = suppliers.find(
+    (supplier) => supplier.code === selectedSupplierCode,
+  );
+  const creditorTypes = catalog?.creditorTypes ?? [];
+  const units = uniqueCatalogOptionsByName(catalog?.units ?? []);
+  const totals = getDraftTotals(items, specialDiscount);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    setSupplierMode("existing");
+    setSelectedSupplierCode("");
+    setNewSupplier(createEmptySupplier());
+    setBillDate(getTodayInputDate());
+    setStatus(defaultSupplierBillStatus);
+    setCreatedBy("admin");
+    setSpecialDiscount("");
+    setItems([createEmptyLine()]);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setIsSaving(false);
+  }, [open]);
+
+  const updateLine = (id: string, updates: Partial<SupplierBillDraftLine>) => {
+    setItems((currentItems) =>
+      currentItems.map((item) =>
+        item.id === id ? { ...item, ...updates } : item,
+      ),
+    );
+  };
+
+  const applyProductToLine = (
+    line: SupplierBillDraftLine,
+    product: SupplierCatalogProduct,
+  ) => {
+    updateLine(line.id, {
+      barcode: product.barcode,
+      name: product.name,
+      unit: product.unit || line.unit,
+      unitPrice: getMoneyInputValue(product.unitPrice),
+      cost: getMoneyInputValue(product.cost),
+      caseProduct: product.caseProduct || 25,
+    });
+  };
+
+  const removeLine = (id: string) => {
+    setItems((currentItems) =>
+      currentItems.length > 1
+        ? currentItems.filter((item) => item.id !== id)
+        : currentItems,
+    );
+  };
+
+  const validateForm = () => {
+    if (supplierMode === "existing" && !selectedSupplierCode) {
+      return "กรุณาเลือกคู่ค้า";
+    }
+
+    if (supplierMode === "new" && !newSupplier.name.trim()) {
+      return "กรุณาระบุชื่อคู่ค้าใหม่";
+    }
+
+    const validItems = items.filter((item) => item.name.trim());
+
+    if (validItems.length === 0) {
+      return "กรุณาเพิ่มรายการสินค้าอย่างน้อย 1 รายการ";
+    }
+
+    for (const item of validItems) {
+      const quantity = parsePositiveNumberInput(item.quantity);
+      const unitPrice = parseMoneyInput(item.unitPrice);
+      const discount = parseMoneyInput(item.discount) ?? 0;
+
+      if (quantity === null) {
+        return `กรุณาระบุจำนวนของ ${item.name} ให้ถูกต้อง`;
+      }
+
+      if (unitPrice === null) {
+        return `กรุณาระบุราคาต่อหน่วยของ ${item.name} ให้ถูกต้อง`;
+      }
+
+      if (discount > quantity * unitPrice) {
+        return `ส่วนลดของ ${item.name} ต้องไม่เกินยอดรายการ`;
+      }
+    }
+
+    if (totals.productDiscount + totals.specialDiscount > totals.subTotal) {
+      return "ส่วนลดรวมต้องไม่เกินยอดรวมสินค้า";
+    }
+
+    return null;
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const validationError = validateForm();
+
+    if (validationError) {
+      setErrorMessage(validationError);
+      return;
+    }
+
+    const payloadItems = items
+      .filter((item) => item.name.trim())
+      .map((item) => ({
+        barcode: item.barcode.trim(),
+        name: item.name.trim(),
+        quantity: parsePositiveNumberInput(item.quantity) ?? 1,
+        unit: item.unit.trim() || "-",
+        unitPrice: parseMoneyInput(item.unitPrice) ?? 0,
+        discount: parseMoneyInput(item.discount) ?? 0,
+        cost: parseMoneyInput(item.cost) ?? 0,
+        caseProduct: item.caseProduct || 25,
+      }));
+
+    try {
+      setIsSaving(true);
+      setErrorMessage(null);
+      setSuccessMessage(null);
+
+      const response = await fetch("/api/supplier-bills", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          supplierCode:
+            supplierMode === "existing" ? selectedSupplierCode : undefined,
+          supplier:
+            supplierMode === "new"
+              ? {
+                  name: newSupplier.name,
+                  type: newSupplier.type,
+                  address: newSupplier.address,
+                  phone: newSupplier.phone,
+                  taxId: newSupplier.taxId,
+                  detail: newSupplier.detail,
+                }
+              : undefined,
+          billDate,
+          status,
+          createdBy,
+          specialDiscount: parseMoneyInput(specialDiscount) ?? 0,
+          items: payloadItems,
+        }),
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "บันทึกบิลคู่ค้าไม่สำเร็จ");
+      }
+
+      setSuccessMessage("บันทึกบิลคู่ค้าเรียบร้อยแล้ว");
+      await onCreated();
+      onOpenChange(false);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "บันทึกบิลคู่ค้าไม่สำเร็จ",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <LargeDialog open={open} onOpenChange={onOpenChange}>
+      <LargeDialogContent size="2xl">
+        <LargeDialogHeader className="gap-2 px-5 py-5 md:px-6">
+          <LargeDialogTitle className="text-primary text-xl md:text-2xl">
+            เพิ่มบิลคู่ค้า
+          </LargeDialogTitle>
+          <LargeDialogDescription>
+            บันทึกข้อมูลจากบิลคู่ค้าที่มีอยู่แล้ว เพื่อติดตามยอดและสถานะจ่าย
+          </LargeDialogDescription>
+        </LargeDialogHeader>
+
+        <LargeDialogBody className="px-5 py-5 md:px-6">
+          <form className="space-y-5" onSubmit={handleSubmit}>
+            <div className="grid gap-4 min-[920px]:grid-cols-[1.05fr_0.95fr]">
+              <div className="space-y-4 rounded-[8px] border bg-[#FCFCFC] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-bold text-card-foreground">ข้อมูลคู่ค้า</h3>
+                    <p className="mt-1 text-sm font-semibold text-muted-foreground">
+                      เลือกคู่ค้าเดิมหรือเพิ่มคู่ค้าใหม่
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={cn(
+                        "h-9 font-bold shadow-none",
+                        supplierMode === "existing" &&
+                          "border-primary bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
+                      )}
+                      onClick={() => setSupplierMode("existing")}
+                    >
+                      <Building2 className="h-4 w-4" />
+                      คู่ค้าเดิม
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={cn(
+                        "h-9 font-bold shadow-none",
+                        supplierMode === "new" &&
+                          "border-primary bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
+                      )}
+                      onClick={() => setSupplierMode("new")}
+                    >
+                      <UserPlus className="h-4 w-4" />
+                      เพิ่มใหม่
+                    </Button>
+                  </div>
+                </div>
+
+                {supplierMode === "existing" ? (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <span className="block text-sm font-bold text-card-foreground">
+                        คู่ค้า
+                      </span>
+                      <Select
+                        value={selectedSupplierCode}
+                        onValueChange={setSelectedSupplierCode}
+                        disabled={catalogLoading}
+                      >
+                        <SelectTrigger className="h-11 w-full rounded-[8px] font-bold">
+                          <SelectValue placeholder="เลือกคู่ค้า" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {suppliers.map((supplier) => (
+                            <SelectItem
+                              key={supplier.code}
+                              value={supplier.code}
+                            >
+                              {supplier.code} · {supplier.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {selectedSupplier ? (
+                      <div className="grid gap-3 rounded-[8px] border bg-white p-3 text-sm font-semibold min-[560px]:grid-cols-2">
+                        <div>
+                          <span className="text-muted-foreground">รหัส</span>
+                          <p className="mt-1 font-bold text-card-foreground">
+                            {selectedSupplier.code}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">ประเภท</span>
+                          <p className="mt-1 font-bold text-card-foreground">
+                            {selectedSupplier.type || "-"}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">โทร</span>
+                          <p className="mt-1 font-bold text-card-foreground">
+                            {selectedSupplier.phone || "-"}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">เลขภาษี</span>
+                          <p className="mt-1 font-bold text-card-foreground">
+                            {selectedSupplier.taxId || "-"}
+                          </p>
+                        </div>
+                        <div className="min-[560px]:col-span-2">
+                          <span className="text-muted-foreground">ที่อยู่</span>
+                          <p className="mt-1 font-bold text-card-foreground">
+                            {selectedSupplier.address || "-"}
+                          </p>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="grid gap-3 min-[560px]:grid-cols-2">
+                    <div className="space-y-2 min-[560px]:col-span-2">
+                      <label
+                        htmlFor="new-supplier-name"
+                        className="block text-sm font-bold text-card-foreground"
+                      >
+                        ชื่อคู่ค้า
+                      </label>
+                      <Input
+                        id="new-supplier-name"
+                        value={newSupplier.name}
+                        onChange={(event) =>
+                          setNewSupplier((current) => ({
+                            ...current,
+                            name: event.target.value,
+                          }))
+                        }
+                        className="h-11 rounded-[8px] font-semibold"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <span className="block text-sm font-bold text-card-foreground">
+                        ประเภทคู่ค้า
+                      </span>
+                      <Select
+                        value={newSupplier.type}
+                        onValueChange={(value) =>
+                          setNewSupplier((current) => ({
+                            ...current,
+                            type: value,
+                          }))
+                        }
+                      >
+                        <SelectTrigger className="h-11 w-full rounded-[8px] font-bold">
+                          <SelectValue placeholder="เลือกประเภท" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {creditorTypes.map((type) => (
+                            <SelectItem key={type.id} value={type.name}>
+                              {type.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label
+                        htmlFor="new-supplier-phone"
+                        className="block text-sm font-bold text-card-foreground"
+                      >
+                        โทร
+                      </label>
+                      <Input
+                        id="new-supplier-phone"
+                        value={newSupplier.phone}
+                        onChange={(event) =>
+                          setNewSupplier((current) => ({
+                            ...current,
+                            phone: event.target.value,
+                          }))
+                        }
+                        className="h-11 rounded-[8px] font-semibold"
+                      />
+                    </div>
+
+                    <div className="space-y-2 min-[560px]:col-span-2">
+                      <label
+                        htmlFor="new-supplier-address"
+                        className="block text-sm font-bold text-card-foreground"
+                      >
+                        ที่อยู่
+                      </label>
+                      <Input
+                        id="new-supplier-address"
+                        value={newSupplier.address}
+                        onChange={(event) =>
+                          setNewSupplier((current) => ({
+                            ...current,
+                            address: event.target.value,
+                          }))
+                        }
+                        className="h-11 rounded-[8px] font-semibold"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label
+                        htmlFor="new-supplier-tax"
+                        className="block text-sm font-bold text-card-foreground"
+                      >
+                        เลขภาษี
+                      </label>
+                      <Input
+                        id="new-supplier-tax"
+                        value={newSupplier.taxId}
+                        onChange={(event) =>
+                          setNewSupplier((current) => ({
+                            ...current,
+                            taxId: event.target.value,
+                          }))
+                        }
+                        className="h-11 rounded-[8px] font-semibold"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label
+                        htmlFor="new-supplier-detail"
+                        className="block text-sm font-bold text-card-foreground"
+                      >
+                        รายละเอียด
+                      </label>
+                      <Input
+                        id="new-supplier-detail"
+                        value={newSupplier.detail}
+                        onChange={(event) =>
+                          setNewSupplier((current) => ({
+                            ...current,
+                            detail: event.target.value,
+                          }))
+                        }
+                        className="h-11 rounded-[8px] font-semibold"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-4 rounded-[8px] border bg-[#FCFCFC] p-4">
+                <div>
+                  <h3 className="font-bold text-card-foreground">ข้อมูลบิล</h3>
+                  <p className="mt-1 text-sm font-semibold text-muted-foreground">
+                    เลขเอกสารจะรันอัตโนมัติเมื่อบันทึก
+                  </p>
+                </div>
+
+                <div className="grid gap-3 min-[560px]:grid-cols-2">
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="supplier-bill-date"
+                      className="block text-sm font-bold text-card-foreground"
+                    >
+                      วันที่บิล
+                    </label>
+                    <Input
+                      id="supplier-bill-date"
+                      type="date"
+                      value={billDate}
+                      onChange={(event) => setBillDate(event.target.value)}
+                      className="h-11 rounded-[8px] font-bold"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <span className="block text-sm font-bold text-card-foreground">
+                      สถานะ
+                    </span>
+                    <div className="grid grid-cols-2 gap-2">
+                      {supplierStatusOptions.map((option) => {
+                        const isSelected = status === option;
+
+                        return (
+                          <Button
+                            key={option}
+                            type="button"
+                            variant="outline"
+                            className={cn(
+                              "h-11 font-bold shadow-none",
+                              getStatusOptionClassName(option, isSelected),
+                            )}
+                            onClick={() => setStatus(option)}
+                          >
+                            {option}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="supplier-bill-user"
+                      className="block text-sm font-bold text-card-foreground"
+                    >
+                      ผู้บันทึก
+                    </label>
+                    <Input
+                      id="supplier-bill-user"
+                      value={createdBy}
+                      onChange={(event) => setCreatedBy(event.target.value)}
+                      className="h-11 rounded-[8px] font-semibold"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="supplier-bill-special-discount"
+                      className="block text-sm font-bold text-card-foreground"
+                    >
+                      ส่วนลดพิเศษ
+                    </label>
+                    <Input
+                      id="supplier-bill-special-discount"
+                      inputMode="decimal"
+                      value={specialDiscount}
+                      onChange={(event) =>
+                        setSpecialDiscount(event.target.value)
+                      }
+                      className="h-11 rounded-[8px] font-semibold"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-[8px] border bg-white p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-bold text-muted-foreground">
+                      ยอดรวมสุทธิ
+                    </span>
+                    <span className="text-2xl font-bold text-primary">
+                      {formatCurrency(totals.totalPrice)}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid gap-2 text-sm font-semibold">
+                    <div className="flex justify-between gap-3">
+                      <span className="text-muted-foreground">ยอดรวมสินค้า</span>
+                      <span>{formatCurrency(totals.subTotal)}</span>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <span className="text-muted-foreground">ส่วนลดสินค้า</span>
+                      <span>{formatCurrency(totals.productDiscount)}</span>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <span className="text-muted-foreground">ส่วนลดพิเศษ</span>
+                      <span>{formatCurrency(totals.specialDiscount)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[8px] border bg-card p-4">
+              <div className="mb-4 flex flex-col justify-between gap-3 min-[680px]:flex-row min-[680px]:items-center">
+                <div>
+                  <h3 className="font-bold text-card-foreground">รายการสินค้า</h3>
+                  <p className="mt-1 text-sm font-semibold text-muted-foreground">
+                    กรอกจากบิลคู่ค้า หรือเลือกสินค้าเดิมเพื่อช่วยเติมข้อมูล
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 font-bold"
+                  onClick={() =>
+                    setItems((current) => [...current, createEmptyLine()])
+                  }
+                >
+                  <Plus className="h-4 w-4" />
+                  เพิ่มรายการ
+                </Button>
+              </div>
+
+              <div className="space-y-3">
+                {items.map((item, index) => (
+                  <div
+                    key={item.id}
+                    className="rounded-[8px] border bg-white p-3"
+                  >
+                    <div className="grid gap-3 min-[760px]:grid-cols-[minmax(190px,0.8fr)_minmax(0,1.2fr)]">
+                      <div className="min-w-0 space-y-2">
+                        <span className="block text-xs font-bold text-muted-foreground">
+                          สินค้าเดิม
+                        </span>
+                        <AsyncSearchableSelect<SupplierCatalogProduct>
+                          selectedLabel={item.barcode || item.name}
+                          placeholder="ค้นหาเดิม"
+                          searchPlaceholder="ค้นหาสินค้าหรือบาร์โค้ด..."
+                          emptyMessage="ไม่พบสินค้าเดิม"
+                          fetchOptions={fetchSupplierProductOptions}
+                          getOptionKey={(product) => product.barcode}
+                          getOptionLabel={(product) => product.name}
+                          getOptionDescription={(product) =>
+                            [product.barcode, product.unit]
+                              .filter(Boolean)
+                              .join(" · ")
+                          }
+                          isOptionSelected={(product) =>
+                            !!item.barcode && product.barcode === item.barcode
+                          }
+                          onSelect={(product) =>
+                            applyProductToLine(item, product)
+                          }
+                        />
+                      </div>
+
+                      <div className="min-w-0 space-y-2">
+                        <label
+                          htmlFor={`supplier-item-name-${item.id}`}
+                          className="block text-xs font-bold text-muted-foreground"
+                        >
+                          รายการสินค้า
+                        </label>
+                        <Input
+                          id={`supplier-item-name-${item.id}`}
+                          value={item.name}
+                          onChange={(event) =>
+                            updateLine(item.id, { name: event.target.value })
+                          }
+                          className="h-11 rounded-[8px] font-semibold"
+                          placeholder={`รายการที่ ${index + 1}`}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid gap-3 min-[760px]:grid-cols-[90px_120px_minmax(120px,1fr)_minmax(120px,1fr)_minmax(140px,1fr)_44px] min-[760px]:items-end">
+                      <div className="space-y-2">
+                        <label
+                          htmlFor={`supplier-item-quantity-${item.id}`}
+                          className="block text-xs font-bold text-muted-foreground"
+                        >
+                          จำนวน
+                        </label>
+                        <Input
+                          id={`supplier-item-quantity-${item.id}`}
+                          inputMode="decimal"
+                          value={item.quantity}
+                          onChange={(event) =>
+                            updateLine(item.id, {
+                              quantity: event.target.value,
+                            })
+                          }
+                          className="h-11 rounded-[8px] font-semibold"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <span className="block text-xs font-bold text-muted-foreground">
+                          หน่วย
+                        </span>
+                        <Select
+                          value={item.unit}
+                          onValueChange={(value) =>
+                            updateLine(item.id, { unit: value })
+                          }
+                        >
+                          <SelectTrigger className="h-11 w-full rounded-[8px] font-bold">
+                            <SelectValue placeholder="หน่วย" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {units.map((unit) => (
+                              <SelectItem key={unit.id} value={unit.name}>
+                                {unit.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label
+                          htmlFor={`supplier-item-price-${item.id}`}
+                          className="block text-xs font-bold text-muted-foreground"
+                        >
+                          ราคาต่อหน่วย
+                        </label>
+                        <Input
+                          id={`supplier-item-price-${item.id}`}
+                          inputMode="decimal"
+                          value={item.unitPrice}
+                          onChange={(event) =>
+                            updateLine(item.id, {
+                              unitPrice: event.target.value,
+                            })
+                          }
+                          className="h-11 rounded-[8px] font-semibold"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label
+                          htmlFor={`supplier-item-discount-${item.id}`}
+                          className="block text-xs font-bold text-muted-foreground"
+                        >
+                          ส่วนลด
+                        </label>
+                        <Input
+                          id={`supplier-item-discount-${item.id}`}
+                          inputMode="decimal"
+                          value={item.discount}
+                          onChange={(event) =>
+                            updateLine(item.id, {
+                              discount: event.target.value,
+                            })
+                          }
+                          className="h-11 rounded-[8px] font-semibold"
+                          placeholder="0.00"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <span className="block text-xs font-bold text-muted-foreground">
+                          จำนวนเงิน
+                        </span>
+                        <Input
+                          value={formatCurrency(getDraftLineTotal(item))}
+                          readOnly
+                          tabIndex={-1}
+                          className="h-11 rounded-[8px] bg-muted/30 text-right font-bold text-primary shadow-none"
+                        />
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-11 w-full rounded-[8px] text-main-red min-[760px]:w-11"
+                        disabled={items.length === 1}
+                        onClick={() => removeLine(item.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">ลบรายการ</span>
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {errorMessage ? (
+              <div className="rounded-[8px] border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-main-red dark:border-red-500/20 dark:bg-red-500/10">
+                {errorMessage}
+              </div>
+            ) : null}
+
+            {successMessage ? (
+              <div className="rounded-[8px] border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-main-green dark:border-emerald-500/20 dark:bg-emerald-500/10">
+                {successMessage}
+              </div>
+            ) : null}
+
+            <div className="flex flex-col-reverse gap-2 border-t pt-4 min-[520px]:flex-row min-[520px]:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 font-bold"
+                disabled={isSaving}
+                onClick={() => onOpenChange(false)}
+              >
+                ยกเลิก
+              </Button>
+              <Button
+                type="submit"
+                className="h-10 font-bold"
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                บันทึกบิลคู่ค้า
+              </Button>
+            </div>
+          </form>
+        </LargeDialogBody>
+      </LargeDialogContent>
+    </LargeDialog>
+  );
+}
+
 export default function SupplierBillsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedBill, setSelectedBill] = useState<SupplierBill | null>(null);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const {
     data: supplierBillsData,
     error,
@@ -615,6 +1555,15 @@ export default function SupplierBillsPage() {
                 </p>
               </div>
             </div>
+
+            <Button
+              type="button"
+              className="h-11 w-full gap-2 rounded-[8px] font-bold min-[520px]:w-fit"
+              onClick={() => setIsCreateDialogOpen(true)}
+            >
+              <FilePlus2 className="h-4 w-4" />
+              เพิ่มบิลคู่ค้า
+            </Button>
           </div>
 
           <div className="grid gap-4 min-[600px]:grid-cols-2 min-[1100px]:grid-cols-4">
@@ -889,6 +1838,13 @@ export default function SupplierBillsPage() {
           }
         }}
         onSaved={async () => {
+          await mutate();
+        }}
+      />
+      <SupplierBillCreateDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        onCreated={async () => {
           await mutate();
         }}
       />

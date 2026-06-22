@@ -22,16 +22,19 @@ interface SaleItem {
 interface SalesSummary {
   totalSales: number;
   totalProfit: number;
+  totalCash: number;
+  totalTransfer: number;
 }
 
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const limit = Number.parseInt(searchParams.get("limit") || "50", 10);
+    const limit = Number.parseInt(searchParams.get("limit") || "20", 10);
     const offset = Number.parseInt(searchParams.get("offset") || "0", 10);
     const search = searchParams.get("search") || "";
     const startDate = searchParams.get("startDate") || "";
     const endDate = searchParams.get("endDate") || "";
+    const paymentMethod = searchParams.get("paymentMethod") || "all";
 
     // Build query
     let query = `
@@ -68,6 +71,14 @@ export async function GET(request: NextRequest) {
 
     if (endDate) {
       conditions.push("CONVERT(date, m.DateSalePost) <= @endDate");
+    }
+
+    if (paymentMethod === "cash") {
+      conditions.push("ISNULL(m.Cash, 0) > 0");
+    }
+
+    if (paymentMethod === "transfer") {
+      conditions.push("ISNULL(m.Transfer, 0) > 0");
     }
 
     query += ` WHERE ${conditions.join(" AND ")}`;
@@ -142,6 +153,14 @@ export async function GET(request: NextRequest) {
       countConditions.push("CONVERT(date, m.DateSalePost) <= @endDate");
     }
 
+    if (paymentMethod === "cash") {
+      countConditions.push("ISNULL(m.Cash, 0) > 0");
+    }
+
+    if (paymentMethod === "transfer") {
+      countConditions.push("ISNULL(m.Transfer, 0) > 0");
+    }
+
     countQuery += ` WHERE ${countConditions.join(" AND ")}`;
 
     const [countResult] = await executeQuery<{ total: number }>(countQuery, {
@@ -154,7 +173,9 @@ export async function GET(request: NextRequest) {
     let summaryQuery = `
       SELECT
         ISNULL(SUM(m.TotalPrice), 0) as totalSales,
-        ISNULL(SUM(m.TotalProfit), 0) as totalProfit
+        ISNULL(SUM(m.TotalProfit), 0) as totalProfit,
+        ISNULL(SUM(m.Cash), 0) as totalCash,
+        ISNULL(SUM(m.Transfer), 0) as totalTransfer
       FROM dbo.MasterSalePost m
     `;
 
@@ -182,6 +203,8 @@ export async function GET(request: NextRequest) {
         summary: {
           totalSales: summaryResult.totalSales,
           totalProfit: summaryResult.totalProfit,
+          totalCash: summaryResult.totalCash,
+          totalTransfer: summaryResult.totalTransfer,
         },
       },
       timestamp: new Date().toISOString(),

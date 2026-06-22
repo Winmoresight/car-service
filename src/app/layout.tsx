@@ -47,12 +47,12 @@ const RootLayout = ({ children }: { children: ReactNode }) => {
           <Sidebar />
 
           {/* Main Content */}
-          <div className="md:pl-64 flex flex-col min-h-screen">
+          <div className="min-[1025px]:pl-64 flex flex-col min-h-screen">
             {/* Mobile Header */}
             {/*<Header />*/}
 
             {/* Page Content */}
-            <main className="flex-1 pb-20 md:pb-4">{children}</main>
+            <main className="flex-1 pb-20 min-[1025px]:pb-4">{children}</main>
 
             {/* Mobile Bottom Navigation */}
             <MobileNav />

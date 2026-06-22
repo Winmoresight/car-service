@@ -10,6 +10,7 @@ interface AsyncSearchableSelectProps<Option> {
   searchPlaceholder?: string;
   emptyMessage?: string;
   className?: string;
+  triggerClassName?: string;
   disabled?: boolean;
   fetchOptions: (search: string, signal: AbortSignal) => Promise<Option[]>;
   getOptionKey: (option: Option) => string;
@@ -25,6 +26,7 @@ export default function AsyncSearchableSelect<Option>({
   searchPlaceholder = "ค้นหา...",
   emptyMessage = "ไม่พบข้อมูล",
   className,
+  triggerClassName,
   disabled = false,
   fetchOptions,
   getOptionKey,
@@ -98,6 +100,7 @@ export default function AsyncSearchableSelect<Option>({
             ? "border-primary shadow-sm ring-3 ring-ring/30"
             : "border-input hover:border-primary/50",
           disabled && "cursor-not-allowed bg-muted opacity-50",
+          triggerClassName,
         )}
       >
         <span

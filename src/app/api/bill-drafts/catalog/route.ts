@@ -34,21 +34,55 @@ export async function GET(request: NextRequest) {
     `;
 
     const productQuery = `
+      WITH ProductCatalog AS (
+        SELECT
+          ISNULL(BarCode, '') as barCode,
+          ISNULL(NameProduct, '') as name,
+          ISNULL(MAX(SalePrice), 0) as unitPrice,
+          ISNULL(
+            SUM(SumCost) / NULLIF(SUM(CASE WHEN NumProduct = 0 THEN 0 ELSE NumProduct END), 0),
+            0
+          ) as cost,
+          COUNT(*) as usedCount
+        FROM dbo.DetailSalePost
+        WHERE @search = ''
+          OR BarCode LIKE @searchLike
+          OR NameProduct LIKE @searchLike
+        GROUP BY BarCode, NameProduct
+
+        UNION ALL
+
+        SELECT
+          ISNULL(d.BarCode, '') as barCode,
+          ISNULL(m.NameProduct, '') as name,
+          ISNULL(d.SalePrice, 0) as unitPrice,
+          ISNULL(d.CostPrice, 0) as cost,
+          0 as usedCount
+        FROM dbo.MasterProductDetail d
+        INNER JOIN dbo.MasterProduct m ON m.CodeProduct = d.CodeProduct
+        WHERE @search = ''
+          OR d.BarCode LIKE @searchLike
+          OR m.NameProduct LIKE @searchLike
+      ),
+      MergedProducts AS (
+        SELECT
+          barCode,
+          name,
+          ISNULL(MAX(unitPrice), 0) as unitPrice,
+          ISNULL(MAX(cost), 0) as cost,
+          ISNULL(SUM(usedCount), 0) as usedCount
+        FROM ProductCatalog
+        WHERE barCode <> '' OR name <> ''
+        GROUP BY barCode, name
+      )
       SELECT TOP (@limit)
-        ISNULL(BarCode, '') as barCode,
-        ISNULL(NameProduct, '') as name,
-        ISNULL(MAX(SalePrice), 0) as unitPrice,
-        ISNULL(
-          SUM(SumCost) / NULLIF(SUM(CASE WHEN NumProduct = 0 THEN 0 ELSE NumProduct END), 0),
-          0
-        ) as cost,
-        COUNT(*) as usedCount
-      FROM dbo.DetailSalePost
-      WHERE @search = ''
-        OR BarCode LIKE @searchLike
-        OR NameProduct LIKE @searchLike
-      GROUP BY BarCode, NameProduct
-      ORDER BY usedCount DESC, name ASC
+        barCode,
+        name,
+        unitPrice,
+        cost,
+        usedCount
+      FROM MergedProducts
+      ORDER BY usedCount DESC, name ASC, barCode ASC
     `;
 
     const [customers, products] = await Promise.all([

@@ -148,6 +148,70 @@ export interface SupplierBillsPayload {
   summary: SupplierBillsSummary;
 }
 
+export interface SupplierCatalogSupplier {
+  code: string;
+  name: string;
+  address: string;
+  phone: string;
+  type: string;
+  taxId: string;
+  detail: string;
+}
+
+export interface SupplierCatalogOption {
+  id: number;
+  name: string;
+}
+
+export interface SupplierCatalogProduct {
+  barcode: string;
+  name: string;
+  unit: string;
+  unitPrice: number;
+  cost: number;
+  caseProduct: number;
+}
+
+export interface SupplierBillsCatalogPayload {
+  suppliers: SupplierCatalogSupplier[];
+  creditorTypes: SupplierCatalogOption[];
+  units: SupplierCatalogOption[];
+  products: SupplierCatalogProduct[];
+}
+
+// Stock / product creation
+export interface StockCatalogOption {
+  id: number;
+  name: string;
+}
+
+export interface StockProductCatalogPayload {
+  categories: StockCatalogOption[];
+  units: StockCatalogOption[];
+  nextProductCode: string;
+  nextBarcodeSuffix: number;
+  previewBarcode: string;
+}
+
+export interface StockProductCreateResult {
+  productCode: string;
+  barcode: string;
+  name: string;
+  categoryId: number;
+  categoryName: string;
+  unit: string;
+  stock: number;
+  costPrice: number;
+  retailPrice: number;
+}
+
+export interface PaginatedPayload<T> {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 // API Response wrapper - Success
 export interface ApiSuccessResponse<T> {
   success: true;

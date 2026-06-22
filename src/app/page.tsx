@@ -7,8 +7,6 @@
 
 import { format } from "date-fns";
 import {
-  ArrowDownCircle,
-  ArrowUpCircle,
   Banknote,
   CreditCard,
   FileText,
@@ -192,13 +190,6 @@ function MoneyDetailDialog({
   icon: Icon,
   items,
 }: MoneyDetailDialogProps) {
-  const incomingTotal = items
-    .filter((item) => item.direction === "in")
-    .reduce((sum, item) => sum + item.amount, 0);
-  const outgoingTotal = items
-    .filter((item) => item.direction === "out")
-    .reduce((sum, item) => sum + item.amount, 0);
-
   return (
     <LargeDialog open={open} onOpenChange={onOpenChange}>
       <LargeDialogContent size="xl">
@@ -215,31 +206,13 @@ function MoneyDetailDialog({
         </LargeDialogHeader>
 
         <LargeDialogBody>
-          <div className="grid gap-3 min-[680px]:grid-cols-3">
-            <div className="rounded-[8px] border bg-background p-4">
+          <div className="rounded-[8px] border bg-background p-4">
+            <div className="flex flex-col gap-2 min-[520px]:flex-row min-[520px]:items-center min-[520px]:justify-between">
               <span className="text-sm font-bold text-muted-foreground">
                 {totalLabel}
               </span>
-              <p className="mt-1 text-2xl font-bold text-primary">
+              <p className="text-2xl font-bold text-primary">
                 {formatCurrency(totalValue)} บาท
-              </p>
-            </div>
-            <div className="rounded-[8px] border border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-500/20 dark:bg-emerald-500/10">
-              <span className="flex items-center gap-2 text-sm font-bold text-main-green">
-                <ArrowUpCircle className="h-4 w-4" />
-                รับเข้า
-              </span>
-              <p className="mt-1 text-2xl font-bold text-main-green">
-                {formatCurrency(incomingTotal)} บาท
-              </p>
-            </div>
-            <div className="rounded-[8px] border border-red-100 bg-red-50 p-4 dark:border-red-500/20 dark:bg-red-500/10">
-              <span className="flex items-center gap-2 text-sm font-bold text-main-red">
-                <ArrowDownCircle className="h-4 w-4" />
-                จ่ายออก
-              </span>
-              <p className="mt-1 text-2xl font-bold text-main-red">
-                {formatCurrency(outgoingTotal)} บาท
               </p>
             </div>
           </div>
