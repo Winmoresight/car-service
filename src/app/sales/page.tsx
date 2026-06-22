@@ -2,7 +2,7 @@
 
 /**
  * Sales Page - หน้ายอดขาย
- * แสดงรายการบิลขายที่ชำระแล้วจากฐานข้อมูลจริง พร้อม filter และค้นหา
+ * แสดงรายการบิลขายจากฐานข้อมูลจริง พร้อม filter และค้นหา
  */
 
 import { format } from "date-fns";
@@ -11,7 +11,9 @@ import {
   CreditCard,
   Download,
   FileText,
+  HandCoins,
   Search,
+  Wallet,
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -84,20 +86,27 @@ interface SaleItem {
   totalProfit: number;
   cash: number;
   transfer: number;
+  deposits: number;
+  receivableAmount: number;
+  status: string;
   itemCount: number;
 }
 
-type PaymentMethodFilter = "all" | "cash" | "transfer";
+type SalesFilter = "all" | "cash" | "transfer" | "unpaid";
 
 const allowedLimits = [20, 50, 100, 200];
 
-function getPaymentMethodFilterLabel(value: PaymentMethodFilter) {
+function getSalesFilterLabel(value: SalesFilter) {
   if (value === "cash") {
     return "เงินสด";
   }
 
   if (value === "transfer") {
     return "เงินโอน";
+  }
+
+  if (value === "unpaid") {
+    return "ค้างชำระ";
   }
 
   return "ทั้งหมด";
@@ -109,14 +118,30 @@ function getLimitFromParams(params: URLSearchParams) {
   return allowedLimits.includes(requestedLimit) ? requestedLimit : 20;
 }
 
-function getPaymentMethodFromParams(params: URLSearchParams) {
-  const method = params.get("paymentMethod");
+function getSalesFilterFromParams(params: URLSearchParams) {
+  const method = params.get("status");
 
-  if (method === "cash" || method === "transfer") {
+  if (method === "cash" || method === "transfer" || method === "unpaid") {
     return method;
   }
 
   return "all";
+}
+
+function getSalesListTitle(filter: SalesFilter) {
+  if (filter === "cash") {
+    return "รายการบิลขายเงินสด";
+  }
+
+  if (filter === "transfer") {
+    return "รายการบิลขายเงินโอน";
+  }
+
+  if (filter === "unpaid") {
+    return "รายการบิลขายค้างชำระ";
+  }
+
+  return "รายการบิลขายทั้งหมด";
 }
 
 export default function SalesPage() {
@@ -128,8 +153,7 @@ export default function SalesPage() {
     getTodayRange(),
   );
   const [limit, setLimit] = useState(20);
-  const [paymentMethod, setPaymentMethod] =
-    useState<PaymentMethodFilter>("all");
+  const [salesFilter, setSalesFilter] = useState<SalesFilter>("unpaid");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -137,7 +161,7 @@ export default function SalesPage() {
     const startDate = parseDateParam(params.get("startDate"));
     const endDate = parseDateParam(params.get("endDate"));
     const initialLimit = getLimitFromParams(params);
-    const initialPaymentMethod = getPaymentMethodFromParams(params);
+    const initialSalesFilter = getSalesFilterFromParams(params);
 
     if (initialSearch) {
       setSearchTerm(initialSearch);
@@ -153,7 +177,7 @@ export default function SalesPage() {
     }
 
     setLimit(initialLimit);
-    setPaymentMethod(initialPaymentMethod);
+    setSalesFilter(initialSalesFilter);
   }, []);
 
   // สร้าง URL สำหรับ API พร้อม query parameters
@@ -175,8 +199,8 @@ export default function SalesPage() {
       params.append("endDate", format(dateRange.to, "yyyy-MM-dd"));
     }
 
-    if (paymentMethod !== "all") {
-      params.append("paymentMethod", paymentMethod);
+    if (salesFilter !== "all") {
+      params.append("status", salesFilter);
     }
 
     return `/api/sales?${params.toString()}`;
@@ -194,6 +218,8 @@ export default function SalesPage() {
         totalProfit: number;
         totalCash: number;
         totalTransfer: number;
+        totalDeposits: number;
+        totalReceivable: number;
       };
     }>
   >(buildApiUrl(), fetcher, {
@@ -210,6 +236,7 @@ export default function SalesPage() {
   const totalPages = Math.ceil(total / limit);
   const todayRange = getTodayRange();
   const isDefaultTodayRange = isSameDateRange(dateRange, todayRange);
+  const salesListTitle = getSalesListTitle(salesFilter);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("th-TH", {
@@ -229,16 +256,16 @@ export default function SalesPage() {
     });
   };
 
-  const formatProfitMargin = (sale: SaleItem) => {
-    if (sale.totalPrice <= 0) {
-      return "0.0%";
-    }
-
-    return `${((sale.totalProfit / sale.totalPrice) * 100).toFixed(1)}%`;
-  };
-
   const getPaymentMethods = (sale: SaleItem) => {
     const methods = [];
+
+    if (sale.status === "ค้างชำระ" || sale.receivableAmount > 0) {
+      methods.push({
+        label: "ค้างชำระ",
+        className:
+          "bg-red-50 text-main-red border-red-100 dark:bg-red-500/10 dark:border-red-500/20",
+      });
+    }
 
     if (sale.cash > 0) {
       methods.push({
@@ -269,22 +296,20 @@ export default function SalesPage() {
     setPage(0); // Reset to first page
   };
 
-  const handlePaymentMethodChange = (
-    nextPaymentMethod: PaymentMethodFilter,
-  ) => {
-    setPaymentMethod(nextPaymentMethod);
+  const handleSalesFilterChange = (nextSalesFilter: SalesFilter) => {
+    setSalesFilter(nextSalesFilter);
     setPage(0);
   };
 
   const handleClearFilters = () => {
     setSearchTerm("");
     setDateRange(todayRange);
-    setPaymentMethod("all");
+    setSalesFilter("unpaid");
     setPage(0);
   };
 
   const hasActiveFilters =
-    searchTerm || paymentMethod !== "all" || !isDefaultTodayRange;
+    searchTerm || salesFilter !== "unpaid" || !isDefaultTodayRange;
 
   const handleViewSale = (saleId: string) => {
     setSelectedSaleId(saleId);
@@ -313,7 +338,7 @@ export default function SalesPage() {
               <div className="flex flex-col">
                 <span className="text-primary text-2xl font-bold">ยอดขาย</span>
                 <p className="text-foreground hidden font-medium min-[798px]:block">
-                  รายการบิลขายที่ชำระแล้ว ({total.toLocaleString()} บิล)
+                  {salesListTitle} ({total.toLocaleString()} บิล)
                 </p>
               </div>
             </div>
@@ -330,29 +355,7 @@ export default function SalesPage() {
           </div>
 
           {/* Summary Cards */}
-          <div className="grid gap-4 min-[600px]:grid-cols-2 xl:grid-cols-4">
-            <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
-              <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
-                  <FileText
-                    strokeWidth={2.5}
-                    className="text-main-blue w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
-                  />
-                </div>
-                <div className="flex flex-col items-end min-[600px]:items-start gap-1">
-                  <span className="text-primary text-lg font-semibold">
-                    บิลชำระแล้ว
-                  </span>
-                  <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
-                    <span className={`${outfit.className}`}>
-                      {(total || 0).toLocaleString()}
-                    </span>{" "}
-                    บิล
-                  </h3>
-                </div>
-              </div>
-            </div>
-
+          <div className="grid gap-4 min-[600px]:grid-cols-2 xl:grid-cols-3">
             <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
               <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
                 <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
@@ -363,7 +366,7 @@ export default function SalesPage() {
                 </div>
                 <div className="flex flex-col items-end min-[600px]:items-start gap-1">
                   <span className="text-primary text-lg font-semibold">
-                    ยอดขายที่ชำระแล้ว
+                    ยอดรวม
                   </span>
                   <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
                     <span className={`${outfit.className}`}>
@@ -418,6 +421,72 @@ export default function SalesPage() {
                 </div>
               </div>
             </div>
+
+            <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
+              <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
+                <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
+                  <FileText
+                    strokeWidth={2.5}
+                    className="text-main-blue w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
+                  />
+                </div>
+                <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                  <span className="text-primary text-lg font-semibold">
+                    จำนวนบิล
+                  </span>
+                  <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
+                    <span className={`${outfit.className}`}>
+                      {(total || 0).toLocaleString()}
+                    </span>{" "}
+                    บิล
+                  </h3>
+                </div>
+              </div>
+            </div>
+
+            <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
+              <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
+                <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
+                  <HandCoins
+                    strokeWidth={2.5}
+                    className="text-violet-600 w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
+                  />
+                </div>
+                <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                  <span className="text-primary text-lg font-semibold">
+                    ค่ามัดจำ
+                  </span>
+                  <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
+                    <span className={`${outfit.className}`}>
+                      {(summary?.totalDeposits || 0).toLocaleString()}
+                    </span>{" "}
+                    บาท
+                  </h3>
+                </div>
+              </div>
+            </div>
+
+            <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
+              <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
+                <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
+                  <Wallet
+                    strokeWidth={2.5}
+                    className="text-amber-600 w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
+                  />
+                </div>
+                <div className="flex flex-col items-end min-[600px]:items-start gap-1">
+                  <span className="text-primary text-lg font-semibold">
+                    ยอดค้างชำระ
+                  </span>
+                  <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
+                    <span className={`${outfit.className}`}>
+                      {(summary?.totalReceivable || 0).toLocaleString()}
+                    </span>{" "}
+                    บาท
+                  </h3>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Filters & Actions below the cards */}
@@ -435,27 +504,34 @@ export default function SalesPage() {
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex flex-wrap gap-2">
                 <Button
-                  variant={paymentMethod === "all" ? "default" : "outline"}
-                  onClick={() => handlePaymentMethodChange("all")}
+                  variant={salesFilter === "all" ? "default" : "outline"}
+                  onClick={() => handleSalesFilterChange("all")}
                   className="font-bold"
                 >
                   ทั้งหมด
                 </Button>
                 <Button
-                  variant={paymentMethod === "cash" ? "default" : "outline"}
-                  onClick={() => handlePaymentMethodChange("cash")}
+                  variant={salesFilter === "cash" ? "default" : "outline"}
+                  onClick={() => handleSalesFilterChange("cash")}
                   className="font-bold"
                 >
                   <Banknote className="mr-2 h-4 w-4" />
                   เงินสด
                 </Button>
                 <Button
-                  variant={paymentMethod === "transfer" ? "default" : "outline"}
-                  onClick={() => handlePaymentMethodChange("transfer")}
+                  variant={salesFilter === "transfer" ? "default" : "outline"}
+                  onClick={() => handleSalesFilterChange("transfer")}
                   className="font-bold"
                 >
                   <CreditCard className="mr-2 h-4 w-4" />
                   เงินโอน
+                </Button>
+                <Button
+                  variant={salesFilter === "unpaid" ? "default" : "outline"}
+                  onClick={() => handleSalesFilterChange("unpaid")}
+                  className="font-bold"
+                >
+                  ค้างชำระ
                 </Button>
               </div>
               <DateRangePicker
@@ -506,9 +582,9 @@ export default function SalesPage() {
                   {dateRange.to && ` - ${format(dateRange.to, "d MMM yyyy")}`}
                 </Badge>
               )}
-              {paymentMethod !== "all" && (
+              {salesFilter !== "unpaid" && (
                 <Badge variant="secondary">
-                  ชำระ: {getPaymentMethodFilterLabel(paymentMethod)}
+                  ชำระ: {getSalesFilterLabel(salesFilter)}
                 </Badge>
               )}
             </div>
@@ -524,7 +600,7 @@ export default function SalesPage() {
               </div>
               <div className="flex flex-col">
                 <span className="text-xl font-bold text-card-foreground">
-                  รายการบิลขายที่ชำระแล้ว
+                  {salesListTitle}
                 </span>
                 <p className="text-sm font-medium text-muted-foreground">
                   คลิกที่บิลเพื่อดูรายละเอียดสินค้าและการชำระเงิน
@@ -566,7 +642,7 @@ export default function SalesPage() {
                 <Search className="h-5 w-5 text-muted-foreground" />
               </div>
               <h3 className="text-lg font-bold text-card-foreground">
-                ไม่พบข้อมูลบิลขายที่ชำระแล้ว
+                ไม่พบข้อมูล{salesListTitle.replace(/^รายการ/, "")}
               </h3>
               <p className="mt-1 text-sm font-medium text-muted-foreground">
                 ลองปรับคำค้นหาหรือช่วงวันที่ใหม่อีกครั้ง
@@ -592,6 +668,9 @@ export default function SalesPage() {
                       </TableHead>
                       <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
                         ยอดขาย
+                      </TableHead>
+                      <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[620px]:table-cell">
+                        ค่ามัดจำ
                       </TableHead>
                       <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[700px]:table-cell">
                         กำไร
@@ -700,21 +779,29 @@ export default function SalesPage() {
                             </div>
                           </TableCell>
 
+                          <TableCell className="hidden text-right align-middle min-[620px]:table-cell">
+                            <span
+                              className={cn(
+                                outfit.className,
+                                "text-sm font-bold text-primary min-[500px]:text-base",
+                              )}
+                            >
+                              {formatCurrency(sale.deposits)}
+                            </span>
+                          </TableCell>
+
                           <TableCell className="hidden text-right align-middle min-[700px]:table-cell">
                             <div className="flex flex-col items-end gap-1">
                               <span
                                 className={cn(
                                   outfit.className,
-                                  "font-bold",
+                                  "text-base font-bold",
                                   sale.totalProfit >= 0
                                     ? "text-main-green"
                                     : "text-main-red",
                                 )}
                               >
                                 {formatCurrency(sale.totalProfit)}
-                              </span>
-                              <span className="text-xs font-semibold text-muted-foreground">
-                                {formatProfitMargin(sale)} margin
                               </span>
                             </div>
                           </TableCell>
@@ -744,6 +831,11 @@ export default function SalesPage() {
                                   </Badge>
                                 )}
                               </div>
+                              {sale.receivableAmount > 0 && (
+                                <span className="text-xs font-semibold text-main-red">
+                                  ค้าง {formatCurrency(sale.receivableAmount)}
+                                </span>
+                              )}
                               <span className="hidden text-xs font-semibold text-muted-foreground min-[900px]:block">
                                 {sale.itemCount} รายการ
                               </span>

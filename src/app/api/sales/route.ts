@@ -1,6 +1,6 @@
 /**
  * Sales API
- * GET /api/sales - ดึงรายการบิลขายที่ชำระเงินแล้ว
+ * GET /api/sales - ดึงรายการบิลขายพร้อมสรุปยอดตามตัวกรอง
  */
 
 import { type NextRequest, NextResponse } from "next/server";
@@ -16,6 +16,9 @@ interface SaleItem {
   totalProfit: number;
   cash: number;
   transfer: number;
+  deposits: number;
+  receivableAmount: number;
+  status: string;
   itemCount: number;
 }
 
@@ -24,6 +27,54 @@ interface SalesSummary {
   totalProfit: number;
   totalCash: number;
   totalTransfer: number;
+  totalDeposits: number;
+  totalReceivable: number;
+}
+
+type SalesStatusFilter = "all" | "cash" | "transfer" | "unpaid";
+
+function getSafeMoneyExpression(valueExpression: string) {
+  const textExpression = `CONVERT(nvarchar(100), ${valueExpression})`;
+
+  return `ISNULL(CONVERT(money, CASE WHEN ${valueExpression} IS NULL THEN '0' WHEN ISNUMERIC(${textExpression}) = 1 THEN ${textExpression} ELSE '0' END), 0)`;
+}
+
+function buildSalesConditions({
+  search,
+  startDate,
+  endDate,
+  status,
+}: {
+  search: string;
+  startDate: string;
+  endDate: string;
+  status: SalesStatusFilter;
+}) {
+  const conditions: string[] = [];
+
+  if (search) {
+    conditions.push(
+      `(m.NumberPrintSalePost LIKE @search OR m.NameCustomer LIKE @search)`,
+    );
+  }
+
+  if (startDate) {
+    conditions.push("CONVERT(date, m.DateSalePost) >= @startDate");
+  }
+
+  if (endDate) {
+    conditions.push("CONVERT(date, m.DateSalePost) <= @endDate");
+  }
+
+  if (status === "cash") {
+    conditions.push("ISNULL(m.Cash, 0) > 0");
+  } else if (status === "transfer") {
+    conditions.push("ISNULL(m.Transfer, 0) > 0");
+  } else if (status === "unpaid") {
+    conditions.push("LTRIM(RTRIM(ISNULL(m.Status, ''))) = N'ค้างชำระ'");
+  }
+
+  return conditions;
 }
 
 export async function GET(request: NextRequest) {
@@ -34,9 +85,22 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search") || "";
     const startDate = searchParams.get("startDate") || "";
     const endDate = searchParams.get("endDate") || "";
-    const paymentMethod = searchParams.get("paymentMethod") || "all";
+    const statusParam = searchParams.get("status") || "all";
+    const status: SalesStatusFilter =
+      statusParam === "cash" ||
+      statusParam === "transfer" ||
+      statusParam === "unpaid"
+        ? statusParam
+        : "all";
 
     // Build query
+    const conditions = buildSalesConditions({
+      search,
+      startDate,
+      endDate,
+      status,
+    });
+
     let query = `
       WITH PaginatedData AS (
         SELECT 
@@ -48,6 +112,17 @@ export async function GET(request: NextRequest) {
           m.TotalProfit as totalProfit,
           m.Cash as cash,
           m.Transfer as transfer,
+          ${getSafeMoneyExpression("m.Deposits")} as deposits,
+          CASE
+            WHEN LTRIM(RTRIM(ISNULL(m.Status, ''))) = N'ค้างชำระ'
+              THEN CASE
+                WHEN m.TotalPrice - ISNULL(m.Cash, 0) - ISNULL(m.Transfer, 0) - ${getSafeMoneyExpression("m.Deposits")} > 0
+                  THEN m.TotalPrice - ISNULL(m.Cash, 0) - ISNULL(m.Transfer, 0) - ${getSafeMoneyExpression("m.Deposits")}
+                ELSE 0
+              END
+            ELSE 0
+          END as receivableAmount,
+          LTRIM(RTRIM(ISNULL(m.Status, ''))) as status,
           (SELECT COUNT(*) FROM dbo.DetailSalePost WHERE NumberPrintSalePost = m.NumberPrintSalePost) as itemCount,
           ROW_NUMBER() OVER (ORDER BY m.DateSalePost DESC) as RowNum
         FROM dbo.MasterSalePost m
@@ -55,33 +130,9 @@ export async function GET(request: NextRequest) {
     `;
 
     // Build WHERE clause
-    const conditions: string[] = [
-      "LTRIM(RTRIM(ISNULL(m.Status, ''))) = N'ชำระเงินแล้ว'",
-    ];
-
-    if (search) {
-      conditions.push(
-        `(m.NumberPrintSalePost LIKE @search OR m.NameCustomer LIKE @search)`,
-      );
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(" AND ")}`;
     }
-
-    if (startDate) {
-      conditions.push("CONVERT(date, m.DateSalePost) >= @startDate");
-    }
-
-    if (endDate) {
-      conditions.push("CONVERT(date, m.DateSalePost) <= @endDate");
-    }
-
-    if (paymentMethod === "cash") {
-      conditions.push("ISNULL(m.Cash, 0) > 0");
-    }
-
-    if (paymentMethod === "transfer") {
-      conditions.push("ISNULL(m.Transfer, 0) > 0");
-    }
-
-    query += ` WHERE ${conditions.join(" AND ")}`;
 
     query += `
       )
@@ -94,6 +145,9 @@ export async function GET(request: NextRequest) {
         totalProfit,
         cash,
         transfer,
+        deposits,
+        receivableAmount,
+        status,
         itemCount
       FROM PaginatedData
       WHERE RowNum > @offset AND RowNum <= (@offset + @limit)
@@ -109,6 +163,9 @@ export async function GET(request: NextRequest) {
       totalProfit: number;
       cash: number;
       transfer: number;
+      deposits: number;
+      receivableAmount: number;
+      status: string;
       itemCount: number;
     }>(query, {
       limit,
@@ -128,40 +185,18 @@ export async function GET(request: NextRequest) {
       totalProfit: row.totalProfit,
       cash: row.cash,
       transfer: row.transfer,
+      deposits: row.deposits,
+      receivableAmount: row.receivableAmount,
+      status: row.status,
       itemCount: row.itemCount,
     }));
 
     // Get total count
     let countQuery = `SELECT COUNT(*) as total FROM dbo.MasterSalePost m`;
 
-    // Build WHERE clause for count query
-    const countConditions: string[] = [
-      "LTRIM(RTRIM(ISNULL(m.Status, ''))) = N'ชำระเงินแล้ว'",
-    ];
-
-    if (search) {
-      countConditions.push(
-        `(m.NumberPrintSalePost LIKE @search OR m.NameCustomer LIKE @search)`,
-      );
+    if (conditions.length > 0) {
+      countQuery += ` WHERE ${conditions.join(" AND ")}`;
     }
-
-    if (startDate) {
-      countConditions.push("CONVERT(date, m.DateSalePost) >= @startDate");
-    }
-
-    if (endDate) {
-      countConditions.push("CONVERT(date, m.DateSalePost) <= @endDate");
-    }
-
-    if (paymentMethod === "cash") {
-      countConditions.push("ISNULL(m.Cash, 0) > 0");
-    }
-
-    if (paymentMethod === "transfer") {
-      countConditions.push("ISNULL(m.Transfer, 0) > 0");
-    }
-
-    countQuery += ` WHERE ${countConditions.join(" AND ")}`;
 
     const [countResult] = await executeQuery<{ total: number }>(countQuery, {
       search: `%${search}%`,
@@ -175,11 +210,28 @@ export async function GET(request: NextRequest) {
         ISNULL(SUM(m.TotalPrice), 0) as totalSales,
         ISNULL(SUM(m.TotalProfit), 0) as totalProfit,
         ISNULL(SUM(m.Cash), 0) as totalCash,
-        ISNULL(SUM(m.Transfer), 0) as totalTransfer
+        ISNULL(SUM(m.Transfer), 0) as totalTransfer,
+        ISNULL(SUM(${getSafeMoneyExpression("m.Deposits")}), 0) as totalDeposits,
+        ISNULL(
+          SUM(
+            CASE
+              WHEN LTRIM(RTRIM(ISNULL(m.Status, ''))) = N'ค้างชำระ'
+                THEN CASE
+                  WHEN m.TotalPrice - ISNULL(m.Cash, 0) - ISNULL(m.Transfer, 0) - ${getSafeMoneyExpression("m.Deposits")} > 0
+                    THEN m.TotalPrice - ISNULL(m.Cash, 0) - ISNULL(m.Transfer, 0) - ${getSafeMoneyExpression("m.Deposits")}
+                  ELSE 0
+                END
+              ELSE 0
+            END
+          ),
+          0
+        ) as totalReceivable
       FROM dbo.MasterSalePost m
     `;
 
-    summaryQuery += ` WHERE ${conditions.join(" AND ")}`;
+    if (conditions.length > 0) {
+      summaryQuery += ` WHERE ${conditions.join(" AND ")}`;
+    }
 
     const [summaryResult] = await executeQuery<SalesSummary>(summaryQuery, {
       search: `%${search}%`,
@@ -205,6 +257,8 @@ export async function GET(request: NextRequest) {
           totalProfit: summaryResult.totalProfit,
           totalCash: summaryResult.totalCash,
           totalTransfer: summaryResult.totalTransfer,
+          totalDeposits: summaryResult.totalDeposits,
+          totalReceivable: summaryResult.totalReceivable,
         },
       },
       timestamp: new Date().toISOString(),
