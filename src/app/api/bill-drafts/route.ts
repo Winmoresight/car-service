@@ -298,8 +298,13 @@ function formatLegacyTime(date: Date) {
   return [
     String(date.getHours()).padStart(2, "0"),
     String(date.getMinutes()).padStart(2, "0"),
-    String(date.getSeconds()).padStart(2, "0"),
   ].join(":");
+}
+
+function getLegacyDateOnly(date: Date) {
+  return new Date(
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()),
+  );
 }
 
 function truncateText(value: string | null, maxLength: number) {
@@ -570,6 +575,7 @@ async function createLegacySaleBill(params: {
   const pool = await getPool();
   const transaction = new sql.Transaction(pool);
   const createdAt = new Date();
+  const saleDate = getLegacyDateOnly(createdAt);
   const createdBy = truncateText(sanitizeText(body.createdBy) || "Mobile", 250);
   let customerCode: string | null = null;
   let customerCreated = false;
@@ -594,7 +600,7 @@ async function createLegacySaleBill(params: {
     const billNo = await createLegacyBillNo(transaction, createdAt);
     const masterRequest = new sql.Request(transaction);
 
-    masterRequest.input("dateSalePost", sql.DateTime, createdAt);
+    masterRequest.input("dateSalePost", sql.DateTime, saleDate);
     masterRequest.input("times", formatLegacyTime(createdAt));
     masterRequest.input("billNo", billNo);
     masterRequest.input("nameCar", truncateText(nameCar, 250));
@@ -693,7 +699,7 @@ async function createLegacySaleBill(params: {
       const lineCost = getLineCost(item);
       const detailRequest = new sql.Request(transaction);
 
-      detailRequest.input("dateSalePost", sql.DateTime, createdAt);
+      detailRequest.input("dateSalePost", sql.DateTime, saleDate);
       detailRequest.input("billNo", billNo);
       detailRequest.input("orderNumber", sql.Int, index + 1);
       detailRequest.input("barCode", barCode);

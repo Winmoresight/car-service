@@ -41,6 +41,10 @@ interface ProductOption {
   usedCount: number;
 }
 
+interface EmployeeUserOption {
+  nameUser: string;
+}
+
 interface DraftItem {
   id: string;
   type: "product" | "service";
@@ -132,6 +136,19 @@ async function fetchProductOptions(search: string, signal: AbortSignal) {
   const data = await fetchCatalogOptions(search, signal);
 
   return data?.products || [];
+}
+
+async function fetchEmployeeUserOptions(search: string, signal: AbortSignal) {
+  const response = await fetch(
+    `/api/employees/users?search=${encodeURIComponent(search)}&limit=12`,
+    { signal },
+  );
+  const data = (await response.json()) as {
+    success: boolean;
+    data?: EmployeeUserOption[];
+  };
+
+  return data.success && data.data ? data.data : [];
 }
 
 export default function NewBillPage() {
@@ -366,6 +383,13 @@ export default function NewBillPage() {
       setMessage(null);
       setError(null);
 
+      const createdBy = form.createdBy.trim();
+
+      if (!createdBy) {
+        setError("กรุณาเลือกผู้รับงานก่อนเปิดบิล");
+        return;
+      }
+
       if (paymentSummary.paidTotal > totals.totalPrice) {
         setError("ยอดชำระมากกว่ายอดรวมของบิล");
         return;
@@ -380,6 +404,7 @@ export default function NewBillPage() {
           ...form,
           cash: paymentSummary.cash,
           transfer: paymentSummary.transfer,
+          createdBy,
           createdFrom: "mobile",
           items,
         }),
@@ -1134,17 +1159,26 @@ export default function NewBillPage() {
                 ) : null}
               </div>
 
-              <label htmlFor="createdBy" className="mt-4 block space-y-1.5">
-                <span className="text-sm font-bold text-primary">ผู้รับงาน</span>
-                <Input
-                  id="createdBy"
-                  value={form.createdBy}
-                  onChange={(event) =>
-                    updateForm("createdBy", event.target.value)
+              <div className="mt-4 block space-y-1.5">
+                <span className="text-sm font-bold text-primary">
+                  ผู้รับงาน <span className="text-main-red">*</span>
+                </span>
+                <AsyncSearchableSelect<EmployeeUserOption>
+                  selectedLabel={form.createdBy || undefined}
+                  placeholder="เลือกผู้รับงาน"
+                  searchPlaceholder="ค้นหาชื่อพนักงาน..."
+                  emptyMessage="ไม่พบชื่อพนักงาน"
+                  fetchOptions={fetchEmployeeUserOptions}
+                  getOptionKey={(employee) => employee.nameUser}
+                  getOptionLabel={(employee) => employee.nameUser}
+                  isOptionSelected={(employee) =>
+                    employee.nameUser === form.createdBy
                   }
-                  className="h-11 rounded-xl"
+                  onSelect={(employee) =>
+                    updateForm("createdBy", employee.nameUser)
+                  }
                 />
-              </label>
+              </div>
 
               <label htmlFor="note" className="mt-4 block space-y-1.5">
                 <span className="text-sm font-bold text-primary">หมายเหตุ</span>
