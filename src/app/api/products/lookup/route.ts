@@ -2,6 +2,70 @@ import { type NextRequest, NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
 import type { ApiResponse, BarcodeScanResult } from "@/types/api";
 
+type LookupQueryStage =
+  | "stock_timeline"
+  | "sales_summary"
+  | "master_match"
+  | "sales_fallback"
+  | "movement_history";
+
+interface LookupErrorDetails {
+  stage: LookupQueryStage | "validation" | "demo" | "unknown";
+  message: string;
+  cause?: string;
+}
+
+class LookupQueryError extends Error {
+  stage: LookupQueryStage;
+  cause?: unknown;
+
+  constructor(stage: LookupQueryStage, message: string, cause?: unknown) {
+    super(message);
+    this.name = "LookupQueryError";
+    this.stage = stage;
+    this.cause = cause;
+  }
+}
+
+function serializeLookupError(error: unknown): LookupErrorDetails {
+  if (error instanceof LookupQueryError) {
+    return {
+      stage: error.stage,
+      message: error.message,
+      cause:
+        error.cause instanceof Error
+          ? error.cause.message
+          : typeof error.cause === "string"
+            ? error.cause
+            : undefined,
+    };
+  }
+
+  if (error instanceof Error) {
+    return {
+      stage: "unknown",
+      message: error.message,
+    };
+  }
+
+  return {
+    stage: "unknown",
+    message: String(error),
+  };
+}
+
+async function runLookupQuery<T>(
+  stage: LookupQueryStage,
+  query: string,
+  params: Record<string, unknown>,
+): Promise<T[]> {
+  try {
+    return await executeQuery<T>(query, params, false);
+  } catch (error) {
+    throw new LookupQueryError(stage, `Query failed at ${stage}`, error);
+  }
+}
+
 function normalizeBarcode(value: string | null) {
   return (value || "").trim().replace(/\s+/g, "");
 }
@@ -98,6 +162,10 @@ export async function GET(request: NextRequest) {
         {
           success: false,
           error: "กรุณาระบุบาร์โค้ด",
+          details: {
+            stage: "validation",
+            message: "Barcode query parameter is required",
+          },
           timestamp: new Date().toISOString(),
         },
         { status: 400 },
@@ -115,7 +183,7 @@ export async function GET(request: NextRequest) {
     }
 
     const [lookupRows, movementRows] = await Promise.all([
-      executeQuery<{
+      runLookupQuery<{
         barcode: string;
         productCode: string;
         name: string;
@@ -134,6 +202,7 @@ export async function GET(request: NextRequest) {
         lastSaleAt: Date | null;
         source: "master" | "sales-history";
       }>(
+        "master_match",
         `
           WITH StockTimeline AS (
             SELECT
@@ -245,15 +314,15 @@ export async function GET(request: NextRequest) {
           ORDER BY CASE WHEN source = 'master' THEN 0 ELSE 1 END
         `,
         { barcode },
-        false,
       ),
-      executeQuery<{
+      runLookupQuery<{
         date: Date;
         type: "in" | "out";
         quantity: number;
         stock: number;
         company: string;
       }>(
+        "movement_history",
         `
           SELECT TOP 8
             DateSave as date,
@@ -272,7 +341,6 @@ export async function GET(request: NextRequest) {
           ORDER BY DateSave DESC, Times DESC, NumberPrint DESC
         `,
         { barcode },
-        false,
       ),
     ]);
 
@@ -337,28 +405,21 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("Barcode lookup API error:", error);
+    const details = serializeLookupError(error);
+    console.error("Barcode lookup API error:", details, error);
 
     const barcode = normalizeBarcode(
       request.nextUrl.searchParams.get("barcode"),
     );
-    const shouldReturnDemo =
-      process.env.NODE_ENV !== "production" && barcode.length > 0;
-
-    if (shouldReturnDemo) {
-      const response: ApiResponse<BarcodeScanResult> = {
-        success: true,
-        data: createDemoLookupResult(barcode),
-        timestamp: new Date().toISOString(),
-      };
-
-      return NextResponse.json(response);
-    }
 
     return NextResponse.json(
       {
         success: false,
         error: "ไม่สามารถค้นหาสินค้าจากบาร์โค้ดได้",
+        details: {
+          ...details,
+          barcode,
+        },
         timestamp: new Date().toISOString(),
       },
       { status: 500 },

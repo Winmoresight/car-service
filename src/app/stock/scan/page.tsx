@@ -55,7 +55,10 @@ const fetcher = async (url: string, signal?: AbortSignal) => {
   const payload = (await response.json()) as ApiResponse<BarcodeScanResult>;
 
   if (!payload.success) {
-    throw new Error(payload.error);
+    throw Object.assign(new Error(payload.error), {
+      details: payload.details,
+      status: response.status,
+    });
   }
 
   if (!response.ok) {
@@ -63,6 +66,13 @@ const fetcher = async (url: string, signal?: AbortSignal) => {
   }
 
   return payload.data;
+};
+
+type LookupErrorDetails = {
+  stage?: string;
+  message?: string;
+  cause?: string;
+  barcode?: string;
 };
 
 function normalizeBarcode(value: string) {
@@ -88,6 +98,31 @@ function formatPercent(value: number) {
   return `${new Intl.NumberFormat("th-TH", {
     maximumFractionDigits: 2,
   }).format(value || 0)}%`;
+}
+
+function formatLookupErrorMessage(error: unknown) {
+  const details = error as Error & { details?: unknown };
+
+  if (details?.details && typeof details.details === "object") {
+    const lookupDetails = details.details as LookupErrorDetails;
+    const parts = [
+      lookupDetails.stage,
+      lookupDetails.message,
+      lookupDetails.cause,
+    ]
+      .filter((part): part is string => Boolean(part))
+      .map((part) => part.trim());
+
+    if (parts.length > 0) {
+      return parts.join(" · ");
+    }
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "ค้นหาไม่สำเร็จ";
 }
 
 function formatDateTime(value: string | null) {
@@ -305,7 +340,7 @@ export default function StockScanPage() {
         return;
       }
 
-      const message = error instanceof Error ? error.message : "ค้นหาไม่สำเร็จ";
+      const message = formatLookupErrorMessage(error);
       const missing = message.includes("ไม่พบสินค้า");
 
       setResult(null);
