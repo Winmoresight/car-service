@@ -66,6 +66,8 @@ interface CatalogResponse {
 }
 
 type PaymentState = "unpaid" | "paid";
+type PaymentMethod = "cash" | "transfer";
+type PaymentMode = "full" | "split";
 
 const emptyItem: DraftItemForm = {
   type: "service",
@@ -153,6 +155,10 @@ export default function NewBillPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [paymentState, setPaymentState] = useState<PaymentState>("unpaid");
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>("full");
+  const [fullPaymentMethod, setFullPaymentMethod] =
+    useState<PaymentMethod>("cash");
+  const [showDepositInput, setShowDepositInput] = useState(false);
   const [form, setForm] = useState({
     customerCode: "",
     customerName: "",
@@ -190,8 +196,19 @@ export default function NewBillPage() {
 
   const paymentSummary = useMemo(() => {
     const deposits = parseNumberInput(form.deposits);
-    const cash = parseNumberInput(form.cash);
-    const transfer = parseNumberInput(form.transfer);
+    const fullPaymentAmount = Math.max(totals.totalPrice - deposits, 0);
+    const cash =
+      paymentState === "paid" && paymentMode === "full"
+        ? fullPaymentMethod === "cash"
+          ? fullPaymentAmount
+          : 0
+        : parseNumberInput(form.cash);
+    const transfer =
+      paymentState === "paid" && paymentMode === "full"
+        ? fullPaymentMethod === "transfer"
+          ? fullPaymentAmount
+          : 0
+        : parseNumberInput(form.transfer);
     const paidTotal = deposits + cash + transfer;
     const remainingAmount = Math.max(totals.totalPrice - paidTotal, 0);
     const status =
@@ -209,7 +226,15 @@ export default function NewBillPage() {
       remainingAmount,
       status,
     };
-  }, [form.cash, form.deposits, form.transfer, totals.totalPrice]);
+  }, [
+    form.cash,
+    form.deposits,
+    form.transfer,
+    fullPaymentMethod,
+    paymentMode,
+    paymentState,
+    totals.totalPrice,
+  ]);
 
   const updateForm = (field: keyof typeof form, value: string) => {
     setForm((current) => ({
@@ -233,8 +258,12 @@ export default function NewBillPage() {
     setPaymentState(nextState);
 
     if (nextState === "unpaid") {
+      setPaymentMode("full");
+      setFullPaymentMethod("cash");
+      setShowDepositInput(false);
       setForm((current) => ({
         ...current,
+        deposits: "",
         cash: "",
         transfer: "",
         nameBank: "",
@@ -242,18 +271,34 @@ export default function NewBillPage() {
       return;
     }
 
-    setForm((current) => {
-      const hasPayment = Boolean(current.cash || current.transfer);
-      const defaultAmount =
-        totals.totalPrice > 0 ? String(totals.totalPrice) : "";
+    setPaymentMode("full");
+    setFullPaymentMethod("cash");
+    setShowDepositInput(false);
+    setForm((current) => ({
+      ...current,
+      cash: "",
+      transfer: "",
+      nameBank: "",
+    }));
+  };
 
-      return {
-        ...current,
-        cash: hasPayment ? current.cash : defaultAmount,
-        transfer: current.transfer,
-        nameBank: current.transfer ? current.nameBank : "",
-      };
-    });
+  const setFullPayment = () => {
+    setPaymentState("paid");
+    setPaymentMode("full");
+    setFullPaymentMethod("cash");
+    setShowDepositInput(false);
+    setForm((current) => ({
+      ...current,
+      cash: "",
+      transfer: "",
+      nameBank: "",
+    }));
+  };
+
+  const setSplitPayment = () => {
+    setPaymentState("paid");
+    setPaymentMode("split");
+    setShowDepositInput(false);
   };
 
   const selectCustomer = (customer: CustomerOption) => {
@@ -345,6 +390,9 @@ export default function NewBillPage() {
     });
     setDraftItem(emptyItem);
     setItems([]);
+    setPaymentMode("full");
+    setFullPaymentMethod("cash");
+    setShowDepositInput(false);
   };
 
   const submitDraft = async () => {
@@ -362,6 +410,11 @@ export default function NewBillPage() {
 
       if (paymentSummary.paidTotal > totals.totalPrice) {
         setError("ยอดชำระมากกว่ายอดรวมของบิล");
+        return;
+      }
+
+      if (paymentState === "paid" && paymentSummary.paidTotal <= 0) {
+        setError("กรุณาเลือกวิธีชำระให้ครบ");
         return;
       }
 
@@ -1080,80 +1133,195 @@ export default function NewBillPage() {
 
                 {paymentState === "paid" ? (
                   <div className="rounded-[8px] border bg-white p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] dark:bg-background">
-                    <label
-                      htmlFor="depositAmount"
-                      className="block space-y-1.5"
-                    >
-                      <span className="text-sm font-bold text-primary">
-                        เงินค่ามัดจำ
-                      </span>
-                      <Input
-                        id="depositAmount"
-                        type="number"
-                        min="0"
-                        inputMode="decimal"
-                        value={form.deposits}
-                        onChange={(event) =>
-                          updateForm("deposits", event.target.value)
-                        }
-                        className="h-11 rounded-xl text-right font-semibold"
-                      />
-                    </label>
-
-                    <div className="mt-3 grid gap-3 min-[520px]:grid-cols-2">
-                      <label htmlFor="cashAmount" className="block space-y-1.5">
-                        <span className="text-sm font-bold text-primary">
-                          เงินสด
-                        </span>
-                        <Input
-                          id="cashAmount"
-                          type="number"
-                          min="0"
-                          inputMode="decimal"
-                          value={form.cash}
-                          onChange={(event) =>
-                            updateForm("cash", event.target.value)
-                          }
-                          className="h-11 rounded-xl text-right font-semibold"
-                        />
-                      </label>
-                      <label
-                        htmlFor="transferAmount"
-                        className="block space-y-1.5"
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={setFullPayment}
+                          className={`h-10 rounded-xl font-bold ${
+                            paymentMode === "full"
+                              ? "border-main-green bg-main-green !text-white shadow-sm hover:bg-main-green/90 hover:!text-white"
+                              : "bg-white text-muted-foreground hover:border-main-green/40 hover:bg-emerald-50 hover:!text-main-green dark:bg-background"
+                          }`}
+                        >
+                          ชำระเต็มยอด
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={setSplitPayment}
+                          className={`h-10 rounded-xl font-bold ${
+                            paymentMode === "split"
+                              ? "border-main-green bg-main-green !text-white shadow-sm hover:bg-main-green/90 hover:!text-white"
+                              : "bg-white text-muted-foreground hover:border-main-green/40 hover:bg-emerald-50 hover:!text-main-green dark:bg-background"
+                          }`}
+                        >
+                          แบ่งจ่าย
+                        </Button>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setShowDepositInput((current) => !current)}
+                        className="h-10 rounded-xl font-bold text-muted-foreground"
                       >
-                        <span className="text-sm font-bold text-primary">
-                          เงินโอน
-                        </span>
-                        <Input
-                          id="transferAmount"
-                          type="number"
-                          min="0"
-                          inputMode="decimal"
-                          value={form.transfer}
-                          onChange={(event) =>
-                            updateForm("transfer", event.target.value)
-                          }
-                          className="h-11 rounded-xl text-right font-semibold"
-                        />
-                      </label>
+                        {showDepositInput ? "ซ่อนมัดจำ" : "+ ค่ามัดจำ"}
+                      </Button>
                     </div>
 
-                    <label
-                      htmlFor="nameBank"
-                      className="mt-3 block space-y-1.5"
-                    >
-                      <span className="text-sm font-bold text-primary">
-                        ธนาคารสำหรับเงินโอน
-                      </span>
-                      <Input
-                        id="nameBank"
-                        value={form.nameBank}
-                        onChange={(event) =>
-                          updateForm("nameBank", event.target.value)
-                        }
-                        className="h-11 rounded-xl"
-                      />
-                    </label>
+                    {showDepositInput ? (
+                      <label
+                        htmlFor="depositAmount"
+                        className="mt-3 block space-y-1.5"
+                      >
+                        <span className="text-sm font-bold text-primary">
+                          เงินค่ามัดจำ
+                        </span>
+                        <Input
+                          id="depositAmount"
+                          type="number"
+                          min="0"
+                          inputMode="decimal"
+                          value={form.deposits}
+                          onChange={(event) =>
+                            updateForm("deposits", event.target.value)
+                          }
+                          className="h-11 rounded-xl text-right font-semibold"
+                        />
+                      </label>
+                    ) : null}
+
+                    {paymentMode === "full" ? (
+                      <div className="mt-3 space-y-3">
+                        <div className="rounded-[8px] border bg-background p-3 dark:bg-secondary">
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <span className="text-sm font-bold text-primary">
+                              ชำระเต็มยอด
+                            </span>
+                            <span className="text-sm font-semibold text-muted-foreground">
+                              {formatCurrency(
+                                Math.max(
+                                  totals.totalPrice -
+                                    parseNumberInput(form.deposits),
+                                  0,
+                                ),
+                              )}{" "}
+                              บาท
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => setFullPaymentMethod("cash")}
+                              className={`h-10 rounded-xl font-bold ${
+                                fullPaymentMethod === "cash"
+                                  ? "border-main-blue bg-main-blue !text-white shadow-sm hover:bg-main-blue/90 hover:!text-white"
+                                  : "bg-white text-muted-foreground hover:border-main-blue/40 hover:bg-blue-50 hover:!text-main-blue dark:bg-background"
+                              }`}
+                            >
+                              เงินสด
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => setFullPaymentMethod("transfer")}
+                              className={`h-10 rounded-xl font-bold ${
+                                fullPaymentMethod === "transfer"
+                                  ? "border-main-blue bg-main-blue !text-white shadow-sm hover:bg-main-blue/90 hover:!text-white"
+                                  : "bg-white text-muted-foreground hover:border-main-blue/40 hover:bg-blue-50 hover:!text-main-blue dark:bg-background"
+                              }`}
+                            >
+                              เงินโอน
+                            </Button>
+                          </div>
+                        </div>
+
+                        {fullPaymentMethod === "transfer" ? (
+                          <label
+                            htmlFor="nameBank"
+                            className="block space-y-1.5"
+                          >
+                            <span className="text-sm font-bold text-primary">
+                              ธนาคารสำหรับเงินโอน
+                            </span>
+                            <Input
+                              id="nameBank"
+                              value={form.nameBank}
+                              onChange={(event) =>
+                                updateForm("nameBank", event.target.value)
+                              }
+                              className="h-11 rounded-xl"
+                            />
+                          </label>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <div className="mt-3 space-y-3">
+                        <div className="grid gap-3 min-[520px]:grid-cols-2">
+                          <label
+                            htmlFor="cashAmount"
+                            className="block space-y-1.5"
+                          >
+                            <span className="text-sm font-bold text-primary">
+                              เงินสด
+                            </span>
+                            <Input
+                              id="cashAmount"
+                              type="number"
+                              min="0"
+                              inputMode="decimal"
+                              value={form.cash}
+                              onChange={(event) =>
+                                updateForm("cash", event.target.value)
+                              }
+                              className="h-11 rounded-xl text-right font-semibold"
+                            />
+                          </label>
+
+                          <label
+                            htmlFor="transferAmount"
+                            className="block space-y-1.5"
+                          >
+                            <span className="text-sm font-bold text-primary">
+                              เงินโอน
+                            </span>
+                            <Input
+                              id="transferAmount"
+                              type="number"
+                              min="0"
+                              inputMode="decimal"
+                              value={form.transfer}
+                              onChange={(event) =>
+                                updateForm("transfer", event.target.value)
+                              }
+                              className="h-11 rounded-xl text-right font-semibold"
+                            />
+                          </label>
+                        </div>
+
+                        {paymentSummary.transfer > 0 ? (
+                          <label
+                            htmlFor="nameBank"
+                            className="block space-y-1.5"
+                          >
+                            <span className="text-sm font-bold text-primary">
+                              ธนาคารสำหรับเงินโอน
+                            </span>
+                            <Input
+                              id="nameBank"
+                              value={form.nameBank}
+                              onChange={(event) =>
+                                updateForm("nameBank", event.target.value)
+                              }
+                              className="h-11 rounded-xl"
+                            />
+                          </label>
+                        ) : null}
+                      </div>
+                    )}
                   </div>
                 ) : null}
               </div>
