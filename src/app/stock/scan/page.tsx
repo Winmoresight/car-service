@@ -10,14 +10,7 @@ import {
   ShieldAlert,
   Sparkles,
 } from "lucide-react";
-import {
-  type ChangeEvent,
-  type FormEvent,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -61,8 +54,12 @@ const fetcher = async (url: string, signal?: AbortSignal) => {
   const response = await fetch(url, { signal });
   const payload = (await response.json()) as ApiResponse<BarcodeScanResult>;
 
-  if (!response.ok || !payload.success) {
-    throw new Error(payload.success ? payload.error : payload.error);
+  if (!payload.success) {
+    throw new Error(payload.error);
+  }
+
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}`);
   }
 
   return payload.data;
@@ -474,8 +471,7 @@ export default function StockScanPage() {
     }
   };
 
-  const submitBarcode = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const submitBarcode = async () => {
     await runLookup(barcode, "manual");
   };
 
