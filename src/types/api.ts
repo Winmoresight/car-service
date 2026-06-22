@@ -205,6 +205,39 @@ export interface StockProductCreateResult {
   retailPrice: number;
 }
 
+export interface BarcodeScanMovement {
+  date: string;
+  type: "in" | "out";
+  quantity: number;
+  stock: number;
+  company: string;
+}
+
+export interface BarcodeScanResult {
+  barcode: string;
+  productCode: string;
+  name: string;
+  categoryName: string;
+  unit: string;
+  packageUnit: string;
+  packageQuantity: number;
+  stock: number;
+  costPrice: number;
+  retailPrice: number;
+  profitPerUnit: number;
+  profitMargin: number;
+  stockValue: number;
+  retailStockValue: number;
+  salesCount: number;
+  totalSoldQuantity: number;
+  totalSales: number;
+  totalProfit: number;
+  lastSaleAt: string | null;
+  lastMovementAt: string | null;
+  source: "master" | "sales-history" | "demo";
+  recentMovements: BarcodeScanMovement[];
+}
+
 export interface PaginatedPayload<T> {
   items: T[];
   total: number;

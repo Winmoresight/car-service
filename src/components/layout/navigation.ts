@@ -7,6 +7,7 @@ import {
   type LucideIcon,
   Package,
   Receipt,
+  ScanBarcode,
   ShoppingCart,
   Trophy,
   Truck,
@@ -71,6 +72,11 @@ export const mainNavigation = [
     name: "สต็อก",
     href: "/stock",
     icon: Warehouse,
+  },
+  {
+    name: "สแกนสินค้า",
+    href: "/stock/scan",
+    icon: ScanBarcode,
   },
   {
     name: "คู่ค้า",
