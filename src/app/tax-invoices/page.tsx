@@ -101,6 +101,7 @@ export default function TaxInvoicesPage() {
   const [closingBillNo, setClosingBillNo] = useState<string | null>(null);
   const [closeDialogState, setCloseDialogState] =
     useState<CloseReceivableDialogState | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState("");
   const [transferBankName, setTransferBankName] = useState("");
   const [closeDialogError, setCloseDialogError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -231,17 +232,19 @@ export default function TaxInvoicesPage() {
     paymentMethod: PaymentMethod,
   ) => {
     setCloseDialogState({ invoice, paymentMethod });
+    setPaymentAmount(invoice.receivableAmount.toString());
     setTransferBankName("");
     setCloseDialogError(null);
   };
 
   const handleCloseReceivableDialog = () => {
     setCloseDialogState(null);
+    setPaymentAmount("");
     setTransferBankName("");
     setCloseDialogError(null);
   };
 
-  const closeReceivable = async (nameBank: string) => {
+  const closeReceivable = async (nameBank: string, amount: number) => {
     if (!closeDialogState) {
       return;
     }
@@ -262,6 +265,7 @@ export default function TaxInvoicesPage() {
           numberPrint: invoice.numberPrint,
           paymentMethod,
           nameBank,
+          paymentAmount: amount,
         }),
       });
       const result = await response.json();
@@ -270,7 +274,12 @@ export default function TaxInvoicesPage() {
         throw new Error(result.error || "ไม่สามารถปรับสถานะลูกหนี้ได้");
       }
 
-      setActionMessage(`ปิดลูกหนี้ ${invoice.numberPrint} เรียบร้อยแล้ว`);
+      const remainingAfter = Number(result.data?.receivableAmount) || 0;
+      setActionMessage(
+        remainingAfter > 0
+          ? `บันทึกรับชำระบางส่วน ${invoice.numberPrint} แล้ว เหลือคงค้าง ${formatCurrency(remainingAfter)}`
+          : `ปิดลูกหนี้ ${invoice.numberPrint} เรียบร้อยแล้ว`,
+      );
       await mutate();
       handleCloseDialog();
       handleCloseReceivableDialog();
@@ -809,7 +818,7 @@ export default function TaxInvoicesPage() {
 
                 <div className="flex items-center justify-between rounded-2xl border bg-background px-4 py-3">
                   <span className="text-sm font-semibold text-muted-foreground">
-                    ยอดที่ต้องรับ
+                    ยอดคงเหลือ
                   </span>
                   <span
                     className={cn(
@@ -819,6 +828,34 @@ export default function TaxInvoicesPage() {
                   >
                     {formatCurrency(selectedCloseInvoice.receivableAmount)}
                   </span>
+                </div>
+
+                <div className="space-y-2">
+                  <label
+                    htmlFor="payment-amount"
+                    className="text-sm font-semibold text-card-foreground"
+                  >
+                    จำนวนรับชำระครั้งนี้
+                  </label>
+                  <Input
+                    id="payment-amount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={paymentAmount}
+                    onChange={(e) => {
+                      setPaymentAmount(e.target.value);
+                      if (closeDialogError) {
+                        setCloseDialogError(null);
+                      }
+                    }}
+                    placeholder="ระบุยอดที่รับจริง"
+                    className="h-10 text-right"
+                  />
+                  <p className="text-xs font-medium text-muted-foreground">
+                    ถ้ารับไม่ครบ ยอดคงเหลือจะยังเป็นสถานะค้างชำระ
+                  </p>
                 </div>
 
                 {selectedCloseMethod === "transfer" ? (
@@ -867,6 +904,21 @@ export default function TaxInvoicesPage() {
               <Button
                 type="button"
                 onClick={async () => {
+                  const amount = Number(paymentAmount);
+
+                  if (!Number.isFinite(amount) || amount <= 0) {
+                    setCloseDialogError("กรุณาระบุยอดรับชำระที่มากกว่า 0");
+                    return;
+                  }
+
+                  if (
+                    selectedCloseInvoice &&
+                    amount > selectedCloseInvoice.receivableAmount
+                  ) {
+                    setCloseDialogError("ยอดรับชำระมากกว่ายอดคงเหลือ");
+                    return;
+                  }
+
                   if (
                     closeDialogState?.paymentMethod === "transfer" &&
                     !transferBankName.trim()
@@ -875,7 +927,7 @@ export default function TaxInvoicesPage() {
                     return;
                   }
 
-                  await closeReceivable(transferBankName.trim());
+                  await closeReceivable(transferBankName.trim(), amount);
                 }}
                 disabled={closingBillNo !== null || !closeDialogState}
                 className="h-10 gap-2"

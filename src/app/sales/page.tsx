@@ -246,6 +246,13 @@ export default function SalesPage() {
     }).format(value);
   };
 
+  const formatCurrencyCompact = (value: number) => {
+    return new Intl.NumberFormat("th-TH", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("th-TH", {
       year: "numeric",
@@ -454,7 +461,7 @@ export default function SalesPage() {
                 </div>
                 <div className="flex flex-col items-end min-[600px]:items-start gap-1">
                   <span className="text-primary text-lg font-semibold">
-                    ค่ามัดจำ
+                    เงินค่ามัดจำ
                   </span>
                   <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
                     <span className={`${outfit.className}`}>
@@ -654,10 +661,10 @@ export default function SalesPage() {
                 <Table>
                   <TableHeader className="bg-secondary/70">
                     <TableRow className="border-border/60 hover:bg-transparent">
-                      <TableHead className="w-[24%] px-4 text-base font-bold text-card-foreground min-[500px]:text-lg">
+                      <TableHead className="w-[24%] px-4 text-base font-bold text-card-foreground">
                         เลขที่บิล
                       </TableHead>
-                      <TableHead className="hidden text-base font-bold text-card-foreground min-[640px]:table-cell min-[500px]:text-lg">
+                      <TableHead className="hidden text-base font-bold text-card-foreground min-[640px]:table-cell">
                         ลูกค้า
                       </TableHead>
                       <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[760px]:table-cell">
@@ -666,16 +673,16 @@ export default function SalesPage() {
                       <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[620px]:table-cell">
                         รายการ
                       </TableHead>
-                      <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
+                      <TableHead className="text-right text-base font-bold text-card-foreground">
                         ยอดขาย
                       </TableHead>
                       <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[620px]:table-cell">
-                        ค่ามัดจำ
+                        เงินค่ามัดจำ
                       </TableHead>
                       <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[700px]:table-cell">
                         กำไร
                       </TableHead>
-                      <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
+                      <TableHead className="text-right text-base font-bold text-card-foreground">
                         การชำระ
                       </TableHead>
                     </TableRow>
@@ -764,7 +771,7 @@ export default function SalesPage() {
                                   "text-sm font-bold text-card-foreground min-[500px]:text-base",
                                 )}
                               >
-                                {formatCurrency(sale.totalPrice)}
+                                {formatCurrencyCompact(sale.totalPrice)}
                               </span>
                               <span
                                 className={cn(
@@ -774,20 +781,27 @@ export default function SalesPage() {
                                     : "text-main-red",
                                 )}
                               >
-                                กำไร {formatCurrency(sale.totalProfit)}
+                                กำไร {formatCurrencyCompact(sale.totalProfit)}
                               </span>
                             </div>
                           </TableCell>
 
                           <TableCell className="hidden text-right align-middle min-[620px]:table-cell">
-                            <span
-                              className={cn(
-                                outfit.className,
-                                "text-sm font-bold text-primary min-[500px]:text-base",
+                            <div className="flex flex-col items-end gap-1">
+                              <span
+                                className={cn(
+                                  outfit.className,
+                                  "text-sm font-bold text-primary min-[500px]:text-base",
+                                )}
+                              >
+                                {formatCurrencyCompact(sale.deposits)}
+                              </span>
+                              {sale.receivableAmount > 0 && (
+                                <span className="text-xs font-semibold text-main-red">
+                                  ค้าง {formatCurrencyCompact(sale.receivableAmount)}
+                                </span>
                               )}
-                            >
-                              {formatCurrency(sale.deposits)}
-                            </span>
+                            </div>
                           </TableCell>
 
                           <TableCell className="hidden text-right align-middle min-[700px]:table-cell">
@@ -801,7 +815,7 @@ export default function SalesPage() {
                                     : "text-main-red",
                                 )}
                               >
-                                {formatCurrency(sale.totalProfit)}
+                                {formatCurrencyCompact(sale.totalProfit)}
                               </span>
                             </div>
                           </TableCell>
@@ -831,11 +845,6 @@ export default function SalesPage() {
                                   </Badge>
                                 )}
                               </div>
-                              {sale.receivableAmount > 0 && (
-                                <span className="text-xs font-semibold text-main-red">
-                                  ค้าง {formatCurrency(sale.receivableAmount)}
-                                </span>
-                              )}
                               <span className="hidden text-xs font-semibold text-muted-foreground min-[900px]:block">
                                 {sale.itemCount} รายการ
                               </span>

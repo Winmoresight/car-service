@@ -54,6 +54,16 @@ function isPaymentMethod(value: unknown): value is PaymentMethod {
   return value === "cash" || value === "transfer";
 }
 
+function normalizeMoneyValue(value: unknown) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number) || number < 0) {
+    return 0;
+  }
+
+  return Number(number.toFixed(2));
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -322,6 +332,11 @@ export async function PATCH(request: NextRequest) {
     const billNo = sanitizeText(body?.numberPrint);
     const paymentMethod = sanitizeText(body?.paymentMethod);
     const nameBank = sanitizeText(body?.nameBank);
+    const rawPaymentAmount = body?.paymentAmount;
+    const hasPaymentAmount =
+      rawPaymentAmount !== undefined &&
+      rawPaymentAmount !== null &&
+      String(rawPaymentAmount).trim() !== "";
 
     if (!billNo) {
       return NextResponse.json(
@@ -437,9 +452,57 @@ export async function PATCH(request: NextRequest) {
 
     const remainingAmount = Math.max(Number(sale.remainingAmount) || 0, 0);
 
+    if (remainingAmount <= 0) {
+      await transaction.rollback();
+      transactionStarted = false;
+      return NextResponse.json(
+        {
+          success: false,
+          error: "บิลนี้ปิดยอดแล้ว",
+          timestamp: new Date().toISOString(),
+        },
+        { status: 409 },
+      );
+    }
+
+    const effectivePaymentAmount = hasPaymentAmount
+      ? normalizeMoneyValue(rawPaymentAmount)
+      : remainingAmount;
+
+    if (hasPaymentAmount && effectivePaymentAmount <= 0) {
+      await transaction.rollback();
+      transactionStarted = false;
+      return NextResponse.json(
+        {
+          success: false,
+          error: "กรุณาระบุยอดรับชำระที่มากกว่า 0",
+          timestamp: new Date().toISOString(),
+        },
+        { status: 400 },
+      );
+    }
+
+    if (effectivePaymentAmount > remainingAmount) {
+      await transaction.rollback();
+      transactionStarted = false;
+      return NextResponse.json(
+        {
+          success: false,
+          error: "ยอดชำระมากกว่ายอดคงเหลือ",
+          timestamp: new Date().toISOString(),
+        },
+        { status: 400 },
+      );
+    }
+
+    const nextRemainingAmount = Number(
+      Math.max(remainingAmount - effectivePaymentAmount, 0).toFixed(2),
+    );
+
     const updateRequest = new sql.Request(transaction);
     updateRequest.input("billNo", billNo);
-    updateRequest.input("remainingAmount", sql.Money, remainingAmount);
+    updateRequest.input("paidAmount", sql.Money, effectivePaymentAmount);
+    updateRequest.input("nextRemainingAmount", sql.Money, nextRemainingAmount);
     updateRequest.input("nameBank", nameBank);
     updateRequest.input("isCashPayment", sql.Bit, paymentMethod === "cash");
     updateRequest.input(
@@ -452,13 +515,13 @@ export async function PATCH(request: NextRequest) {
       UPDATE dbo.MasterSalePost
       SET
         Cash = CASE
-          WHEN @remainingAmount > 0 AND @isCashPayment = 1
-            THEN ${getSafeMoneyExpression("Cash")} + @remainingAmount
+          WHEN @paidAmount > 0 AND @isCashPayment = 1
+            THEN ${getSafeMoneyExpression("Cash")} + @paidAmount
           ELSE Cash
         END,
         Transfer = CASE
-          WHEN @remainingAmount > 0 AND @isTransferPayment = 1
-            THEN ${getSafeMoneyExpression("Transfer")} + @remainingAmount
+          WHEN @paidAmount > 0 AND @isTransferPayment = 1
+            THEN ${getSafeMoneyExpression("Transfer")} + @paidAmount
           ELSE Transfer
         END,
         NameBank = CASE
@@ -466,7 +529,10 @@ export async function PATCH(request: NextRequest) {
             THEN @nameBank
           ELSE ISNULL(NameBank, '')
         END,
-        Status = N'ชำระเงินแล้ว'
+        Status = CASE
+          WHEN @nextRemainingAmount > 0 THEN N'ค้างชำระ'
+          ELSE N'ชำระเงินแล้ว'
+        END
       WHERE NumberPrintSalePost = @billNo
     `);
 
@@ -481,12 +547,8 @@ export async function PATCH(request: NextRequest) {
       sql.Money,
       Number(sale.totalPrice) || 0,
     );
-    receivableRequest.input(
-      "payMoney",
-      sql.Money,
-      Number(sale.totalPrice) || 0,
-    );
-    receivableRequest.input("subMoney", sql.Money, 0);
+    receivableRequest.input("payMoney", sql.Money, effectivePaymentAmount);
+    receivableRequest.input("subMoney", sql.Money, nextRemainingAmount);
 
     await receivableRequest.query(`
       INSERT INTO dbo.MasterRecivePaymentCustomer (
@@ -516,7 +578,7 @@ export async function PATCH(request: NextRequest) {
     logRequest.input("customerName", sale.customerName);
     logRequest.input("nameCar", sale.nameCar);
     logRequest.input("province", sale.province);
-    logRequest.input("paidAmount", sql.Money, remainingAmount);
+    logRequest.input("paidAmount", sql.Money, effectivePaymentAmount);
     logRequest.input("paymentMethod", paymentMethod);
     logRequest.input("nameBank", nameBank);
     logRequest.input("createdBy", "WEB");
@@ -555,9 +617,9 @@ export async function PATCH(request: NextRequest) {
       success: true,
       data: {
         numberPrint: billNo,
-        status: "ชำระเงินแล้ว",
-        paidAmount: Number(sale.totalPrice) || 0,
-        receivableAmount: 0,
+        status: nextRemainingAmount > 0 ? "ค้างชำระ" : "ชำระเงินแล้ว",
+        paidAmount: effectivePaymentAmount,
+        receivableAmount: nextRemainingAmount,
       },
       timestamp: new Date().toISOString(),
     });

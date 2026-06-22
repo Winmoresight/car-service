@@ -26,6 +26,7 @@ interface BillDraftPayload {
   province?: string;
   brandAndGenerate?: string;
   mileCar?: string;
+  deposits?: number;
   cash?: number;
   transfer?: number;
   nameBank?: string;
@@ -68,6 +69,7 @@ interface BillTotals {
 }
 
 interface BillPayment {
+  deposits: number;
   cash: number;
   transfer: number;
   paidTotal: number;
@@ -175,9 +177,10 @@ function calculateTotals(items: BillDraftItem[]) {
 }
 
 function calculatePayment(body: BillDraftPayload, totalPrice: number) {
+  const deposits = normalizeMoney(body.deposits);
   const cash = normalizeMoney(body.cash);
   const transfer = normalizeMoney(body.transfer);
-  const paidTotal = Number((cash + transfer).toFixed(2));
+  const paidTotal = Number((deposits + cash + transfer).toFixed(2));
   const remainingAmount = Number(
     Math.max(totalPrice - paidTotal, 0).toFixed(2),
   );
@@ -189,6 +192,7 @@ function calculatePayment(body: BillDraftPayload, totalPrice: number) {
         : "ยังไม่ชำระ";
 
   return {
+    deposits,
     cash,
     transfer,
     paidTotal,
@@ -618,7 +622,7 @@ async function createLegacySaleBill(params: {
     );
     masterRequest.input("customerCode", sql.NVarChar(30), customerCode);
     masterRequest.input("customerName", customerName || null);
-    masterRequest.input("deposits", sql.Money, 0);
+    masterRequest.input("deposits", sql.Money, payment.deposits);
     masterRequest.input("totalReduce", sql.Money, totals.discountTotal);
     masterRequest.input("totalPrice", sql.Money, totals.totalPrice);
     masterRequest.input("totalCost", sql.Money, totals.totalCost);
@@ -1067,6 +1071,16 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: "ยอดชำระมากกว่ายอดรวมของบิล",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (payment.transfer > 0 && !payment.nameBank) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "กรุณาระบุธนาคารสำหรับเงินโอน",
         },
         { status: 400 },
       );
