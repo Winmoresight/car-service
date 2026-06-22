@@ -273,7 +273,13 @@ export async function GET(request: NextRequest) {
               '' as unit,
               '' as packageUnit,
               0 as packageQuantity,
-              ISNULL(MAX(s.CostPrice), 0) as costPrice,
+              ISNULL(
+                SUM(s.SumCost) / NULLIF(
+                  SUM(CASE WHEN s.NumProduct = 0 THEN 0 ELSE s.NumProduct END),
+                  0
+                ),
+                0
+              ) as costPrice,
               ISNULL(MAX(s.SalePrice), 0) as retailPrice,
               ISNULL(ss.currentStock, 0) as stock,
               ss.lastMovementAt,
