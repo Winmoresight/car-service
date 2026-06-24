@@ -7,6 +7,7 @@
 
 import {
   AlertCircle,
+  Camera,
   CheckCircle2,
   Clock,
   Loader2,
@@ -22,6 +23,7 @@ import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { outfit } from "@/components/fonts/fonts";
+import { BarcodeCameraDialog } from "@/components/stock/barcode-camera-dialog";
 import AsyncSearchableSelect from "@/components/ui/async-searchable-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -77,6 +79,7 @@ interface StockMovement {
 
 interface ProductDraft {
   categoryId: string;
+  barcode: string;
   name: string;
   unit: string;
   packageQuantity: string;
@@ -88,6 +91,7 @@ interface ProductDraft {
 function createEmptyProductDraft(): ProductDraft {
   return {
     categoryId: "25",
+    barcode: "",
     name: "",
     unit: "",
     packageQuantity: "1",
@@ -134,6 +138,7 @@ function filterCatalogOptions(
 export default function StockPage() {
   const [activeTab, setActiveTab] = useState("summary");
   const [isCreateProductOpen, setIsCreateProductOpen] = useState(false);
+  const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
   const [productDraft, setProductDraft] = useState<ProductDraft>(() =>
     createEmptyProductDraft(),
   );
@@ -197,6 +202,7 @@ export default function StockPage() {
     productDraft.categoryId,
     productCatalog?.nextBarcodeSuffix,
   );
+  const displayedBarcode = productDraft.barcode || previewBarcode;
   const selectedCategory = productCatalog?.categories.find(
     (category) => String(category.id) === productDraft.categoryId,
   );
@@ -371,6 +377,7 @@ export default function StockPage() {
       return;
     }
 
+    setIsBarcodeScannerOpen(false);
     setIsCreatingProduct(false);
   };
 
@@ -391,6 +398,7 @@ export default function StockPage() {
         },
         body: JSON.stringify({
           categoryId: Number.parseInt(productDraft.categoryId, 10),
+          barcode: productDraft.barcode,
           name: productDraft.name,
           unit: productDraft.unit,
           packageQuantity: productDraft.packageQuantity,
@@ -947,7 +955,8 @@ export default function StockPage() {
                 <div className="min-w-0">
                   <LargeDialogTitle>เพิ่มสินค้า</LargeDialogTitle>
                   <LargeDialogDescription>
-                    รหัสสินค้า บาร์โค้ด และจำนวนคงเหลือเริ่มต้นจะถูกกำหนดโดยระบบ
+                    รหัสสินค้าและจำนวนคงเหลือเริ่มต้นจะถูกกำหนดโดยระบบ
+                    ส่วนบาร์โค้ดสามารถใช้ค่าที่ระบบสร้างหรือสแกนจากสินค้าได้
                   </LargeDialogDescription>
                 </div>
               </div>
@@ -971,12 +980,25 @@ export default function StockPage() {
                   <span className="block text-sm font-bold text-muted-foreground">
                     บาร์โค้ด
                   </span>
-                  <Input
-                    value={previewBarcode}
-                    readOnly
-                    placeholder={productCatalogLoading ? "กำลังเตรียม" : ""}
-                    className="h-11 rounded-[8px] bg-muted/30 font-bold text-main-blue shadow-none"
-                  />
+                  <div className="flex items-center justify-between gap-4">
+                    <Input
+                      value={displayedBarcode}
+                      readOnly
+                      placeholder={productCatalogLoading ? "กำลังเตรียม" : ""}
+                      className="h-11 flex-1 rounded-[8px] bg-muted/30 font-bold text-main-blue shadow-none"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-11 w-11 shrink-0 rounded-[8px] border-blue-100 bg-blue-50 text-main-blue hover:bg-blue-100 hover:text-main-blue dark:border-blue-500/20 dark:bg-blue-500/10"
+                      onClick={() => setIsBarcodeScannerOpen(true)}
+                      aria-label="เปิดกล้องสแกนบาร์โค้ด"
+                      title="เปิดกล้องสแกนบาร์โค้ด"
+                    >
+                      <Camera className="h-5 w-5" />
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -1186,6 +1208,12 @@ export default function StockPage() {
           </form>
         </LargeDialogContent>
       </LargeDialog>
+
+      <BarcodeCameraDialog
+        open={isBarcodeScannerOpen}
+        onOpenChange={setIsBarcodeScannerOpen}
+        onDetected={(barcode) => updateProductDraft({ barcode })}
+      />
     </div>
   );
 }

@@ -33,6 +33,7 @@ interface StockMovement {
 
 interface StockProductCreatePayload {
   categoryId: number;
+  barcode: string;
   name: string;
   unit: string;
   packageQuantity: number;
@@ -136,6 +137,7 @@ function parseStockProductPayload(body: unknown): StockProductCreatePayload {
 
   const source = body as Record<string, unknown>;
   const categoryId = normalizePositiveInteger(source.categoryId);
+  const barcode = normalizeText(source.barcode).replace(/\s+/g, "");
   const name = truncateText(normalizeText(source.name), 250);
   const unit = truncateText(normalizeText(source.unit), 50);
   const packageUnit = truncateText(
@@ -148,6 +150,10 @@ function parseStockProductPayload(body: unknown): StockProductCreatePayload {
 
   if (!categoryId) {
     throw new StockValidationError("กรุณาเลือกประเภทสินค้า");
+  }
+
+  if (barcode.length > 30) {
+    throw new StockValidationError("บาร์โค้ดต้องมีความยาวไม่เกิน 30 ตัวอักษร");
   }
 
   if (!name) {
@@ -168,6 +174,7 @@ function parseStockProductPayload(body: unknown): StockProductCreatePayload {
 
   return {
     categoryId,
+    barcode,
     name,
     unit,
     packageQuantity,
@@ -305,7 +312,29 @@ async function getProductCode(transaction: sql.Transaction) {
   throw new Error("ไม่สามารถสร้างรหัสสินค้าใหม่ได้");
 }
 
-async function getBarcode(transaction: sql.Transaction, categoryId: number) {
+async function getBarcode(
+  transaction: sql.Transaction,
+  categoryId: number,
+  requestedBarcode: string,
+) {
+  if (requestedBarcode) {
+    const requestedBarcodeCheck = new sql.Request(transaction);
+    requestedBarcodeCheck.input("barcode", sql.NVarChar(30), requestedBarcode);
+    const existingBarcodeRows = await requestedBarcodeCheck.query<{
+      total: number;
+    }>(`
+      SELECT COUNT(1) as total
+      FROM dbo.MasterProductDetail WITH (UPDLOCK, HOLDLOCK)
+      WHERE BarCode = @barcode
+    `);
+
+    if ((Number(existingBarcodeRows.recordset[0]?.total) || 0) > 0) {
+      throw new StockValidationError("บาร์โค้ดนี้มีสินค้าอยู่ในระบบแล้ว");
+    }
+
+    return requestedBarcode;
+  }
+
   const barcodeRequest = new sql.Request(transaction);
   const barcodeRows = await barcodeRequest.query<{
     barcodeNumber: number | null;
@@ -371,7 +400,11 @@ async function createStockProduct(
     }
 
     const productCode = await getProductCode(transaction);
-    const barcode = await getBarcode(transaction, payload.categoryId);
+    const barcode = await getBarcode(
+      transaction,
+      payload.categoryId,
+      payload.barcode,
+    );
     const now = new Date();
     const masterRequest = new sql.Request(transaction);
 
