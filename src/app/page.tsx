@@ -8,6 +8,7 @@
 import { format } from "date-fns";
 import {
   Banknote,
+  Calculator,
   CreditCard,
   FileText,
   LayoutDashboard,
@@ -21,10 +22,12 @@ import { useState } from "react";
 import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
+import { FinancialSummaryDialog } from "@/components/dashboard/financial-summary-dialog";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { LossAlertTable } from "@/components/dashboard/loss-alert-table";
 import { SalesChart } from "@/components/dashboard/sales-chart";
 import { TopProductsTable } from "@/components/dashboard/top-products-table";
+import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import {
   LargeDialog,
@@ -294,6 +297,7 @@ export default function DashboardPage() {
   const [moneyDialogType, setMoneyDialogType] = useState<
     "cash" | "transfer" | null
   >(null);
+  const [isFinancialSummaryOpen, setIsFinancialSummaryOpen] = useState(false);
 
   // สร้าง URL สำหรับ API พร้อม query parameter
   const dashboardUrl = selectedDate
@@ -413,12 +417,21 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="transition-all duration-1000 min-[798px]:mt-0">
+            <div className="flex flex-col gap-2 transition-all duration-1000 sm:flex-row min-[798px]:mt-0">
               <DatePicker
                 date={selectedDate}
                 onDateChange={setSelectedDate}
                 placeholder="เลือกวันที่"
               />
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 gap-2 px-3 font-bold"
+                onClick={() => setIsFinancialSummaryOpen(true)}
+              >
+                <Calculator className="h-4 w-4" />
+                สรุปรายรับ–จ่าย
+              </Button>
             </div>
           </div>
 
@@ -559,6 +572,12 @@ export default function DashboardPage() {
             items={selectedMoneyDialog.items}
           />
         ) : null}
+
+        <FinancialSummaryDialog
+          open={isFinancialSummaryOpen}
+          onOpenChange={setIsFinancialSummaryOpen}
+          initialDate={selectedDate ?? new Date()}
+        />
 
         {/* Footer */}
         <div className="mt-8 text-center text-sm text-muted-foreground">

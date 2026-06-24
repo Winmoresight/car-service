@@ -63,6 +63,70 @@ export interface DashboardKPI {
   profitMargin: number; // อัตรากำไรขั้นต้น (%)
 }
 
+export interface FinancialSummaryCategory {
+  name: string;
+  quantity: number;
+  amount: number;
+}
+
+export interface FinancialSummaryListItem {
+  id: string;
+  label: string;
+  description: string;
+  occurredAt: string | null;
+  amount: number;
+  cash: number;
+  transfer: number;
+  method: "cash" | "transfer" | "mixed" | "unspecified";
+}
+
+export interface FinancialSummaryList {
+  items: FinancialSummaryListItem[];
+  totalCount: number;
+}
+
+export interface FinancialSummary {
+  dateFrom: string;
+  dateTo: string;
+  categories: FinancialSummaryCategory[];
+  metrics: {
+    soldQuantity: number;
+    salesBillCount: number;
+    salesTotal: number;
+    salesCash: number;
+    salesTransfer: number;
+    deposits: number;
+    income: number;
+    incomeCash: number;
+    incomeTransfer: number;
+    receivableCollected: number;
+    receivableCollectedCash: number;
+    receivableCollectedTransfer: number;
+    expenses: number;
+    expensesCash: number;
+    expensesTransfer: number;
+    employeeExpenses: number;
+    paidSalesTotal: number;
+    paidSalesCount: number;
+    outstandingReceivables: number;
+    outstandingReceivableCount: number;
+    unclassifiedIncome: number;
+    unclassifiedExpenses: number;
+  };
+  totals: {
+    netAmount: number;
+  };
+  lists: {
+    paidSales: FinancialSummaryList;
+    income: FinancialSummaryList;
+    expenses: FinancialSummaryList;
+    receivablePayments: FinancialSummaryList;
+    employeePayments: FinancialSummaryList;
+    transfers: FinancialSummaryList;
+    outstandingReceivables: FinancialSummaryList;
+  };
+}
+
 // Daily Sales Data (สำหรับกราฟ)
 export interface DailySales {
   date: string; // ISO date string
