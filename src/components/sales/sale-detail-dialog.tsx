@@ -47,6 +47,8 @@ interface SaleDetail {
   totalProfit: number;
   cash: number;
   transfer: number;
+  deposits: number;
+  receivableAmount: number;
   customer: {
     name: string;
     phone: string;
@@ -114,9 +116,8 @@ export function SaleDetailDialog({
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("th-TH", {
-      style: "currency",
-      currency: "THB",
       minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     }).format(value || 0);
   };
 
@@ -144,14 +145,6 @@ export function SaleDetailDialog({
     });
   };
 
-  const formatProfitMargin = (sale: SaleDetail) => {
-    if (sale.totalPrice <= 0) {
-      return "0.0%";
-    }
-
-    return `${((sale.totalProfit / sale.totalPrice) * 100).toFixed(1)}%`;
-  };
-
   const getPaymentMethods = (sale: SaleDetail) => {
     const methods = [];
 
@@ -172,6 +165,16 @@ export function SaleDetailDialog({
         icon: CreditCard,
         className:
           "border-blue-100 bg-blue-50 text-main-blue dark:border-blue-500/20 dark:bg-blue-500/10",
+      });
+    }
+
+    if (sale.deposits > 0) {
+      methods.push({
+        label: "เงินค่ามัดจำ",
+        amount: sale.deposits,
+        icon: Receipt,
+        className:
+          "border-violet-100 bg-violet-50 text-violet-600 dark:border-violet-500/20 dark:bg-violet-500/10",
       });
     }
 
@@ -297,7 +300,9 @@ export function SaleDetailDialog({
                           )}
                         >
                           {formatCurrency(
-                            saleDetail.cash + saleDetail.transfer,
+                            saleDetail.cash +
+                              saleDetail.transfer +
+                              saleDetail.deposits,
                           )}
                         </Badge>
                       </div>
@@ -345,6 +350,44 @@ export function SaleDetailDialog({
                         )}
                       </div>
 
+                      <div className="mt-4 grid gap-3 min-[560px]:grid-cols-2">
+                        <div className="rounded-xl border bg-card p-3">
+                          <span className="text-xs font-semibold text-muted-foreground">
+                            ยอดที่รับแล้วทั้งหมด
+                          </span>
+                          <p
+                            className={cn(
+                              outfit.className,
+                              "mt-1 text-lg font-bold text-card-foreground",
+                            )}
+                          >
+                            {formatCurrency(
+                              saleDetail.cash +
+                                saleDetail.transfer +
+                                saleDetail.deposits,
+                            )}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border bg-card p-3">
+                          <span className="text-xs font-semibold text-muted-foreground">
+                            ยอดค้างชำระ
+                          </span>
+                          <p
+                            className={cn(
+                              outfit.className,
+                              "mt-1 text-lg font-bold",
+                              saleDetail.receivableAmount > 0
+                                ? "text-main-red"
+                                : "text-main-green",
+                            )}
+                          >
+                            {saleDetail.receivableAmount > 0
+                              ? formatCurrency(saleDetail.receivableAmount)
+                              : "ชำระครบแล้ว"}
+                          </p>
+                        </div>
+                      </div>
+
                       <div className="mt-4">{paymentAction}</div>
                     </div>
                   ) : (
@@ -364,7 +407,7 @@ export function SaleDetailDialog({
                       </div>
                       <div className="rounded-2xl border bg-white p-4 dark:bg-card">
                         <span className="text-sm font-semibold text-muted-foreground">
-                          ต้นทุนรวม
+                          ยอดค้างชำระ
                         </span>
                         <p
                           className={cn(
@@ -372,7 +415,25 @@ export function SaleDetailDialog({
                             "mt-2 text-2xl font-bold text-card-foreground",
                           )}
                         >
-                          {formatCurrency(saleDetail.totalCost)}
+                          {saleDetail.receivableAmount > 0
+                            ? formatCurrency(saleDetail.receivableAmount)
+                            : "ชำระครบแล้ว"}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border bg-white p-4 dark:bg-card">
+                        <span className="text-sm font-semibold text-muted-foreground">
+                          เงินค่ามัดจำ
+                        </span>
+                        <p
+                          className={cn(
+                            outfit.className,
+                            "mt-2 text-2xl font-bold",
+                            saleDetail.deposits > 0
+                              ? "text-violet-600"
+                              : "text-muted-foreground",
+                          )}
+                        >
+                          {formatCurrency(saleDetail.deposits)}
                         </p>
                       </div>
                       <div className="rounded-2xl border bg-white p-4 dark:bg-card">
@@ -389,22 +450,6 @@ export function SaleDetailDialog({
                           )}
                         >
                           {formatCurrency(saleDetail.totalProfit)}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl border bg-white p-4 dark:bg-card">
-                        <span className="text-sm font-semibold text-muted-foreground">
-                          Margin
-                        </span>
-                        <p
-                          className={cn(
-                            outfit.className,
-                            "mt-2 text-2xl font-bold",
-                            saleDetail.totalProfit >= 0
-                              ? "text-main-green"
-                              : "text-main-red",
-                          )}
-                        >
-                          {formatProfitMargin(saleDetail)}
                         </p>
                       </div>
                     </div>
@@ -436,7 +481,11 @@ export function SaleDetailDialog({
                         "h-8 w-fit rounded-full px-4 text-sm font-bold text-card-foreground",
                       )}
                     >
-                      {formatCurrency(saleDetail.cash + saleDetail.transfer)}
+                      {formatCurrency(
+                        saleDetail.cash +
+                          saleDetail.transfer +
+                          saleDetail.deposits,
+                      )}
                     </Badge>
                   </div>
 
@@ -481,6 +530,44 @@ export function SaleDetailDialog({
                         ไม่พบข้อมูลวิธีชำระเงิน
                       </div>
                     )}
+                  </div>
+
+                  <div className="mt-4 grid gap-3 min-[560px]:grid-cols-2">
+                    <div className="rounded-2xl border bg-white p-4 dark:bg-card">
+                      <span className="text-sm font-semibold text-muted-foreground">
+                        ยอดที่รับแล้วทั้งหมด
+                      </span>
+                      <p
+                        className={cn(
+                          outfit.className,
+                          "mt-2 text-2xl font-bold text-card-foreground",
+                        )}
+                      >
+                        {formatCurrency(
+                          saleDetail.cash +
+                            saleDetail.transfer +
+                            saleDetail.deposits,
+                        )}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border bg-white p-4 dark:bg-card">
+                      <span className="text-sm font-semibold text-muted-foreground">
+                        ยอดค้างชำระ
+                      </span>
+                      <p
+                        className={cn(
+                          outfit.className,
+                          "mt-2 text-2xl font-bold",
+                          saleDetail.receivableAmount > 0
+                            ? "text-main-red"
+                            : "text-main-green",
+                        )}
+                      >
+                        {saleDetail.receivableAmount > 0
+                          ? formatCurrency(saleDetail.receivableAmount)
+                          : "ชำระครบแล้ว"}
+                      </p>
+                    </div>
                   </div>
                 </div>
               ) : null}

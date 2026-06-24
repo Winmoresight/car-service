@@ -43,3 +43,5 @@ next-env.d.ts
 # pm2 logs
 logs/*.log
 .pm2
+/.idea
+/.idea

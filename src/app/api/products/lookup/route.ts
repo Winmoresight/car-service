@@ -233,7 +233,15 @@ export async function GET(request: NextRequest) {
               ISNULL(SUM(NumProduct), 0) as totalSoldQuantity,
               ISNULL(SUM(SumPrice), 0) as totalSales,
               ISNULL(SUM(SumProfit), 0) as totalProfit,
-              MAX(DateSalePost) as lastSaleAt
+              MAX(DateSalePost) as lastSaleAt,
+              ISNULL(MAX(SalePrice), 0) as latestRetailPrice,
+              ISNULL(
+                SUM(SumCost) / NULLIF(
+                  SUM(CASE WHEN NumProduct = 0 THEN 0 ELSE NumProduct END),
+                  0
+                ),
+                0
+              ) as averageCostPrice
             FROM dbo.DetailSalePost
             WHERE BarCode = @barcode
             GROUP BY BarCode
@@ -247,8 +255,8 @@ export async function GET(request: NextRequest) {
               ISNULL(d.MeterProduct, '') as unit,
               ISNULL(d.MeterProductS, '') as packageUnit,
               ISNULL(d.Contain, 0) as packageQuantity,
-              ISNULL(d.CostPrice, 0) as costPrice,
-              ISNULL(d.SalePrice, 0) as retailPrice,
+              COALESCE(NULLIF(d.CostPrice, 0), NULLIF(sales.averageCostPrice, 0), 0) as costPrice,
+              COALESCE(NULLIF(d.SalePrice, 0), NULLIF(sales.latestRetailPrice, 0), 0) as retailPrice,
               ISNULL(ss.currentStock, 0) as stock,
               ss.lastMovementAt,
               ISNULL(sales.salesCount, 0) as salesCount,

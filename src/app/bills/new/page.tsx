@@ -21,6 +21,7 @@ import AsyncSearchableSelect from "@/components/ui/async-searchable-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getOverpaymentMessage } from "@/lib/payment-validation";
 
 interface CustomerOption {
   codeCustomer: string;
@@ -236,6 +237,15 @@ export default function NewBillPage() {
     totals.totalPrice,
   ]);
 
+  const paymentValidationError = useMemo(
+    () =>
+      getOverpaymentMessage({
+        paidTotal: paymentSummary.paidTotal,
+        totalPrice: totals.totalPrice,
+      }),
+    [paymentSummary.paidTotal, totals.totalPrice],
+  );
+
   const updateForm = (field: keyof typeof form, value: string) => {
     setForm((current) => ({
       ...current,
@@ -408,8 +418,8 @@ export default function NewBillPage() {
         return;
       }
 
-      if (paymentSummary.paidTotal > totals.totalPrice) {
-        setError("ยอดชำระมากกว่ายอดรวมของบิล");
+      if (paymentValidationError) {
+        setError(paymentValidationError);
         return;
       }
 
@@ -452,9 +462,7 @@ export default function NewBillPage() {
       resetForm();
     } catch (submitError) {
       setError(
-        submitError instanceof Error
-          ? submitError.message
-          : "ไม่สามารถสร้างบิลได้",
+        submitError instanceof Error ? submitError.message : "ไม่สามารถสร้างบิลได้",
       );
     } finally {
       setIsSubmitting(false);
@@ -517,9 +525,7 @@ export default function NewBillPage() {
                   <User className="h-5 w-5" strokeWidth={2.5} />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-primary">
-                    ข้อมูลลูกค้า
-                  </h2>
+                  <h2 className="text-xl font-bold text-primary">ข้อมูลลูกค้า</h2>
                   <p className="text-sm font-semibold text-muted-foreground">
                     ค้นหาลูกค้าเดิมหรือกรอกใหม่
                   </p>
@@ -625,9 +631,7 @@ export default function NewBillPage() {
                   />
                 </label>
                 <label htmlFor="province" className="space-y-1.5">
-                  <span className="text-sm font-bold text-primary">
-                    จังหวัด
-                  </span>
+                  <span className="text-sm font-bold text-primary">จังหวัด</span>
                   <Input
                     id="province"
                     value={form.province}
@@ -651,9 +655,7 @@ export default function NewBillPage() {
                   />
                 </label>
                 <label htmlFor="mileCar" className="space-y-1.5">
-                  <span className="text-sm font-bold text-primary">
-                    เลขไมล์
-                  </span>
+                  <span className="text-sm font-bold text-primary">เลขไมล์</span>
                   <Input
                     id="mileCar"
                     value={form.mileCar}
@@ -673,9 +675,7 @@ export default function NewBillPage() {
                   <Wrench className="h-5 w-5" strokeWidth={2.5} />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-primary">
-                    รายการในบิล
-                  </h2>
+                  <h2 className="text-xl font-bold text-primary">รายการในบิล</h2>
                   <p className="text-sm font-semibold text-muted-foreground">
                     เพิ่มอะไหล่ บริการ หรือรายการตรวจซ่อม
                   </p>
@@ -953,9 +953,7 @@ export default function NewBillPage() {
                                     variant="outline"
                                     className="shrink-0 rounded-full text-xs font-bold"
                                   >
-                                    {item.type === "product"
-                                      ? "สินค้า"
-                                      : "บริการ"}
+                                    {item.type === "product" ? "สินค้า" : "บริการ"}
                                   </Badge>
                                 </div>
                               </td>
@@ -1163,7 +1161,9 @@ export default function NewBillPage() {
                       <Button
                         type="button"
                         variant="ghost"
-                        onClick={() => setShowDepositInput((current) => !current)}
+                        onClick={() =>
+                          setShowDepositInput((current) => !current)
+                        }
                         className="h-10 rounded-xl font-bold text-muted-foreground"
                       >
                         {showDepositInput ? "ซ่อนมัดจำ" : "+ ค่ามัดจำ"}
@@ -1319,6 +1319,12 @@ export default function NewBillPage() {
                               className="h-11 rounded-xl"
                             />
                           </label>
+                        ) : null}
+
+                        {paymentValidationError ? (
+                          <div className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-bold text-main-red dark:border-red-500/20 dark:bg-red-500/10">
+                            {paymentValidationError}
+                          </div>
                         ) : null}
                       </div>
                     )}

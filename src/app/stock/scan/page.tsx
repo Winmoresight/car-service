@@ -1,26 +1,28 @@
 "use client";
 
 import {
+  Barcode,
   Camera,
-  ImageUp,
-  Loader2,
-  RefreshCw,
-  ScanBarcode,
-  Search,
+  Check,
+  ClipboardList,
+  Minus,
+  Plus,
+  RotateCcw,
+  Settings,
   ShieldAlert,
-  Sparkles,
+  Trash2,
+  Volume2,
+  VolumeX,
+  X,
 } from "lucide-react";
-import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { ApiResponse, BarcodeScanResult } from "@/types/api";
 
 type LookupState = "idle" | "loading" | "found" | "missing" | "error";
-type ScanOrigin = "manual" | "camera" | "image";
 
 type BarcodeDetection = {
   rawValue: string;
@@ -32,16 +34,16 @@ type BarcodeDetectorInstance = {
   ): Promise<BarcodeDetection[]>;
 };
 
-type BarcodeDetectorConstructor = new (options?: {
-  formats?: string[];
-}) => BarcodeDetectorInstance;
+type BarcodeDetectorConstructor = {
+  new (options?: { formats?: string[] }): BarcodeDetectorInstance;
+  getSupportedFormats?: () => Promise<string[]>;
+};
 
-type ScanHistoryItem = {
-  barcode: string;
-  name: string;
-  origin: ScanOrigin;
-  status: Exclude<LookupState, "idle" | "loading">;
-  timestamp: string;
+type LookupErrorDetails = {
+  stage?: string;
+  message?: string;
+  cause?: string;
+  barcode?: string;
 };
 
 declare global {
@@ -49,6 +51,35 @@ declare global {
     BarcodeDetector?: BarcodeDetectorConstructor;
   }
 }
+
+interface ScannedItem {
+  barcode: string;
+  name: string;
+  retailPrice: number;
+  quantity: number;
+  unit: string;
+}
+
+const preferredBarcodeFormats = [
+  "ean_13",
+  "ean_8",
+  "code_128",
+  "code_39",
+  "qr_code",
+  "upc_a",
+  "upc_e",
+  "itf",
+  "code_93",
+  "codabar",
+] as const;
+
+const fallbackBarcodeFormats = [
+  "ean_13",
+  "ean_8",
+  "code_128",
+  "code_39",
+  "qr_code",
+] as const;
 
 const fetcher = async (url: string, signal?: AbortSignal) => {
   const response = await fetch(url, { signal });
@@ -68,36 +99,8 @@ const fetcher = async (url: string, signal?: AbortSignal) => {
   return payload.data;
 };
 
-type LookupErrorDetails = {
-  stage?: string;
-  message?: string;
-  cause?: string;
-  barcode?: string;
-};
-
 function normalizeBarcode(value: string) {
   return value.trim().replace(/\s+/g, "");
-}
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("th-TH", {
-    style: "currency",
-    currency: "THB",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(value || 0);
-}
-
-function formatNumber(value: number) {
-  return new Intl.NumberFormat("th-TH", {
-    maximumFractionDigits: 0,
-  }).format(value || 0);
-}
-
-function formatPercent(value: number) {
-  return `${new Intl.NumberFormat("th-TH", {
-    maximumFractionDigits: 2,
-  }).format(value || 0)}%`;
 }
 
 function formatLookupErrorMessage(error: unknown) {
@@ -125,102 +128,26 @@ function formatLookupErrorMessage(error: unknown) {
   return "ค้นหาไม่สำเร็จ";
 }
 
-function formatDateTime(value: string | null) {
-  if (!value) {
-    return "-";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "-";
-  }
-
-  return date.toLocaleString("th-TH", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
-
-function getMovementLabel(type: "in" | "out") {
-  return type === "in" ? "รับเข้า" : "จ่ายออก";
-}
-
-function getMovementStyle(type: "in" | "out") {
-  return type === "in"
-    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-    : "border-rose-200 bg-rose-50 text-rose-700";
-}
-
-function getStatusMeta(status: LookupState) {
-  if (status === "found") {
-    return {
-      label: "พบสินค้า",
-      className:
-        "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300",
-    };
-  }
-
-  if (status === "missing") {
-    return {
-      label: "ไม่พบข้อมูล",
-      className:
-        "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300",
-    };
-  }
-
-  if (status === "error") {
-    return {
-      label: "ผิดพลาด",
-      className:
-        "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300",
-    };
-  }
-
-  return {
-    label: "พร้อมใช้งาน",
-    className:
-      "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-500/20 dark:bg-slate-500/10 dark:text-slate-300",
-  };
-}
-
-const resultSkeletonCards = [
-  { id: "stock", title: "สต็อก" },
-  { id: "price", title: "ราคาขาย" },
-  { id: "cost", title: "ต้นทุน" },
-  { id: "sales", title: "ยอดขาย" },
-] as const;
-
 export default function StockScanPage() {
-  const [barcode, setBarcode] = useState("");
-  const [result, setResult] = useState<BarcodeScanResult | null>(null);
-  const [lookupState, setLookupState] = useState<LookupState>("idle");
-  const [feedback, setFeedback] = useState(
-    "พร้อมรับบาร์โค้ดจากการพิมพ์ กล้อง หรือภาพถ่าย",
-  );
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [scanHistory, setScanHistory] = useState<ScanHistoryItem[]>([]);
+  const [scannedItems, setScannedItems] = useState<ScannedItem[]>([]);
   const [isCameraScanning, setIsCameraScanning] = useState(false);
-  const [isCameraSupported, setIsCameraSupported] = useState(false);
-  const [isScanningImage, setIsScanningImage] = useState(false);
-  const [lastDetectedBarcode, setLastDetectedBarcode] = useState("");
-  const [isDemoMode, setIsDemoMode] = useState(true);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [beepEnabled, setBeepEnabled] = useState(true);
+  const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+  const [manualBarcode, setManualBarcode] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const [lookupState, setLookupState] = useState<LookupState>("idle");
+  const [feedback, setFeedback] = useState("");
+  const [_errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanTimerRef = useRef<number | null>(null);
   const lookupAbortRef = useRef<AbortController | null>(null);
   const barcodeDetectorRef = useRef<BarcodeDetectorInstance | null>(null);
-  const lastAutoLookupRef = useRef("");
-
-  useEffect(() => {
-    setIsCameraSupported(
-      typeof window !== "undefined" &&
-        "mediaDevices" in navigator &&
-        typeof window.BarcodeDetector === "function",
-    );
-  }, []);
+  const lookupInFlightRef = useRef(false);
+  const scanCooldownsRef = useRef<{ [barcode: string]: number }>({});
 
   useEffect(() => {
     return () => {
@@ -240,29 +167,40 @@ export default function StockScanPage() {
     };
   }, []);
 
-  const statusMeta = getStatusMeta(lookupState);
-  const movementRows = result?.recentMovements || [];
-  const currentProfitPerUnit = useMemo(
-    () => result?.profitPerUnit ?? 0,
-    [result],
-  );
-  const currentMargin = useMemo(() => result?.profitMargin ?? 0, [result]);
+  const playBeep = () => {
+    if (typeof window === "undefined") return;
+    try {
+      const AudioCtx =
+        window.AudioContext ||
+        (
+          window as Window & {
+            webkitAudioContext?: typeof AudioContext;
+          }
+        ).webkitAudioContext;
+      if (!AudioCtx) return;
+      const audioCtx = new AudioCtx();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
 
-  const pushHistory = (
-    item: Omit<ScanHistoryItem, "timestamp"> & { timestamp?: string },
-  ) => {
-    setScanHistory((current) =>
-      [
-        {
-          ...item,
-          timestamp: item.timestamp || new Date().toISOString(),
-        },
-        ...current,
-      ].slice(0, 10),
-    );
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(900, audioCtx.currentTime); // 900Hz beep
+      gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(
+        0.01,
+        audioCtx.currentTime + 0.12,
+      );
+
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.12);
+    } catch (error) {
+      console.warn("Failed to play beep sound", error);
+    }
   };
 
-  const stopCameraScan = () => {
+  const releaseCameraResources = () => {
     if (scanTimerRef.current) {
       window.clearTimeout(scanTimerRef.current);
       scanTimerRef.current = null;
@@ -277,11 +215,22 @@ export default function StockScanPage() {
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
-
-    setIsCameraScanning(false);
   };
 
-  const ensureBarcodeDetector = () => {
+  const stopCameraScan = () => {
+    releaseCameraResources();
+
+    lookupAbortRef.current?.abort();
+    lookupAbortRef.current = null;
+    lookupInFlightRef.current = false;
+    setIsCameraScanning(false);
+    setCameraError(null);
+    setLookupState("idle");
+    setFeedback("");
+    setErrorMessage(null);
+  };
+
+  const ensureBarcodeDetector = async () => {
     if (barcodeDetectorRef.current) {
       return barcodeDetectorRef.current;
     }
@@ -292,24 +241,49 @@ export default function StockScanPage() {
       return null;
     }
 
-    barcodeDetectorRef.current = new Detector({
-      formats: ["ean_13", "ean_8", "code_128", "code_39", "qr_code"],
-    });
+    let formats: string[] = [...fallbackBarcodeFormats];
+
+    if (Detector.getSupportedFormats) {
+      const supportedFormats = await Detector.getSupportedFormats();
+      formats = preferredBarcodeFormats.filter((format) =>
+        supportedFormats.includes(format),
+      );
+    }
+
+    try {
+      barcodeDetectorRef.current =
+        formats.length > 0 ? new Detector({ formats }) : new Detector();
+    } catch {
+      barcodeDetectorRef.current = new Detector();
+    }
 
     return barcodeDetectorRef.current;
   };
 
-  const runLookup = async (rawBarcode: string, origin: ScanOrigin) => {
+  const handleBarcodeScanned = async (rawBarcode: string) => {
     const normalizedBarcode = normalizeBarcode(rawBarcode);
 
-    if (!normalizedBarcode) {
-      setLookupState("error");
-      setErrorMessage("กรุณาระบุบาร์โค้ดให้ถูกต้อง");
-      setFeedback("ยังไม่พบหมายเลขบาร์โค้ด");
+    if (!normalizedBarcode || lookupInFlightRef.current) {
       return;
     }
 
-    setBarcode(normalizedBarcode);
+    const now = Date.now();
+    const lastScanTime = scanCooldownsRef.current[normalizedBarcode] || 0;
+    if (now - lastScanTime < 2500) {
+      return;
+    }
+
+    scanCooldownsRef.current[normalizedBarcode] = now;
+
+    if (beepEnabled) {
+      playBeep();
+    }
+
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      navigator.vibrate(80);
+    }
+
+    lookupInFlightRef.current = true;
     setLookupState("loading");
     setErrorMessage(null);
     setFeedback(`กำลังค้นหาข้อมูลสำหรับ ${normalizedBarcode}`);
@@ -319,21 +293,37 @@ export default function StockScanPage() {
     lookupAbortRef.current = controller;
 
     try {
-      const demoQuery = isDemoMode ? "&demo=1" : "";
       const data = await fetcher(
-        `/api/products/lookup?barcode=${encodeURIComponent(normalizedBarcode)}${demoQuery}`,
+        `/api/products/lookup?barcode=${encodeURIComponent(normalizedBarcode)}`,
         controller.signal,
       );
 
-      setResult(data);
       setLookupState("found");
-      setFeedback(`พบสินค้า "${data.name}" จากบาร์โค้ด ${normalizedBarcode}`);
-      setLastDetectedBarcode(normalizedBarcode);
-      pushHistory({
-        barcode: normalizedBarcode,
-        name: data.name,
-        origin,
-        status: "found",
+      setFeedback(`พบสินค้า "${data.name}"`);
+
+      setScannedItems((prevItems) => {
+        const existingIndex = prevItems.findIndex(
+          (item) => item.barcode === data.barcode,
+        );
+        if (existingIndex > -1) {
+          const updated = [...prevItems];
+          updated[existingIndex] = {
+            ...updated[existingIndex],
+            quantity: updated[existingIndex].quantity + 1,
+          };
+          return updated;
+        } else {
+          return [
+            ...prevItems,
+            {
+              barcode: data.barcode,
+              name: data.name,
+              retailPrice: data.retailPrice,
+              quantity: 1,
+              unit: data.unit || "ชิ้น",
+            },
+          ];
+        }
       });
     } catch (error) {
       if (controller.signal.aborted) {
@@ -343,7 +333,6 @@ export default function StockScanPage() {
       const message = formatLookupErrorMessage(error);
       const missing = message.includes("ไม่พบสินค้า");
 
-      setResult(null);
       setLookupState(missing ? "missing" : "error");
       setErrorMessage(message);
       setFeedback(
@@ -351,98 +340,29 @@ export default function StockScanPage() {
           ? `ไม่พบบาร์โค้ด ${normalizedBarcode} ในฐานข้อมูล`
           : "เกิดข้อผิดพลาดระหว่างค้นหาข้อมูล",
       );
-      pushHistory({
-        barcode: normalizedBarcode,
-        name: missing ? "ไม่พบข้อมูล" : "ค้นหาไม่สำเร็จ",
-        origin,
-        status: missing ? "missing" : "error",
-      });
-    }
-  };
-
-  const scanImageFile = async (file: File) => {
-    const detector = ensureBarcodeDetector();
-
-    if (!detector) {
-      setLookupState("error");
-      setErrorMessage("บราวเซอร์นี้ยังไม่รองรับการอ่านบาร์โค้ดจากภาพ");
-      setFeedback("โปรดพิมพ์บาร์โค้ดเองแทน");
-      return;
-    }
-
-    setIsScanningImage(true);
-    setErrorMessage(null);
-    setFeedback("กำลังอ่านบาร์โค้ดจากภาพ...");
-
-    let imageUrl = "";
-
-    try {
-      imageUrl = URL.createObjectURL(file);
-      const image = new Image();
-      image.src = imageUrl;
-      await image.decode();
-
-      const canvas = document.createElement("canvas");
-      canvas.width = image.naturalWidth || image.width;
-      canvas.height = image.naturalHeight || image.height;
-
-      const context = canvas.getContext("2d");
-
-      if (!context) {
-        throw new Error("ไม่สามารถสร้างพื้นที่ประมวลผลภาพได้");
-      }
-
-      context.drawImage(image, 0, 0);
-      const detections = await detector.detect(canvas);
-      const barcodeValue = detections[0]?.rawValue || "";
-
-      if (!barcodeValue) {
-        throw new Error("ไม่พบบาร์โค้ดในภาพที่เลือก");
-      }
-
-      await runLookup(barcodeValue, "image");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "อ่านภาพไม่สำเร็จ";
-      setLookupState("error");
-      setErrorMessage(message);
-      setFeedback("อ่านข้อมูลจากภาพไม่สำเร็จ");
     } finally {
-      if (imageUrl) {
-        URL.revokeObjectURL(imageUrl);
-      }
-
-      setIsScanningImage(false);
+      lookupInFlightRef.current = false;
     }
-  };
-
-  const openFilePicker = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-
-    if (!file) {
-      return;
-    }
-
-    await scanImageFile(file);
-    event.target.value = "";
   };
 
   const startCameraScan = async () => {
-    if (!isCameraSupported) {
-      setLookupState("error");
-      setErrorMessage("บราวเซอร์นี้ยังไม่รองรับกล้องหรือ BarcodeDetector");
-      setFeedback("ใช้ช่องกรอกบาร์โค้ดแทนได้");
-      return;
-    }
-
     stopCameraScan();
     setErrorMessage(null);
+    setIsCameraScanning(true);
+    setCameraError(null);
     setFeedback("กำลังเปิดกล้องหลัง...");
 
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("เบราว์เซอร์นี้ไม่รองรับการเปิดกล้อง");
+      }
+
+      const detector = await ensureBarcodeDetector();
+
+      if (!detector) {
+        throw new Error("เบราว์เซอร์นี้ไม่รองรับการอ่านบาร์โค้ดจากกล้อง");
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: "environment" },
@@ -461,34 +381,29 @@ export default function StockScanPage() {
       video.srcObject = stream;
       await video.play();
 
-      setIsCameraScanning(true);
       setLookupState("idle");
       setFeedback("กำลังสแกนบาร์โค้ดจากกล้อง...");
 
-      const detector = ensureBarcodeDetector();
-
-      if (!detector) {
-        throw new Error("ไม่สามารถสร้างตัวอ่านบาร์โค้ดได้");
-      }
-
       const scanFrame = async () => {
-        if (!streamRef.current || lookupState === "loading") {
-          scanTimerRef.current = window.setTimeout(scanFrame, 250);
+        if (!streamRef.current) {
           return;
         }
 
         try {
+          if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+            return;
+          }
+
           const detections = await detector.detect(video);
           const barcodeValue = detections[0]?.rawValue
             ? normalizeBarcode(detections[0].rawValue)
             : "";
 
-          if (barcodeValue && barcodeValue !== lastAutoLookupRef.current) {
-            lastAutoLookupRef.current = barcodeValue;
-            await runLookup(barcodeValue, "camera");
+          if (barcodeValue) {
+            await handleBarcodeScanned(barcodeValue);
           }
         } catch {
-          // ลองรอบถัดไป
+          // ignore
         } finally {
           if (streamRef.current) {
             scanTimerRef.current = window.setTimeout(scanFrame, 350);
@@ -498,520 +413,505 @@ export default function StockScanPage() {
 
       scanFrame();
     } catch (error) {
-      stopCameraScan();
       const message = error instanceof Error ? error.message : "เปิดกล้องไม่สำเร็จ";
+      releaseCameraResources();
       setLookupState("error");
       setErrorMessage(message);
-      setFeedback("เปิดกล้องไม่สำเร็จ");
+      setCameraError(message);
+      setFeedback(message);
     }
   };
 
-  const submitBarcode = async () => {
-    await runLookup(barcode, "manual");
+  const handleManualBarcodeSubmit = () => {
+    if (!manualBarcode.trim()) return;
+    handleBarcodeScanned(manualBarcode);
+    setManualBarcode("");
   };
 
-  const hasResult = lookupState === "found" && result;
+  const incrementQty = (barcode: string) => {
+    setScannedItems((prev) =>
+      prev.map((item) =>
+        item.barcode === barcode
+          ? { ...item, quantity: item.quantity + 1 }
+          : item,
+      ),
+    );
+  };
+
+  const decrementQty = (barcode: string) => {
+    setScannedItems((prev) =>
+      prev
+        .map((item) =>
+          item.barcode === barcode
+            ? { ...item, quantity: item.quantity - 1 }
+            : item,
+        )
+        .filter((item) => item.quantity > 0),
+    );
+  };
+
+  const removeScannedItem = (barcode: string) => {
+    setScannedItems((prev) => prev.filter((item) => item.barcode !== barcode));
+  };
+
+  const handleReviewOrder = () => {
+    stopCameraScan();
+  };
+
+  const handleSaveStock = () => {
+    setShowSaveSuccess(true);
+  };
+
+  const confirmSaveStock = () => {
+    setScannedItems([]);
+    setShowSaveSuccess(false);
+  };
+
+  const handleClearAll = () => {
+    setScannedItems([]);
+  };
+
+  const totalItemsCount = scannedItems.reduce(
+    (acc, item) => acc + item.quantity,
+    0,
+  );
+  const totalPrice = scannedItems.reduce(
+    (acc, item) => acc + item.retailPrice * item.quantity,
+    0,
+  );
 
   return (
     <div className="p-6 pb-16">
       <DashboardBreadcrumb href="/stock/scan" label="สแกนสินค้า" />
       <hr className="my-4 hidden w-full min-[1025px]:block" />
 
-      <div className="space-y-6">
-        <Card className="rounded-2xl border bg-card shadow-sm">
-          <CardContent className="pt-6">
-            <div className="flex flex-col gap-4 min-[900px]:flex-row min-[900px]:items-start min-[900px]:justify-between">
-              <div className="max-w-3xl space-y-2">
-                <div className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-semibold text-muted-foreground">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Barcode lookup
+      {/* Main Single-Button Screen */}
+      {!isCameraScanning && (
+        <div className="space-y-6">
+          {scannedItems.length === 0 ? (
+            <Card className="max-w-xl mx-auto mt-6 rounded-[24px] border bg-card shadow-sm py-12 px-6 text-center">
+              <CardContent className="flex flex-col items-center justify-center space-y-6">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300">
+                  <Barcode className="h-8 w-8" />
                 </div>
-                <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                  สแกนบาร์โค้ดสินค้า
-                </h1>
-                <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                  หน้านี้ใช้สำหรับทดสอบการสแกนจากกล้อง รูปภาพ หรือการกรอกบาร์โค้ด
-                  แล้วดึงข้อมูลต้นทุน ราคา และสต็อกมาแสดงแบบตรงไปตรงมา
-                </p>
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-bold tracking-tight text-foreground">
+                    สแกนบาร์โค้ดสินค้า
+                  </h2>
+                  <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                    กดปุ่มเปิดกล้องเพื่อเริ่มสแกนบาร์โค้ดของสินค้าเพื่อบันทึกและจัดการสต็อก
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  onClick={startCameraScan}
+                  className="w-full sm:w-auto h-12 px-8 rounded-xl font-bold text-sm bg-primary hover:bg-primary/90 text-primary-foreground transition-all active:scale-[0.98]"
+                >
+                  <Camera className="mr-2 h-4 w-4" />
+                  เปิดกล้องสแกนสินค้า
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            // Summary Screen after closing scanner
+            <Card className="max-w-2xl mx-auto mt-6 rounded-[24px] border bg-card shadow-sm overflow-hidden">
+              <div className="p-6 border-b flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-muted/20">
+                <div>
+                  <h2 className="text-xl font-bold text-foreground">
+                    สรุปรายการสแกนสินค้า
+                  </h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    มีสินค้าทั้งหมด {scannedItems.length} รายการ ({totalItemsCount}{" "}
+                    ชิ้น)
+                  </p>
+                </div>
+                <div className="text-left sm:text-right">
+                  <p className="text-[10px] uppercase font-bold tracking-wide text-muted-foreground">
+                    ราคารวมสุทธิ
+                  </p>
+                  <p className="text-2xl font-extrabold text-primary">
+                    ฿
+                    {totalPrice.toLocaleString("th-TH", {
+                      minimumFractionDigits: 2,
+                    })}
+                  </p>
+                </div>
               </div>
+              <CardContent className="p-6 space-y-6">
+                <div className="divide-y max-h-80 overflow-y-auto pr-1">
+                  {scannedItems.map((item) => (
+                    <div
+                      key={item.barcode}
+                      className="py-4 flex items-center justify-between first:pt-0 last:pb-0 gap-4"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-foreground truncate">
+                          {item.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
+                          <span>บาร์โค้ด: {item.barcode}</span>
+                          <span>•</span>
+                          <span>
+                            ราคาต่อหน่วย: ฿{item.retailPrice.toFixed(2)}
+                          </span>
+                        </p>
+                      </div>
 
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="outline" className="rounded-full px-3 py-1.5">
-                  {isDemoMode ? "โหมดเดโม" : "เชื่อม DB จริง"}
-                </Badge>
-                <Badge variant="outline" className="rounded-full px-3 py-1.5">
-                  {isCameraSupported ? "รองรับกล้อง" : "ไม่รองรับกล้อง"}
-                </Badge>
-                <Badge variant="outline" className="rounded-full px-3 py-1.5">
-                  {isCameraScanning ? "กำลังสแกน" : "พร้อมใช้งาน"}
-                </Badge>
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center bg-muted border rounded-lg overflow-hidden h-8">
+                          <button
+                            type="button"
+                            onClick={() => decrementQty(item.barcode)}
+                            className="px-2.5 h-full hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors text-muted-foreground font-bold"
+                          >
+                            <Minus className="h-3 w-3" />
+                          </button>
+                          <span className="px-3 text-xs font-semibold text-foreground min-w-8 text-center">
+                            {item.quantity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => incrementQty(item.barcode)}
+                            className="px-2.5 h-full hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors text-muted-foreground font-bold"
+                          >
+                            <Plus className="h-3 w-3" />
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => removeScannedItem(item.barcode)}
+                          className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-3 pt-4 border-t">
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      type="button"
+                      onClick={startCameraScan}
+                      variant="outline"
+                      className="h-12 rounded-xl font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                    >
+                      <Camera className="h-4 w-4" />
+                      สแกนเพิ่ม
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleSaveStock}
+                      className="h-12 rounded-xl font-bold bg-primary hover:bg-primary/90 text-primary-foreground transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                    >
+                      <Check className="h-4 w-4" />
+                      บันทึกสต็อก
+                    </Button>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={handleClearAll}
+                    variant="ghost"
+                    className="w-full h-10 rounded-xl font-medium text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    ล้างรายการทั้งหมด
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* Simulated Save Success Modal */}
+      {showSaveSuccess && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-card rounded-[28px] border max-w-sm w-full p-6 text-center space-y-6 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">
+              <Check className="h-8 w-8" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-xl font-bold text-foreground">
+                บันทึกสต็อกเสร็จสิ้น
+              </h3>
+            </div>
+            <Button
+              type="button"
+              onClick={confirmSaveStock}
+              className="w-full h-11 rounded-xl font-bold bg-primary hover:bg-primary/90"
+            >
+              ตกลง
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Responsive Camera Scanner Dialog Overlay */}
+      <div
+        className={cn(
+          "fixed inset-0 z-50 flex items-center justify-center p-0 md:p-4 bg-black/40 backdrop-blur-sm transition-all duration-300",
+          isCameraScanning
+            ? "opacity-100 pointer-events-auto visible"
+            : "opacity-0 pointer-events-none invisible",
+        )}
+      >
+        <div
+          className={cn(
+            "bg-background border-0 md:border rounded-none md:rounded-[28px] shadow-2xl overflow-hidden transition-all duration-300 transform w-full h-full md:h-[650px] flex flex-col md:flex-row md:max-w-4xl",
+            isCameraScanning
+              ? "scale-100 translate-y-0"
+              : "scale-95 translate-y-4",
+          )}
+        >
+          {/* Camera panel (Left on desktop, Top on mobile) */}
+          <div className="relative flex-1 bg-zinc-950 flex flex-col min-h-[360px] md:min-h-0">
+            {/* Camera Feed Video Element */}
+            <video
+              ref={videoRef}
+              className="absolute inset-0 w-full h-full object-cover"
+              muted
+              playsInline
+            />
+
+            {/* Scan Reticle (Scanner Target Bounding Box) */}
+            <div
+              className={cn(
+                "absolute inset-0 flex justify-center pointer-events-none z-10",
+                "items-center", // Vertically center on desktop
+                "max-[767px]:items-start max-[767px]:pt-20", // Shift up on mobile
+              )}
+            >
+              <div className="w-48 h-48 md:w-56 md:h-56 border-2 border-dashed border-white/25 rounded-2xl relative">
+                {/* Corner Brackets */}
+                <div className="absolute top-0 left-0 w-8 h-8 border-t-[5px] border-l-[5px] border-emerald-500 rounded-tl-xl -mt-[2px] -ml-[2px]" />
+                <div className="absolute top-0 right-0 w-8 h-8 border-t-[5px] border-r-[5px] border-emerald-500 rounded-tr-xl -mt-[2px] -mr-[2px]" />
+                <div className="absolute bottom-0 left-0 w-8 h-8 border-b-[5px] border-l-[5px] border-emerald-500 rounded-bl-xl -mb-[2px] -ml-[2px]" />
+                <div className="absolute bottom-0 right-0 w-8 h-8 border-b-[5px] border-r-[5px] border-emerald-500 rounded-br-xl -mb-[2px] -mr-[2px]" />
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_380px]">
-          <div className="space-y-6">
-            <Card className="rounded-2xl border bg-card shadow-sm">
-              <CardContent className="space-y-4 pt-6">
-                <div className="flex flex-col gap-3 min-[760px]:flex-row">
-                  <div className="relative flex-1">
-                    <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      value={barcode}
-                      onChange={(event) => setBarcode(event.target.value)}
-                      placeholder="พิมพ์หรือสแกนบาร์โค้ด"
-                      className="h-11 rounded-2xl pl-10"
+            {/* Top Controls Overlay */}
+            <div className="absolute top-0 inset-x-0 p-4 flex items-center justify-between z-20 bg-gradient-to-b from-black/50 to-transparent">
+              <button
+                type="button"
+                onClick={stopCameraScan}
+                className="h-10 w-10 flex items-center justify-center rounded-full bg-black/45 backdrop-blur-md text-zinc-100 hover:bg-black/60 active:scale-90 transition-all border border-zinc-700/20"
+              >
+                <X className="h-5 w-5" />
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setBeepEnabled(!beepEnabled)}
+                  className="h-10 w-10 flex items-center justify-center rounded-full bg-black/45 backdrop-blur-md text-zinc-100 hover:bg-black/60 active:scale-90 transition-all border border-zinc-700/20"
+                  title={beepEnabled ? "ปิดเสียงบี๊บ" : "เปิดเสียงบี๊บ"}
+                >
+                  {beepEnabled ? (
+                    <Volume2 className="h-5 w-5" />
+                  ) : (
+                    <VolumeX className="h-5 w-5" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsOpen(!settingsOpen)}
+                  className="h-10 w-10 flex items-center justify-center rounded-full bg-black/45 backdrop-blur-md text-zinc-100 hover:bg-black/60 active:scale-90 transition-all border border-zinc-700/20"
+                >
+                  <Settings className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Settings Mini Overlay */}
+            {settingsOpen && (
+              <div className="absolute top-16 right-4 z-30 bg-zinc-950/95 border border-zinc-800 backdrop-blur-md text-zinc-100 rounded-2xl p-4 w-52 shadow-2xl">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                  ตั้งค่าตัวอ่าน
+                </h4>
+                <div className="space-y-3 text-sm">
+                  <label className="flex items-center justify-between cursor-pointer">
+                    <span>เสียงบี๊บ</span>
+                    <input
+                      type="checkbox"
+                      checked={beepEnabled}
+                      onChange={(e) => setBeepEnabled(e.target.checked)}
+                      className="rounded bg-zinc-800 border-zinc-700 text-primary focus:ring-0 focus:ring-offset-0 h-4 w-4"
                     />
-                  </div>
-                  <Button
-                    type="button"
-                    className="h-11 rounded-2xl px-5 font-semibold"
-                    onClick={submitBarcode}
-                    disabled={lookupState === "loading"}
-                  >
-                    {lookupState === "loading" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <ScanBarcode className="h-4 w-4" />
-                    )}
-                    ค้นหา
-                  </Button>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant={isDemoMode ? "default" : "outline"}
-                    className="h-10 rounded-2xl px-4 font-semibold"
-                    onClick={() => setIsDemoMode((current) => !current)}
-                  >
-                    <Sparkles className="h-4 w-4" />
-                    {isDemoMode ? "ปิดเดโม" : "เปิดเดโม"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-10 rounded-2xl px-4 font-semibold"
-                    onClick={startCameraScan}
-                    disabled={isCameraScanning || lookupState === "loading"}
-                  >
-                    <Camera className="h-4 w-4" />
-                    {isCameraScanning ? "เปิดกล้องอยู่" : "เริ่มสแกนจากกล้อง"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-10 rounded-2xl px-4 font-semibold"
-                    onClick={stopCameraScan}
-                    disabled={!isCameraScanning}
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    หยุดกล้อง
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="h-10 rounded-2xl px-4 font-semibold"
-                    onClick={openFilePicker}
-                    disabled={isScanningImage}
-                  >
-                    {isScanningImage ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <ImageUp className="h-4 w-4" />
-                    )}
-                    อัปโหลดรูป
-                  </Button>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl border bg-muted/20 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      สถานะ
-                    </p>
-                    <p className="mt-2 text-base font-semibold text-foreground">
-                      {statusMeta.label}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border bg-muted/20 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      ที่มา
-                    </p>
-                    <p className="mt-2 text-base font-semibold text-foreground">
-                      {result?.source === "master"
-                        ? "MasterProductDetail"
-                        : result?.source === "sales-history"
-                          ? "ประวัติการขาย"
-                          : result
-                            ? "ข้อมูลจำลอง"
-                            : "-"}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border bg-muted/20 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      บาร์โค้ดล่าสุด
-                    </p>
-                    <p className="mt-2 break-all text-base font-semibold text-foreground">
-                      {lastDetectedBarcode || "-"}
-                    </p>
+                  </label>
+                  <div className="pt-2 border-t border-zinc-800 flex flex-col gap-1">
+                    <span className="text-[10px] text-zinc-500">
+                      กล้อง: โหมดตรวจจับบาร์โค้ด
+                    </span>
+                    <span className="text-xs font-medium text-emerald-500">
+                      ทำงานอยู่ (กล้องหลัง)
+                    </span>
                   </div>
                 </div>
+              </div>
+            )}
 
-                <div className="rounded-2xl border bg-background p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-muted-foreground">
-                        ข้อความสถานะ
-                      </p>
-                      <p className="mt-1 text-sm font-medium text-foreground">
-                        {feedback}
-                      </p>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className="rounded-full px-3 py-1.5"
-                    >
-                      {statusMeta.label}
-                    </Badge>
-                  </div>
-
-                  {errorMessage ? (
-                    <div className="mt-4 flex items-start gap-3 rounded-2xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-destructive">
-                      <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                      <p className="text-sm font-medium">{errorMessage}</p>
-                    </div>
-                  ) : null}
+            {/* Camera Fail message overlay */}
+            {cameraError && isCameraScanning && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 p-6 text-center space-y-4">
+                <ShieldAlert className="h-12 w-12 text-zinc-500" />
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-zinc-200">
+                    เปิดกล้องสแกนไม่สำเร็จ
+                  </p>
+                  <p className="text-xs text-zinc-500 max-w-[240px]">
+                    {cameraError}
+                  </p>
+                  <p className="text-xs text-zinc-500 max-w-[240px]">
+                    คุณสามารถพิมพ์บาร์โค้ดทางขวาแทนได้
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-2xl border bg-card shadow-sm">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                      ผลการค้นหา
-                    </p>
-                    <h2 className="text-xl font-bold text-foreground">
-                      {hasResult ? result.name : "ยังไม่มีข้อมูลสินค้า"}
-                    </h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {hasResult
-                        ? `Barcode: ${result.barcode}`
-                        : "สแกนหรือกรอกบาร์โค้ดเพื่อแสดงข้อมูลสินค้า"}
-                    </p>
-                  </div>
-                  {hasResult ? (
-                    <Badge
-                      variant="outline"
-                      className="rounded-full px-3 py-1.5"
-                    >
-                      {result.source === "master"
-                        ? "ข้อมูลหลัก"
-                        : result.source === "sales-history"
-                          ? "ข้อมูลจากการขาย"
-                          : "ข้อมูลจำลอง"}
-                    </Badge>
-                  ) : null}
-                </div>
-
-                {lookupState === "loading" ? (
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    {resultSkeletonCards.map((card) => (
-                      <div key={card.id} className="rounded-2xl border p-4">
-                        <div className="h-3 w-20 animate-pulse rounded-full bg-muted" />
-                        <div className="mt-4 h-7 w-28 animate-pulse rounded-xl bg-muted" />
-                        <div className="mt-2 h-3 w-16 animate-pulse rounded-full bg-muted" />
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-
-                {hasResult ? (
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    <div className="rounded-2xl border p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        สต็อก
-                      </p>
-                      <p className="mt-2 text-2xl font-bold text-foreground">
-                        {formatNumber(result.stock)}
-                      </p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        มูลค่าทุน {formatCurrency(result.stockValue)}
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        ราคาขาย
-                      </p>
-                      <p className="mt-2 text-2xl font-bold text-foreground">
-                        {formatCurrency(result.retailPrice)}
-                      </p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        กำไร/ชิ้น {formatCurrency(currentProfitPerUnit)}
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        ต้นทุน
-                      </p>
-                      <p className="mt-2 text-2xl font-bold text-foreground">
-                        {formatCurrency(result.costPrice)}
-                      </p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Margin {formatPercent(currentMargin)}
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        ยอดขาย
-                      </p>
-                      <p className="mt-2 text-2xl font-bold text-foreground">
-                        {formatCurrency(result.totalSales)}
-                      </p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        ขายแล้ว {formatNumber(result.totalSoldQuantity)} ชิ้น
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mt-4 rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
-                    ยังไม่มีผลการค้นหา
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-2xl border bg-card shadow-sm">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                      เคลื่อนไหวล่าสุด
-                    </p>
-                    <h2 className="text-xl font-bold text-foreground">
-                      สรุปจาก INOUTStockProduct
-                    </h2>
-                  </div>
-                  <Badge variant="outline" className="rounded-full px-3 py-1.5">
-                    {formatNumber(movementRows.length)} รายการ
-                  </Badge>
-                </div>
-
-                {movementRows.length > 0 ? (
-                  <div className="mt-4 overflow-hidden rounded-2xl border">
-                    <div className="grid grid-cols-[120px_1fr_120px] border-b bg-muted/30 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      <div>ประเภท</div>
-                      <div>รายละเอียด</div>
-                      <div className="text-right">คงเหลือ</div>
-                    </div>
-                    <div className="divide-y">
-                      {movementRows.map((movement) => (
-                        <div
-                          key={`${movement.date}-${movement.stock}-${movement.quantity}`}
-                          className="grid grid-cols-[120px_1fr_120px] items-center px-4 py-3 text-sm"
-                        >
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "w-fit rounded-full px-2.5 py-1 text-[11px] font-semibold",
-                              getMovementStyle(movement.type),
-                            )}
-                          >
-                            {getMovementLabel(movement.type)}
-                          </Badge>
-                          <div>
-                            <p className="font-medium text-foreground">
-                              {formatDateTime(movement.date)}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {movement.company || "ไม่มีชื่อบริษัท"} ·{" "}
-                              {formatNumber(movement.quantity)} ชิ้น
-                            </p>
-                          </div>
-                          <div className="text-right font-semibold text-foreground">
-                            {formatNumber(movement.stock)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mt-4 rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
-                    ยังไม่มีประวัติการเคลื่อนไหวของบาร์โค้ดนี้
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              </div>
+            )}
           </div>
 
-          <div className="space-y-6">
-            <Card className="rounded-2xl border bg-card shadow-sm">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                      Live scanner
-                    </p>
-                    <h2 className="text-xl font-bold text-foreground">
-                      กล้องสแกนบาร์โค้ด
-                    </h2>
-                  </div>
-                  <Badge variant="outline" className="rounded-full px-3 py-1.5">
-                    {isCameraScanning ? "กำลังทำงาน" : "พร้อมใช้งาน"}
-                  </Badge>
-                </div>
+          {/* Items List Panel (Right side on desktop, Bottom drawer on mobile) */}
+          <div
+            className={cn(
+              "flex flex-col bg-background text-foreground shadow-2xl border-zinc-200 dark:border-zinc-800",
+              // Desktop layout (Right column)
+              "md:relative md:inset-auto md:w-[380px] md:h-full md:rounded-none md:border-t-0 md:border-l md:bg-card md:shadow-none md:p-6 md:pb-8",
+              // Mobile layout (Bottom Drawer)
+              "absolute bottom-0 inset-x-0 rounded-t-[32px] border-t p-5 pb-6 max-h-[50%] md:max-h-full",
+            )}
+          >
+            {/* Mobile Drag Handle Bar Indicator (Hidden on desktop) */}
+            <div className="w-12 h-1 bg-zinc-200 dark:bg-zinc-800 rounded-full mx-auto mb-4 md:hidden" />
 
-                <div className="mt-4 rounded-2xl border bg-muted/20 p-3">
-                  <div className="relative aspect-[4/3] overflow-hidden rounded-xl border bg-background">
-                    <video
-                      ref={videoRef}
-                      className={cn(
-                        "h-full w-full object-cover",
-                        isCameraScanning ? "opacity-100" : "opacity-30",
-                      )}
-                      muted
-                      playsInline
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="rounded-2xl border border-dashed border-primary/40 bg-background/80 px-4 py-3 text-center shadow-sm backdrop-blur">
-                        <p className="text-sm font-semibold text-foreground">
-                          วางบาร์โค้ดไว้ในกรอบ
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          ใช้กล้องหลังหรืออัปโหลดภาพแทนได้
-                        </p>
-                      </div>
+            {/* Drawer Header */}
+            <div className="flex justify-between items-end mb-4">
+              <div>
+                <h3 className="text-base font-bold text-foreground">
+                  Scanned Items
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {scannedItems.length === 0
+                    ? "No items"
+                    : `${scannedItems.length} items total`}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] tracking-wider font-semibold text-muted-foreground uppercase">
+                  Total Price
+                </p>
+                <p className="text-xl font-extrabold text-primary">
+                  ฿
+                  {totalPrice.toLocaleString("th-TH", {
+                    minimumFractionDigits: 2,
+                  })}
+                </p>
+              </div>
+            </div>
+
+            <hr className="border-zinc-200 dark:border-zinc-800 mb-4" />
+
+            {/* Manual Input Search Bar for testing/desktop users */}
+            <div className="flex gap-2 mb-4">
+              <input
+                type="text"
+                placeholder="ป้อนบาร์โค้ดเพื่อค้นหา/จำลองสแกน..."
+                value={manualBarcode}
+                onChange={(e) => setManualBarcode(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleManualBarcodeSubmit();
+                  }
+                }}
+                className="flex-1 bg-muted border border-border text-foreground placeholder-muted-foreground rounded-xl px-4 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring transition-all"
+              />
+              <Button
+                type="button"
+                onClick={handleManualBarcodeSubmit}
+                size="sm"
+                className="bg-secondary hover:bg-secondary/80 text-secondary-foreground border border-border rounded-xl px-3 h-8 text-xs font-semibold"
+              >
+                จำลองสแกน
+              </Button>
+            </div>
+
+            {/* Scanned Items Scrollable Area */}
+            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 min-h-[90px] scrollbar-thin scrollbar-thumb-muted">
+              {scannedItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-6 text-center text-muted-foreground space-y-1.5 h-full">
+                  <Barcode className="h-6 w-6 opacity-30" />
+                  <p className="text-xs">เล็งเป้าเพื่อสแกนบาร์โค้ดสินค้าจริง</p>
+                </div>
+              ) : (
+                scannedItems.map((item) => (
+                  <div
+                    key={item.barcode}
+                    className="flex items-center justify-between p-3 rounded-2xl bg-muted/40 border border-border/80 hover:bg-muted/60 transition-all"
+                  >
+                    <div className="min-w-0 flex-1 pr-2">
+                      <p className="text-xs font-bold text-foreground truncate">
+                        {item.name}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        ฿{item.retailPrice.toFixed(2)} • {item.barcode}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 bg-background border border-border rounded-xl px-2 py-1">
+                      <button
+                        type="button"
+                        onClick={() => decrementQty(item.barcode)}
+                        className="text-muted-foreground hover:text-foreground px-1.5 text-xs font-extrabold transition-colors"
+                      >
+                        <Minus className="h-3 w-3" />
+                      </button>
+                      <span className="text-xs font-bold w-4 text-center text-foreground">
+                        {item.quantity}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => incrementQty(item.barcode)}
+                        className="text-muted-foreground hover:text-foreground px-1.5 text-xs font-extrabold transition-colors"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
                     </div>
                   </div>
-                </div>
+                ))
+              )}
+            </div>
 
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
+            {/* Feedback message display */}
+            {feedback && (
+              <div className="mt-4 text-center">
+                <span
+                  className={cn(
+                    "inline-block text-xs px-2.5 py-1 rounded-full border",
+                    lookupState === "found"
+                      ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : lookupState === "loading"
+                        ? "border-blue-500/20 bg-blue-500/10 text-blue-600 dark:text-blue-400 animate-pulse"
+                        : lookupState === "missing"
+                          ? "border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                          : "border-border bg-muted text-muted-foreground",
+                  )}
+                >
+                  {feedback}
+                </span>
+              </div>
+            )}
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl border bg-muted/20 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      รองรับกล้อง
-                    </p>
-                    <p className="mt-2 text-lg font-semibold text-foreground">
-                      {isCameraSupported ? "ใช่" : "ไม่ใช่"}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border bg-muted/20 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      ตรวจครั้งล่าสุด
-                    </p>
-                    <p className="mt-2 text-lg font-semibold text-foreground">
-                      {scanHistory[0]?.timestamp
-                        ? formatDateTime(scanHistory[0].timestamp)
-                        : "-"}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border bg-muted/20 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      จำนวนบันทึก
-                    </p>
-                    <p className="mt-2 text-lg font-semibold text-foreground">
-                      {formatNumber(scanHistory.length)}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-2xl border bg-card shadow-sm">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                      ประวัติการสแกน
-                    </p>
-                    <h2 className="text-xl font-bold text-foreground">
-                      รอบล่าสุด
-                    </h2>
-                  </div>
-                  <Badge variant="outline" className="rounded-full px-3 py-1.5">
-                    {formatNumber(scanHistory.length)} รายการ
-                  </Badge>
-                </div>
-
-                {scanHistory.length > 0 ? (
-                  <div className="mt-4 space-y-3">
-                    {scanHistory.map((item) => (
-                      <div
-                        key={`${item.barcode}-${item.timestamp}`}
-                        className="rounded-2xl border p-4"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-foreground">
-                              {item.name}
-                            </p>
-                            <p className="mt-1 break-all text-xs text-muted-foreground">
-                              {item.barcode}
-                            </p>
-                          </div>
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "rounded-full px-2.5 py-1 text-[11px] font-semibold",
-                              item.status === "found"
-                                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                : item.status === "missing"
-                                  ? "border-amber-200 bg-amber-50 text-amber-700"
-                                  : "border-destructive/20 bg-destructive/5 text-destructive",
-                            )}
-                          >
-                            {item.status === "found"
-                              ? "พบ"
-                              : item.status === "missing"
-                                ? "ไม่พบ"
-                                : "error"}
-                          </Badge>
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                          <span className="rounded-full border bg-muted/20 px-2.5 py-1">
-                            {formatDateTime(item.timestamp)}
-                          </span>
-                          <span className="rounded-full border bg-muted/20 px-2.5 py-1">
-                            {item.origin === "camera"
-                              ? "กล้อง"
-                              : item.origin === "image"
-                                ? "ภาพถ่าย"
-                                : "กรอกเอง"}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="mt-4 rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-                    ยังไม่มีประวัติการสแกน
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-2xl border bg-card shadow-sm">
-              <CardContent className="pt-6">
-                <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                  หมายเหตุสำหรับ phase 2
-                </p>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  {isDemoMode
-                    ? "ตอนนี้อยู่ในโหมดเดโมเพื่อให้ทดสอบหน้าได้โดยไม่ต้องเชื่อมฐานข้อมูลจริง"
-                    : "ถ้าต้องการต่อ workflow เพิ่ม เราค่อยเชื่อมข้อมูลสแกนเข้ากระบวนการตรวจสต็อกหรือรายงานในรอบถัดไป"}
-                </p>
-              </CardContent>
-            </Card>
+            {/* Drawer Action Button */}
+            <Button
+              type="button"
+              onClick={handleReviewOrder}
+              className="w-full mt-4 h-12 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm flex items-center justify-center gap-2 border border-blue-500/30 shadow-lg active:scale-[0.98] transition-all"
+            >
+              <ClipboardList className="h-4 w-4" />
+              Review Order
+            </Button>
           </div>
         </div>
       </div>

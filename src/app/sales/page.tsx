@@ -238,14 +238,6 @@ export default function SalesPage() {
   const isDefaultTodayRange = isSameDateRange(dateRange, todayRange);
   const salesListTitle = getSalesListTitle(salesFilter);
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("th-TH", {
-      style: "currency",
-      currency: "THB",
-      minimumFractionDigits: 0,
-    }).format(value);
-  };
-
   const formatCurrencyCompact = (value: number) => {
     return new Intl.NumberFormat("th-TH", {
       minimumFractionDigits: 0,
@@ -265,14 +257,6 @@ export default function SalesPage() {
 
   const getPaymentMethods = (sale: SaleItem) => {
     const methods = [];
-
-    if (sale.status === "ค้างชำระ" || sale.receivableAmount > 0) {
-      methods.push({
-        label: "ค้างชำระ",
-        className:
-          "bg-red-50 text-main-red border-red-100 dark:bg-red-500/10 dark:border-red-500/20",
-      });
-    }
 
     if (sale.cash > 0) {
       methods.push({
@@ -679,6 +663,9 @@ export default function SalesPage() {
                       <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[620px]:table-cell">
                         เงินค่ามัดจำ
                       </TableHead>
+                      <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[820px]:table-cell">
+                        ยอดค้างชำระ
+                      </TableHead>
                       <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[700px]:table-cell">
                         กำไร
                       </TableHead>
@@ -796,11 +783,24 @@ export default function SalesPage() {
                               >
                                 {formatCurrencyCompact(sale.deposits)}
                               </span>
-                              {sale.receivableAmount > 0 && (
-                                <span className="text-xs font-semibold text-main-red">
-                                  ค้าง {formatCurrencyCompact(sale.receivableAmount)}
-                                </span>
-                              )}
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="hidden text-right align-middle min-[820px]:table-cell">
+                            <div className="flex flex-col items-end gap-1">
+                              <span
+                                className={cn(
+                                  outfit.className,
+                                  "text-sm font-bold min-[500px]:text-base",
+                                  sale.receivableAmount > 0
+                                    ? "text-main-red"
+                                    : "text-main-green",
+                                )}
+                              >
+                                {sale.receivableAmount > 0
+                                  ? formatCurrencyCompact(sale.receivableAmount)
+                                  : "ชำระครบ"}
+                              </span>
                             </div>
                           </TableCell>
 

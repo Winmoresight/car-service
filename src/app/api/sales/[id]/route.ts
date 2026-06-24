@@ -8,6 +8,12 @@ import { executeQuery } from "@/lib/db";
 import { maskPhone } from "@/lib/privacy";
 import type { ApiResponse } from "@/types/api";
 
+function getSafeMoneyExpression(valueExpression: string) {
+  const textExpression = `CONVERT(nvarchar(100), ${valueExpression})`;
+
+  return `ISNULL(CONVERT(money, CASE WHEN ${valueExpression} IS NULL THEN '0' WHEN ISNUMERIC(${textExpression}) = 1 THEN ${textExpression} ELSE '0' END), 0)`;
+}
+
 interface SaleDetail {
   // Header
   id: string;
@@ -17,6 +23,8 @@ interface SaleDetail {
   totalProfit: number;
   cash: number;
   transfer: number;
+  deposits: number;
+  receivableAmount: number;
 
   // Customer
   customer: {
@@ -54,6 +62,16 @@ export async function GET(
         m.TotalProfit as totalProfit,
         m.Cash as cash,
         m.Transfer as transfer,
+        ${getSafeMoneyExpression("m.Deposits")} as deposits,
+        CASE
+          WHEN LTRIM(RTRIM(ISNULL(m.Status, ''))) = N'ค้างชำระ'
+            THEN CASE
+              WHEN m.TotalPrice - ISNULL(m.Cash, 0) - ISNULL(m.Transfer, 0) - ${getSafeMoneyExpression("m.Deposits")} > 0
+                THEN m.TotalPrice - ISNULL(m.Cash, 0) - ISNULL(m.Transfer, 0) - ${getSafeMoneyExpression("m.Deposits")}
+              ELSE 0
+            END
+          ELSE 0
+        END as receivableAmount,
         ISNULL(m.NameCustomer, 'ไม่ระบุ') as customerName,
         ISNULL(c.PhoneCustomer, '') as customerPhone,
         ISNULL(c.AddressCustomer, '') as customerAddress
@@ -70,6 +88,8 @@ export async function GET(
       totalProfit: number;
       cash: number;
       transfer: number;
+      deposits: number;
+      receivableAmount: number;
       customerName: string;
       customerPhone: string;
       customerAddress: string;
@@ -120,6 +140,8 @@ export async function GET(
       totalProfit: header.totalProfit,
       cash: header.cash,
       transfer: header.transfer,
+      deposits: header.deposits,
+      receivableAmount: header.receivableAmount,
       customer: {
         name: header.customerName,
         phone: maskPhone(header.customerPhone),

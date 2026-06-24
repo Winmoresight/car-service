@@ -6,6 +6,7 @@
 import sql from "mssql";
 import { type NextRequest, NextResponse } from "next/server";
 import { executeQuery, getPool } from "@/lib/db";
+import { getOverpaymentMessage } from "@/lib/payment-validation";
 
 interface BillDraftItem {
   type?: "product" | "service";
@@ -1065,12 +1066,16 @@ export async function POST(request: NextRequest) {
 
     const totals = calculateTotals(items);
     const payment = calculatePayment(body, totals.totalPrice);
+    const overpaymentMessage = getOverpaymentMessage({
+      paidTotal: payment.paidTotal,
+      totalPrice: totals.totalPrice,
+    });
 
-    if (payment.paidTotal > totals.totalPrice) {
+    if (overpaymentMessage) {
       return NextResponse.json(
         {
           success: false,
-          error: "ยอดชำระมากกว่ายอดรวมของบิล",
+          error: overpaymentMessage,
         },
         { status: 400 },
       );
