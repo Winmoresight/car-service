@@ -103,9 +103,9 @@ export async function GET(request: Request) {
     if (paymentType === "salary") {
       query += ` AND ${hasEmployeeExpression}`;
     } else if (paymentType === "income") {
-      query += ` AND ${creditExpression} > 0 AND ${debitExpression} = 0 AND NOT (${hasEmployeeExpression})`;
+      query += ` AND ${debitExpression} > 0 AND ${creditExpression} = 0 AND NOT (${hasEmployeeExpression})`;
     } else if (paymentType === "expense") {
-      const otherExpenseCondition = `(${debitExpression} > 0 AND ${creditExpression} = 0 AND NOT (${hasEmployeeExpression}))`;
+      const otherExpenseCondition = `(${creditExpression} > 0 AND ${debitExpression} = 0 AND NOT (${hasEmployeeExpression}))`;
       const employeeExpenseCondition = `(${hasEmployeeExpression} AND ${hasMoneyExpression})`;
 
       query +=
@@ -139,8 +139,8 @@ export async function GET(request: Request) {
 
       return {
         ...p,
-        Debit: hasEmployee ? employeeExpense : debit,
-        Credit: hasEmployee ? 0 : credit,
+        Debit: hasEmployee ? 0 : debit,
+        Credit: hasEmployee ? employeeExpense : credit,
         TotalPrice: totalPrice || employeeExpense,
         MoneyCash: Number(p.MoneyCash) || 0,
         MoneyTransfer: Number(p.MoneyTransfer) || 0,

@@ -353,14 +353,16 @@ export function FinancialSummaryDialog({
         size="2xl"
         className="md:h-[90vh] md:max-h-[850px] flex flex-col overflow-hidden"
       >
-        <LargeDialogHeader className="gap-4">
-          <div className="flex flex-col gap-4 pr-10 xl:flex-row xl:items-center xl:justify-between">
+        <LargeDialogHeader className="gap-2 px-4 py-3 sm:gap-3 sm:px-6 sm:py-5 md:px-8 md:py-6 xl:gap-4">
+          <div className="flex flex-col gap-2 pr-10 sm:gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-col gap-1.5">
-              <LargeDialogTitle>สรุปรายรับ–รายจ่าย</LargeDialogTitle>
-              <LargeDialogDescription className="text-xs">
+              <LargeDialogTitle className="text-xl sm:text-2xl md:text-3xl">
+                สรุปรายรับ–รายจ่าย
+              </LargeDialogTitle>
+              <LargeDialogDescription className="hidden text-xs sm:block">
                 สรุปยอดขายตามประเภท พร้อมสูตรเงินสุทธิและรายการประกอบทุกหมวด
               </LargeDialogDescription>
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs font-bold text-muted-foreground">
+              <div className="mt-1 hidden flex-wrap items-center gap-x-3 gap-y-1.5 text-xs font-bold text-muted-foreground sm:flex">
                 <span className="flex items-center gap-1 text-foreground font-bold">
                   <CalendarDays className="h-3.5 w-3.5 text-main-blue" />
                   ช่วงข้อมูล: {periodLabel}
@@ -373,8 +375,9 @@ export function FinancialSummaryDialog({
               </div>
             </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center shrink-0">
+            <div className="flex shrink-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
               <DateRangePicker
+                className="w-full sm:w-auto [&_button]:h-9 [&_button]:w-full [&_button]:px-3 [&_button]:text-xs sm:[&_button]:w-[300px]"
                 dateRange={dateRange}
                 onDateRangeChange={(range) => {
                   if (range?.from) {
@@ -382,11 +385,12 @@ export function FinancialSummaryDialog({
                   }
                 }}
               />
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-3 gap-1.5 sm:flex sm:flex-wrap sm:gap-2">
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
+                  className="h-8 px-3 text-xs sm:h-9"
                   onClick={() => setPreset(new Date(), new Date())}
                 >
                   วันนี้
@@ -395,6 +399,7 @@ export function FinancialSummaryDialog({
                   type="button"
                   size="sm"
                   variant="outline"
+                  className="h-8 px-3 text-xs sm:h-9"
                   onClick={() => setPreset(subDays(new Date(), 6), new Date())}
                 >
                   7 วัน
@@ -403,6 +408,7 @@ export function FinancialSummaryDialog({
                   type="button"
                   size="sm"
                   variant="outline"
+                  className="h-8 px-3 text-xs sm:h-9"
                   onClick={() =>
                     setPreset(startOfMonth(new Date()), new Date())
                   }
@@ -443,25 +449,25 @@ export function FinancialSummaryDialog({
               defaultValue="overview"
               className="flex-1 flex flex-col overflow-hidden"
             >
-              <div className="border-b bg-background px-6 py-2 md:px-8 shrink-0">
+              <div className="shrink-0 border-b bg-background px-3 py-1.5 sm:px-6 sm:py-2 md:px-8">
                 <TabsList className="w-full sm:w-auto bg-muted/65 p-0.5 rounded-lg">
                   <TabsTrigger
                     value="overview"
-                    className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-md"
+                    className="flex flex-1 items-center justify-center gap-1 px-2 py-1.5 text-[11px] font-bold rounded-md sm:flex-initial sm:gap-1.5 sm:px-4 sm:text-xs"
                   >
                     <Wallet className="h-3.5 w-3.5" />
                     <span>สรุปการเงิน</span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="categories"
-                    className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-md"
+                    className="flex flex-1 items-center justify-center gap-1 px-2 py-1.5 text-[11px] font-bold rounded-md sm:flex-initial sm:gap-1.5 sm:px-4 sm:text-xs"
                   >
                     <Receipt className="h-3.5 w-3.5" />
                     <span>ยอดขายสินค้า</span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="transactions"
-                    className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-md"
+                    className="flex flex-1 items-center justify-center gap-1 px-2 py-1.5 text-[11px] font-bold rounded-md sm:flex-initial sm:gap-1.5 sm:px-4 sm:text-xs"
                   >
                     <Banknote className="h-3.5 w-3.5" />
                     <span>รายการธุรกรรม</span>
@@ -473,23 +479,23 @@ export function FinancialSummaryDialog({
                 {/* Tab 1: Overview */}
                 <TabsContent
                   value="overview"
-                  className="h-full overflow-y-auto p-6 md:p-8 focus-visible:outline-none mt-0"
+                  className="mt-0 h-full overflow-y-auto p-3 focus-visible:outline-none sm:p-6 md:p-8"
                 >
-                  <div className="space-y-6">
+                  <div className="space-y-4 md:space-y-6">
                     <section className="grid overflow-hidden rounded-[12px] border border-blue-100 bg-blue-50/55 dark:border-blue-500/20 dark:bg-blue-500/10 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.7fr)]">
-                      <div className="p-5 md:p-6">
+                      <div className="p-4 sm:p-5 md:p-6">
                         <div className="flex items-center gap-2">
                           <Badge className="rounded-full bg-main-blue text-white">
                             ยอดหลักสำหรับปิดยอด
                           </Badge>
-                          <span className="text-xs font-semibold text-muted-foreground">
+                          <span className="hidden text-xs font-semibold text-muted-foreground sm:inline">
                             สูตรเดียวกับโปรแกรมเก่า
                           </span>
                         </div>
                         <p className="mt-4 text-sm font-bold text-main-blue">
                           เงินสุทธิ
                         </p>
-                        <p className="mt-1 text-4xl font-bold tracking-tight text-card-foreground">
+                        <p className="mt-1 text-3xl font-bold tracking-tight text-card-foreground sm:text-4xl">
                           {formatCurrency(summary.totals.netAmount)} บาท
                         </p>
                         <p className="mt-3 text-xs font-semibold leading-5 text-muted-foreground">
@@ -533,7 +539,7 @@ export function FinancialSummaryDialog({
                       </div>
                     </section>
 
-                    <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+                    <div className="grid gap-4 md:gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
                       <section className="overflow-hidden rounded-[10px] border bg-card">
                         <div className="border-b bg-muted/25 px-4 py-3">
                           <h3 className="text-sm font-bold text-card-foreground">
@@ -716,9 +722,9 @@ export function FinancialSummaryDialog({
                 {/* Tab 2: Category Sales */}
                 <TabsContent
                   value="categories"
-                  className="h-full overflow-y-auto p-6 md:p-8 focus-visible:outline-none mt-0"
+                  className="mt-0 h-full overflow-y-auto p-3 focus-visible:outline-none sm:p-6 md:p-8"
                 >
-                  <div className="max-w-3xl mx-auto space-y-6">
+                  <div className="mx-auto max-w-3xl space-y-4 md:space-y-6">
                     <section className="overflow-hidden rounded-[10px] border bg-card flex flex-col">
                       <div className="border-b bg-muted/25 px-4 py-4 shrink-0">
                         <h2 className="text-base font-bold text-card-foreground">
@@ -780,7 +786,7 @@ export function FinancialSummaryDialog({
                 {/* Tab 3: Transactions */}
                 <TabsContent
                   value="transactions"
-                  className="h-full flex flex-col overflow-hidden p-6 md:p-8 focus-visible:outline-none mt-0"
+                  className="mt-0 flex h-full flex-col overflow-hidden p-3 focus-visible:outline-none sm:p-6 md:p-8"
                 >
                   <div className="flex-1 flex flex-col overflow-hidden min-h-0">
                     {/* Horizontal scrollable pills */}

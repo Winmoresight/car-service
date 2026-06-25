@@ -220,17 +220,17 @@ export default function PaymentsPage() {
 
     if (isDebit && !isCredit) {
       return {
-        label: "รายจ่าย",
+        label: "รายรับ",
         className:
-          "bg-red-50 text-main-red border-red-100 dark:bg-red-500/10 dark:border-red-500/20",
+          "bg-emerald-50 text-main-green border-emerald-100 dark:bg-emerald-500/10 dark:border-emerald-500/20",
       };
     }
 
     if (isCredit && !isDebit) {
       return {
-        label: "รายรับ",
+        label: "รายจ่าย",
         className:
-          "bg-emerald-50 text-main-green border-emerald-100 dark:bg-emerald-500/10 dark:border-emerald-500/20",
+          "bg-red-50 text-main-red border-red-100 dark:bg-red-500/10 dark:border-red-500/20",
       };
     }
 
@@ -465,17 +465,17 @@ export default function PaymentsPage() {
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <KPICard
                   title="รายรับ"
-                  value={summary.totalCredit || 0}
+                  value={summary.totalDebit || 0}
                   format="currency"
-                  subtitle={`${summary.creditCount || 0} รายการ`}
+                  subtitle={`${summary.debitCount || 0} รายการ`}
                   icon={ArrowUpCircle}
                   variant="emerald"
                 />
                 <KPICard
                   title="รายจ่าย"
-                  value={summary.totalDebit || 0}
+                  value={summary.totalCredit || 0}
                   format="currency"
-                  subtitle={`${summary.debitCount || 0} รายการ`}
+                  subtitle={`${summary.creditCount || 0} รายการ`}
                   icon={ArrowDownCircle}
                   variant="red"
                 />
@@ -666,19 +666,6 @@ export default function PaymentsPage() {
                           <div className="flex flex-col items-end gap-1.5">
                             {payment.Debit > 0 && (
                               <div className="flex items-center gap-1.5">
-                                <ArrowDownCircle className="h-4 w-4 text-main-red" />
-                                <span
-                                  className={cn(
-                                    outfit.className,
-                                    "text-sm font-bold text-main-red",
-                                  )}
-                                >
-                                  -{formatCurrency(payment.Debit)}
-                                </span>
-                              </div>
-                            )}
-                            {payment.Credit > 0 && (
-                              <div className="flex items-center gap-1.5">
                                 <ArrowUpCircle className="h-4 w-4 text-main-green" />
                                 <span
                                   className={cn(
@@ -686,7 +673,20 @@ export default function PaymentsPage() {
                                     "text-sm font-bold text-main-green",
                                   )}
                                 >
-                                  +{formatCurrency(payment.Credit)}
+                                  +{formatCurrency(payment.Debit)}
+                                </span>
+                              </div>
+                            )}
+                            {payment.Credit > 0 && (
+                              <div className="flex items-center gap-1.5">
+                                <ArrowDownCircle className="h-4 w-4 text-main-red" />
+                                <span
+                                  className={cn(
+                                    outfit.className,
+                                    "text-sm font-bold text-main-red",
+                                  )}
+                                >
+                                  -{formatCurrency(payment.Credit)}
                                 </span>
                               </div>
                             )}
@@ -755,15 +755,15 @@ export default function PaymentsPage() {
                             {/* แสดง Debit/Credit ในมุมมอง mobile */}
                             <div className="flex flex-wrap justify-end gap-2 min-[900px]:hidden">
                               {payment.Debit > 0 && (
-                                <span className="flex items-center gap-1 text-xs font-semibold text-main-red">
-                                  <ArrowDownCircle className="h-3 w-3" />
-                                  จ่าย {formatCurrency(payment.Debit)}
+                                <span className="flex items-center gap-1 text-xs font-semibold text-main-green">
+                                  <ArrowUpCircle className="h-3 w-3" />
+                                  รับ {formatCurrency(payment.Debit)}
                                 </span>
                               )}
                               {payment.Credit > 0 && (
-                                <span className="flex items-center gap-1 text-xs font-semibold text-main-green">
-                                  <ArrowUpCircle className="h-3 w-3" />
-                                  รับ {formatCurrency(payment.Credit)}
+                                <span className="flex items-center gap-1 text-xs font-semibold text-main-red">
+                                  <ArrowDownCircle className="h-3 w-3" />
+                                  จ่าย {formatCurrency(payment.Credit)}
                                 </span>
                               )}
                             </div>

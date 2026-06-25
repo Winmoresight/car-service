@@ -227,7 +227,7 @@ function buildPaymentCte() {
         *,
         CASE
           WHEN has_employee = 1 THEN 0
-          WHEN credit_value > 0 AND debit_value <= 0 THEN 1
+          WHEN debit_value > 0 AND credit_value <= 0 THEN 1
           WHEN payment_name LIKE N'%รายรับ%' THEN 1
           ELSE 0
         END as is_income,
