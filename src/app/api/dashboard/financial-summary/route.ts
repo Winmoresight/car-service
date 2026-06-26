@@ -877,6 +877,7 @@ export async function GET(request: NextRequest) {
       const salesTotal = categorySales || saleSummary.total;
       const netAmount = normalizeMoney(
         salesTotal +
+          saleSummary.deposits +
           paymentData.summary.incomeTotal +
           receivablePayments.summary.total -
           paymentData.summary.expenseTotal -

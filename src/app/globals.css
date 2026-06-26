@@ -223,3 +223,67 @@
     word-break: break-word;
   }
 }
+
+.financial-summary-dialog .text-\[10px\] {
+  font-size: 12px;
+}
+
+.financial-summary-dialog .text-\[11px\] {
+  font-size: 13px;
+}
+
+.financial-summary-dialog .text-\[0\.8rem\] {
+  font-size: calc(0.8rem + 2px);
+}
+
+.financial-summary-dialog .text-xs {
+  font-size: 14px;
+}
+
+.financial-summary-dialog .text-sm {
+  font-size: 16px;
+}
+
+.financial-summary-dialog .text-base {
+  font-size: 18px;
+}
+
+.financial-summary-dialog .text-lg {
+  font-size: 20px;
+}
+
+.financial-summary-dialog .text-xl {
+  font-size: 22px;
+}
+
+.financial-summary-dialog .text-2xl {
+  font-size: 26px;
+}
+
+.financial-summary-dialog .text-3xl {
+  font-size: 32px;
+}
+
+.financial-summary-dialog .text-4xl {
+  font-size: 38px;
+}
+
+@media (width >= 40rem) {
+  .financial-summary-dialog .sm\:text-xs {
+    font-size: 14px;
+  }
+
+  .financial-summary-dialog .sm\:text-2xl {
+    font-size: 26px;
+  }
+
+  .financial-summary-dialog .sm\:text-4xl {
+    font-size: 38px;
+  }
+}
+
+@media (width >= 48rem) {
+  .financial-summary-dialog .md\:text-3xl {
+    font-size: 32px;
+  }
+}

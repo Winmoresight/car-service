@@ -351,12 +351,12 @@ export function FinancialSummaryDialog({
     <LargeDialog open={open} onOpenChange={onOpenChange}>
       <LargeDialogContent
         size="2xl"
-        className="md:h-[90vh] md:max-h-[850px] flex flex-col overflow-hidden"
+        className="financial-summary-dialog md:h-[90vh] md:max-h-[850px] flex flex-col overflow-hidden"
       >
         <LargeDialogHeader className="gap-2 px-4 py-3 sm:gap-3 sm:px-6 sm:py-5 md:px-8 md:py-6 xl:gap-4">
           <div className="flex flex-col gap-2 pr-10 sm:gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-col gap-1.5">
-              <LargeDialogTitle className="text-xl sm:text-2xl md:text-3xl">
+              <LargeDialogTitle className="text-primary text-xl sm:text-2xl md:text-3xl">
                 สรุปรายรับ–รายจ่าย
               </LargeDialogTitle>
               <LargeDialogDescription className="hidden text-xs sm:block">
@@ -453,21 +453,21 @@ export function FinancialSummaryDialog({
                 <TabsList className="w-full sm:w-auto bg-muted/65 p-0.5 rounded-lg">
                   <TabsTrigger
                     value="overview"
-                    className="flex flex-1 items-center justify-center gap-1 px-2 py-1.5 text-[11px] font-bold rounded-md sm:flex-initial sm:gap-1.5 sm:px-4 sm:text-xs"
+                    className="flex flex-1 items-center justify-center gap-1 px-2 py-1.5 text-[11px] font-bold rounded-md data-[state=active]:text-primary sm:flex-initial sm:gap-1.5 sm:px-4 sm:text-xs"
                   >
                     <Wallet className="h-3.5 w-3.5" />
                     <span>สรุปการเงิน</span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="categories"
-                    className="flex flex-1 items-center justify-center gap-1 px-2 py-1.5 text-[11px] font-bold rounded-md sm:flex-initial sm:gap-1.5 sm:px-4 sm:text-xs"
+                    className="flex flex-1 items-center justify-center gap-1 px-2 py-1.5 text-[11px] font-bold rounded-md data-[state=active]:text-primary sm:flex-initial sm:gap-1.5 sm:px-4 sm:text-xs"
                   >
                     <Receipt className="h-3.5 w-3.5" />
                     <span>ยอดขายสินค้า</span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="transactions"
-                    className="flex flex-1 items-center justify-center gap-1 px-2 py-1.5 text-[11px] font-bold rounded-md sm:flex-initial sm:gap-1.5 sm:px-4 sm:text-xs"
+                    className="flex flex-1 items-center justify-center gap-1 px-2 py-1.5 text-[11px] font-bold rounded-md data-[state=active]:text-primary sm:flex-initial sm:gap-1.5 sm:px-4 sm:text-xs"
                   >
                     <Banknote className="h-3.5 w-3.5" />
                     <span>รายการธุรกรรม</span>
@@ -479,7 +479,7 @@ export function FinancialSummaryDialog({
                 {/* Tab 1: Overview */}
                 <TabsContent
                   value="overview"
-                  className="mt-0 h-full overflow-y-auto p-3 focus-visible:outline-none sm:p-6 md:p-8"
+                  className="mt-0 h-full overflow-y-auto px-3 pt-3 pb-8 focus-visible:outline-none sm:p-6 md:p-8"
                 >
                   <div className="space-y-4 md:space-y-6">
                     <section className="grid overflow-hidden rounded-[12px] border border-blue-100 bg-blue-50/55 dark:border-blue-500/20 dark:bg-blue-500/10 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.7fr)]">
@@ -499,8 +499,8 @@ export function FinancialSummaryDialog({
                           {formatCurrency(summary.totals.netAmount)} บาท
                         </p>
                         <p className="mt-3 text-xs font-semibold leading-5 text-muted-foreground">
-                          ยอดขาย + รายรับ + รับชำระลูกหนี้ − รายจ่าย − เงินโอนจากยอดขาย
-                          − ลูกหนี้ค้างชำระ
+                          ยอดขาย + ยอดมัดจำ + รายรับ + รับชำระลูกหนี้ − รายจ่าย −
+                          เงินโอนจากยอดขาย − ลูกหนี้ค้างชำระ
                         </p>
                       </div>
 
@@ -554,6 +554,11 @@ export function FinancialSummaryDialog({
                             {
                               label: "ยอดขายทั้งหมด",
                               value: summary.metrics.salesTotal,
+                              sign: "+",
+                            },
+                            {
+                              label: "ยอดมัดจำ",
+                              value: summary.metrics.deposits,
                               sign: "+",
                             },
                             {
@@ -643,7 +648,7 @@ export function FinancialSummaryDialog({
                             {
                               label: "ยอดมัดจำ",
                               value: summary.metrics.deposits,
-                              detail: "รวมอยู่ในยอดขายแล้ว",
+                              detail: "บวกเข้าเงินสุทธิแล้ว",
                               icon: Receipt,
                               tone: "orange",
                             },
@@ -722,7 +727,7 @@ export function FinancialSummaryDialog({
                 {/* Tab 2: Category Sales */}
                 <TabsContent
                   value="categories"
-                  className="mt-0 h-full overflow-y-auto p-3 focus-visible:outline-none sm:p-6 md:p-8"
+                  className="mt-0 h-full overflow-y-auto px-3 pt-3 pb-8 focus-visible:outline-none sm:p-6 md:p-8"
                 >
                   <div className="mx-auto max-w-3xl space-y-4 md:space-y-6">
                     <section className="overflow-hidden rounded-[10px] border bg-card flex flex-col">
@@ -786,7 +791,7 @@ export function FinancialSummaryDialog({
                 {/* Tab 3: Transactions */}
                 <TabsContent
                   value="transactions"
-                  className="mt-0 flex h-full flex-col overflow-hidden p-3 focus-visible:outline-none sm:p-6 md:p-8"
+                  className="mt-0 flex h-full flex-col overflow-hidden px-3 pt-3 pb-8 focus-visible:outline-none sm:p-6 md:p-8"
                 >
                   <div className="flex-1 flex flex-col overflow-hidden min-h-0">
                     {/* Horizontal scrollable pills */}

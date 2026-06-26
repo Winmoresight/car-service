@@ -417,16 +417,17 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-2 transition-all duration-1000 sm:flex-row min-[798px]:mt-0">
+            <div className="flex w-full flex-col gap-2 transition-all duration-1000 sm:w-auto sm:flex-row min-[798px]:mt-0">
               <DatePicker
                 date={selectedDate}
                 onDateChange={setSelectedDate}
                 placeholder="เลือกวันที่"
+                className="h-10 w-full px-3 font-bold sm:w-[240px]"
               />
               <Button
                 type="button"
                 variant="outline"
-                className="h-10 gap-2 px-3 font-bold"
+                className="h-10 w-full gap-2 px-3 font-bold sm:w-auto"
                 onClick={() => setIsFinancialSummaryOpen(true)}
               >
                 <Calculator className="h-4 w-4" />
