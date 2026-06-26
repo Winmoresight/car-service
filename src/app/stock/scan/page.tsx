@@ -3,7 +3,6 @@
 import {
   Barcode,
   Camera,
-  Check,
   ClipboardList,
   Minus,
   Plus,
@@ -15,7 +14,7 @@ import {
   VolumeX,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { type TouchEvent, useEffect, useRef, useState } from "react";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -133,9 +132,9 @@ export default function StockScanPage() {
   const [isCameraScanning, setIsCameraScanning] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [beepEnabled, setBeepEnabled] = useState(true);
-  const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [manualBarcode, setManualBarcode] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [isScannerDrawerExpanded, setIsScannerDrawerExpanded] = useState(true);
 
   const [lookupState, setLookupState] = useState<LookupState>("idle");
   const [feedback, setFeedback] = useState("");
@@ -148,6 +147,8 @@ export default function StockScanPage() {
   const barcodeDetectorRef = useRef<BarcodeDetectorInstance | null>(null);
   const lookupInFlightRef = useRef(false);
   const scanCooldownsRef = useRef<{ [barcode: string]: number }>({});
+  const drawerTouchStartYRef = useRef<number | null>(null);
+  const lastDrawerSwipeAtRef = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -458,13 +459,38 @@ export default function StockScanPage() {
     stopCameraScan();
   };
 
-  const handleSaveStock = () => {
-    setShowSaveSuccess(true);
+  const handleDrawerTouchStart = (event: TouchEvent<HTMLElement>) => {
+    drawerTouchStartYRef.current = event.touches[0]?.clientY ?? null;
   };
 
-  const confirmSaveStock = () => {
-    setScannedItems([]);
-    setShowSaveSuccess(false);
+  const handleDrawerTouchEnd = (event: TouchEvent<HTMLElement>) => {
+    const startY = drawerTouchStartYRef.current;
+    drawerTouchStartYRef.current = null;
+
+    if (startY === null) {
+      return;
+    }
+
+    const endY = event.changedTouches[0]?.clientY ?? startY;
+    const deltaY = endY - startY;
+
+    if (deltaY > 45) {
+      lastDrawerSwipeAtRef.current = Date.now();
+      setIsScannerDrawerExpanded(false);
+    }
+
+    if (deltaY < -45) {
+      lastDrawerSwipeAtRef.current = Date.now();
+      setIsScannerDrawerExpanded(true);
+    }
+  };
+
+  const toggleScannerDrawer = () => {
+    if (Date.now() - lastDrawerSwipeAtRef.current < 500) {
+      return;
+    }
+
+    setIsScannerDrawerExpanded((current) => !current);
   };
 
   const handleClearAll = () => {
@@ -514,22 +540,22 @@ export default function StockScanPage() {
             </Card>
           ) : (
             // Summary Screen after closing scanner
-            <Card className="max-w-2xl mx-auto mt-6 rounded-[24px] border bg-card shadow-sm overflow-hidden">
-              <div className="p-6 border-b flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-muted/20">
+            <Card className="max-w-2xl mx-auto mt-6 overflow-hidden rounded-[24px] border bg-card shadow-sm">
+              <div className="flex flex-col items-start justify-between gap-4 border-b bg-muted/15 p-5 sm:flex-row sm:items-center sm:p-6">
                 <div>
-                  <h2 className="text-xl font-bold text-foreground">
+                  <h2 className="text-2xl font-extrabold text-primary">
                     สรุปรายการสแกนสินค้า
                   </h2>
-                  <p className="text-xs text-muted-foreground mt-0.5">
+                  <p className="mt-1 text-sm font-semibold text-muted-foreground">
                     มีสินค้าทั้งหมด {scannedItems.length} รายการ ({totalItemsCount}{" "}
                     ชิ้น)
                   </p>
                 </div>
                 <div className="text-left sm:text-right">
-                  <p className="text-[10px] uppercase font-bold tracking-wide text-muted-foreground">
+                  <p className="text-xs font-extrabold tracking-wide text-muted-foreground uppercase">
                     ราคารวมสุทธิ
                   </p>
-                  <p className="text-2xl font-extrabold text-primary">
+                  <p className="mt-1 text-3xl font-extrabold text-primary">
                     ฿
                     {totalPrice.toLocaleString("th-TH", {
                       minimumFractionDigits: 2,
@@ -537,18 +563,18 @@ export default function StockScanPage() {
                   </p>
                 </div>
               </div>
-              <CardContent className="p-6 space-y-6">
-                <div className="divide-y max-h-80 overflow-y-auto pr-1">
+              <CardContent className="space-y-5 p-5 sm:p-6">
+                <div className="max-h-80 space-y-3 overflow-y-auto pr-1">
                   {scannedItems.map((item) => (
                     <div
                       key={item.barcode}
-                      className="py-4 flex items-center justify-between first:pt-0 last:pb-0 gap-4"
+                      className="flex items-center justify-between gap-4 rounded-[14px] border bg-muted/15 p-4"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-foreground truncate">
+                        <p className="truncate text-base font-bold text-card-foreground">
                           {item.name}
                         </p>
-                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
+                        <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-muted-foreground">
                           <span>บาร์โค้ด: {item.barcode}</span>
                           <span>•</span>
                           <span>
@@ -558,7 +584,7 @@ export default function StockScanPage() {
                       </div>
 
                       <div className="flex items-center gap-3">
-                        <div className="flex items-center bg-muted border rounded-lg overflow-hidden h-8">
+                        <div className="flex h-9 items-center overflow-hidden rounded-lg border bg-background">
                           <button
                             type="button"
                             onClick={() => decrementQty(item.barcode)}
@@ -566,7 +592,7 @@ export default function StockScanPage() {
                           >
                             <Minus className="h-3 w-3" />
                           </button>
-                          <span className="px-3 text-xs font-semibold text-foreground min-w-8 text-center">
+                          <span className="min-w-9 px-3 text-center text-sm font-bold text-foreground">
                             {item.quantity}
                           </span>
                           <button
@@ -590,33 +616,22 @@ export default function StockScanPage() {
                   ))}
                 </div>
 
-                <div className="space-y-3 pt-4 border-t">
-                  <div className="grid grid-cols-2 gap-3">
-                    <Button
-                      type="button"
-                      onClick={startCameraScan}
-                      variant="outline"
-                      className="h-12 rounded-xl font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-                    >
-                      <Camera className="h-4 w-4" />
-                      สแกนเพิ่ม
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={handleSaveStock}
-                      className="h-12 rounded-xl font-bold bg-primary hover:bg-primary/90 text-primary-foreground transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-                    >
-                      <Check className="h-4 w-4" />
-                      บันทึกสต็อก
-                    </Button>
-                  </div>
+                <div className="space-y-3 border-t pt-4">
+                  <Button
+                    type="button"
+                    onClick={startCameraScan}
+                    className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary font-bold text-primary-foreground transition-all hover:bg-primary/90 active:scale-[0.98]"
+                  >
+                    <Camera className="h-4 w-4" />
+                    สแกนเพิ่ม
+                  </Button>
                   <Button
                     type="button"
                     onClick={handleClearAll}
                     variant="ghost"
-                    className="w-full h-10 rounded-xl font-medium text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-all flex items-center justify-center gap-1.5"
+                    className="flex h-10 w-full items-center justify-center gap-1.5 rounded-xl text-sm font-semibold text-muted-foreground transition-all hover:bg-destructive/5 hover:text-destructive"
                   >
-                    <RotateCcw className="h-3.5 w-3.5" />
+                    <RotateCcw className="h-4 w-4" />
                     ล้างรายการทั้งหมด
                   </Button>
                 </div>
@@ -626,33 +641,10 @@ export default function StockScanPage() {
         </div>
       )}
 
-      {/* Simulated Save Success Modal */}
-      {showSaveSuccess && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-card rounded-[28px] border max-w-sm w-full p-6 text-center space-y-6 shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">
-              <Check className="h-8 w-8" />
-            </div>
-            <div className="space-y-2">
-              <h3 className="text-xl font-bold text-foreground">
-                บันทึกสต็อกเสร็จสิ้น
-              </h3>
-            </div>
-            <Button
-              type="button"
-              onClick={confirmSaveStock}
-              className="w-full h-11 rounded-xl font-bold bg-primary hover:bg-primary/90"
-            >
-              ตกลง
-            </Button>
-          </div>
-        </div>
-      )}
-
       {/* Responsive Camera Scanner Dialog Overlay */}
       <div
         className={cn(
-          "fixed inset-0 z-50 flex items-center justify-center p-0 md:p-4 bg-black/40 backdrop-blur-sm transition-all duration-300",
+          "fixed inset-0 z-[70] flex items-center justify-center p-0 md:p-4 bg-black/40 backdrop-blur-sm transition-all duration-300",
           isCameraScanning
             ? "opacity-100 pointer-events-auto visible"
             : "opacity-0 pointer-events-none invisible",
@@ -776,33 +768,48 @@ export default function StockScanPage() {
           {/* Items List Panel (Right side on desktop, Bottom drawer on mobile) */}
           <div
             className={cn(
-              "flex flex-col bg-background text-foreground shadow-2xl border-zinc-200 dark:border-zinc-800",
+              "flex flex-col bg-background text-foreground shadow-2xl border-zinc-200 transition-transform duration-300 ease-out dark:border-zinc-800",
               // Desktop layout (Right column)
-              "md:relative md:inset-auto md:w-[380px] md:h-full md:rounded-none md:border-t-0 md:border-l md:bg-card md:shadow-none md:p-6 md:pb-8",
+              "md:relative md:inset-auto md:w-[380px] md:h-full md:max-h-full md:translate-y-0 md:rounded-none md:border-t-0 md:border-l md:bg-card md:p-6 md:pb-8 md:shadow-none",
               // Mobile layout (Bottom Drawer)
-              "absolute bottom-0 inset-x-0 rounded-t-[32px] border-t p-5 pb-6 max-h-[50%] md:max-h-full",
+              "absolute bottom-0 inset-x-0 h-[62dvh] max-h-[62dvh] rounded-t-[32px] border-t p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]",
+              isScannerDrawerExpanded
+                ? "translate-y-0"
+                : "translate-y-[calc(100%-112px)]",
             )}
           >
             {/* Mobile Drag Handle Bar Indicator (Hidden on desktop) */}
-            <div className="w-12 h-1 bg-zinc-200 dark:bg-zinc-800 rounded-full mx-auto mb-4 md:hidden" />
+            <button
+              type="button"
+              className="mx-auto mb-4 flex h-6 w-20 items-center justify-center rounded-full md:hidden"
+              aria-label={
+                isScannerDrawerExpanded ? "ยุบรายการที่สแกน" : "เปิดรายการที่สแกน"
+              }
+              aria-expanded={isScannerDrawerExpanded}
+              onClick={toggleScannerDrawer}
+              onTouchStart={handleDrawerTouchStart}
+              onTouchEnd={handleDrawerTouchEnd}
+            >
+              <span className="h-1 w-12 rounded-full bg-zinc-300 dark:bg-zinc-700" />
+            </button>
 
             {/* Drawer Header */}
             <div className="flex justify-between items-end mb-4">
               <div>
-                <h3 className="text-base font-bold text-foreground">
-                  Scanned Items
+                <h3 className="text-xl font-extrabold text-primary">
+                  รายการที่สแกน
                 </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="mt-0.5 text-sm font-semibold text-muted-foreground">
                   {scannedItems.length === 0
-                    ? "No items"
-                    : `${scannedItems.length} items total`}
+                    ? "ยังไม่มีรายการ"
+                    : `${scannedItems.length} รายการ (${totalItemsCount} ชิ้น)`}
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-[10px] tracking-wider font-semibold text-muted-foreground uppercase">
-                  Total Price
+                <p className="text-sm font-extrabold tracking-wide text-muted-foreground">
+                  ยอดรวม
                 </p>
-                <p className="text-xl font-extrabold text-primary">
+                <p className="mt-0.5 text-2xl font-extrabold text-primary">
                   ฿
                   {totalPrice.toLocaleString("th-TH", {
                     minimumFractionDigits: 2,
@@ -814,10 +821,10 @@ export default function StockScanPage() {
             <hr className="border-zinc-200 dark:border-zinc-800 mb-4" />
 
             {/* Manual Input Search Bar for testing/desktop users */}
-            <div className="flex gap-2 mb-4">
+            <div className="mb-4 flex items-stretch gap-2">
               <input
                 type="text"
-                placeholder="ป้อนบาร์โค้ดเพื่อค้นหา/จำลองสแกน..."
+                placeholder="ป้อนบาร์โค้ดเพื่อค้นหา..."
                 value={manualBarcode}
                 onChange={(e) => setManualBarcode(e.target.value)}
                 onKeyDown={(e) => {
@@ -825,13 +832,12 @@ export default function StockScanPage() {
                     handleManualBarcodeSubmit();
                   }
                 }}
-                className="flex-1 bg-muted border border-border text-foreground placeholder-muted-foreground rounded-xl px-4 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring transition-all"
+                className="h-10 min-w-0 flex-1 rounded-xl border border-border bg-muted px-4 text-sm font-semibold text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
               <Button
                 type="button"
                 onClick={handleManualBarcodeSubmit}
-                size="sm"
-                className="bg-secondary hover:bg-secondary/80 text-secondary-foreground border border-border rounded-xl px-3 h-8 text-xs font-semibold"
+                className="h-10 shrink-0 rounded-xl border border-border bg-secondary px-4 text-sm font-bold text-secondary-foreground hover:bg-secondary/80"
               >
                 จำลองสแกน
               </Button>
@@ -842,19 +848,21 @@ export default function StockScanPage() {
               {scannedItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-6 text-center text-muted-foreground space-y-1.5 h-full">
                   <Barcode className="h-6 w-6 opacity-30" />
-                  <p className="text-xs">เล็งเป้าเพื่อสแกนบาร์โค้ดสินค้าจริง</p>
+                  <p className="text-sm font-semibold">
+                    เล็งเป้าเพื่อสแกนบาร์โค้ดสินค้าจริง
+                  </p>
                 </div>
               ) : (
                 scannedItems.map((item) => (
                   <div
                     key={item.barcode}
-                    className="flex items-center justify-between p-3 rounded-2xl bg-muted/40 border border-border/80 hover:bg-muted/60 transition-all"
+                    className="flex items-center justify-between rounded-2xl border border-border/80 bg-muted/35 p-3 transition-all hover:bg-muted/55"
                   >
                     <div className="min-w-0 flex-1 pr-2">
-                      <p className="text-xs font-bold text-foreground truncate">
+                      <p className="truncate text-base font-extrabold text-card-foreground">
                         {item.name}
                       </p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                      <p className="mt-0.5 text-sm font-semibold text-muted-foreground">
                         ฿{item.retailPrice.toFixed(2)} • {item.barcode}
                       </p>
                     </div>
@@ -863,17 +871,17 @@ export default function StockScanPage() {
                       <button
                         type="button"
                         onClick={() => decrementQty(item.barcode)}
-                        className="text-muted-foreground hover:text-foreground px-1.5 text-xs font-extrabold transition-colors"
+                        className="px-1.5 text-sm font-extrabold text-muted-foreground transition-colors hover:text-card-foreground"
                       >
                         <Minus className="h-3 w-3" />
                       </button>
-                      <span className="text-xs font-bold w-4 text-center text-foreground">
+                      <span className="w-5 text-center text-sm font-bold text-card-foreground">
                         {item.quantity}
                       </span>
                       <button
                         type="button"
                         onClick={() => incrementQty(item.barcode)}
-                        className="text-muted-foreground hover:text-foreground px-1.5 text-xs font-extrabold transition-colors"
+                        className="px-1.5 text-sm font-extrabold text-muted-foreground transition-colors hover:text-card-foreground"
                       >
                         <Plus className="h-3 w-3" />
                       </button>
@@ -888,7 +896,7 @@ export default function StockScanPage() {
               <div className="mt-4 text-center">
                 <span
                   className={cn(
-                    "inline-block text-xs px-2.5 py-1 rounded-full border",
+                    "inline-block rounded-full border px-3 py-1 text-sm font-semibold",
                     lookupState === "found"
                       ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                       : lookupState === "loading"
@@ -907,10 +915,10 @@ export default function StockScanPage() {
             <Button
               type="button"
               onClick={handleReviewOrder}
-              className="w-full mt-4 h-12 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm flex items-center justify-center gap-2 border border-blue-500/30 shadow-lg active:scale-[0.98] transition-all"
+              className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary text-base font-bold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 active:scale-[0.98]"
             >
               <ClipboardList className="h-4 w-4" />
-              Review Order
+              ตรวจรายการ
             </Button>
           </div>
         </div>
