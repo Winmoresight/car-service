@@ -507,7 +507,7 @@ export default function StockScanPage() {
   );
 
   return (
-    <div className="p-6 pb-16">
+    <div className="p-4 pb-36 sm:p-6 min-[1025px]:pb-16">
       <DashboardBreadcrumb href="/stock/scan" label="สแกนสินค้า" />
       <hr className="my-4 hidden w-full min-[1025px]:block" />
 
@@ -568,49 +568,62 @@ export default function StockScanPage() {
                   {scannedItems.map((item) => (
                     <div
                       key={item.barcode}
-                      className="flex items-center justify-between gap-4 rounded-[14px] border bg-muted/15 p-4"
+                      className="rounded-[14px] border bg-muted/15 p-4 sm:p-5"
                     >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-base font-bold text-card-foreground">
-                          {item.name}
-                        </p>
-                        <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-muted-foreground">
-                          <span>บาร์โค้ด: {item.barcode}</span>
-                          <span>•</span>
-                          <span>
-                            ราคาต่อหน่วย: ฿{item.retailPrice.toFixed(2)}
-                          </span>
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-9 items-center overflow-hidden rounded-lg border bg-background">
-                          <button
-                            type="button"
-                            onClick={() => decrementQty(item.barcode)}
-                            className="px-2.5 h-full hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors text-muted-foreground font-bold"
-                          >
-                            <Minus className="h-3 w-3" />
-                          </button>
-                          <span className="min-w-9 px-3 text-center text-sm font-bold text-foreground">
-                            {item.quantity}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => incrementQty(item.barcode)}
-                            className="px-2.5 h-full hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors text-muted-foreground font-bold"
-                          >
-                            <Plus className="h-3 w-3" />
-                          </button>
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0 flex-1 space-y-3">
+                          <p className="text-lg font-extrabold leading-snug text-card-foreground">
+                            {item.name}
+                          </p>
+                          <div className="grid gap-2 text-sm font-semibold text-muted-foreground sm:grid-cols-2">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-sm font-bold tracking-wide">
+                                บาร์โค้ด
+                              </span>
+                              <span className="break-all text-card-foreground">
+                                {item.barcode}
+                              </span>
+                            </div>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-sm font-bold tracking-wide">
+                                ราคาต่อหน่วย
+                              </span>
+                              <span className="text-card-foreground">
+                                ฿{item.retailPrice.toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => removeScannedItem(item.barcode)}
-                          className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        <div className="flex items-center justify-between gap-3 border-t pt-3 sm:w-auto sm:border-t-0 sm:pt-0">
+                          <div className="flex h-10 items-center overflow-hidden rounded-lg border bg-background">
+                            <button
+                              type="button"
+                              onClick={() => decrementQty(item.barcode)}
+                              className="h-full px-3 font-bold text-muted-foreground transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800"
+                            >
+                              <Minus className="h-3.5 w-3.5" />
+                            </button>
+                            <span className="min-w-10 px-3 text-center text-base font-bold text-foreground">
+                              {item.quantity}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => incrementQty(item.barcode)}
+                              className="h-full px-3 font-bold text-muted-foreground transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => removeScannedItem(item.barcode)}
+                            className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <Trash2 className="h-[18px] w-[18px]" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -673,10 +686,10 @@ export default function StockScanPage() {
               className={cn(
                 "absolute inset-0 flex justify-center pointer-events-none z-10",
                 "items-center", // Vertically center on desktop
-                "max-[767px]:items-start max-[767px]:pt-20", // Shift up on mobile
+                "max-[767px]:top-0 max-[767px]:bottom-auto max-[767px]:h-[42dvh] max-[767px]:items-end max-[767px]:pb-6", // Keep reticle above the mobile drawer
               )}
             >
-              <div className="w-48 h-48 md:w-56 md:h-56 border-2 border-dashed border-white/25 rounded-2xl relative">
+              <div className="relative h-44 w-44 rounded-2xl border-2 border-dashed border-white/25 md:h-56 md:w-56">
                 {/* Corner Brackets */}
                 <div className="absolute top-0 left-0 w-8 h-8 border-t-[5px] border-l-[5px] border-emerald-500 rounded-tl-xl -mt-[2px] -ml-[2px]" />
                 <div className="absolute top-0 right-0 w-8 h-8 border-t-[5px] border-r-[5px] border-emerald-500 rounded-tr-xl -mt-[2px] -mr-[2px]" />
@@ -772,7 +785,7 @@ export default function StockScanPage() {
               // Desktop layout (Right column)
               "md:relative md:inset-auto md:w-[380px] md:h-full md:max-h-full md:translate-y-0 md:rounded-none md:border-t-0 md:border-l md:bg-card md:p-6 md:pb-8 md:shadow-none",
               // Mobile layout (Bottom Drawer)
-              "absolute bottom-0 inset-x-0 h-[62dvh] max-h-[62dvh] rounded-t-[32px] border-t p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]",
+              "absolute bottom-0 inset-x-0 h-[58dvh] max-h-[58dvh] rounded-t-[32px] border-t p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]",
               isScannerDrawerExpanded
                 ? "translate-y-0"
                 : "translate-y-[calc(100%-112px)]",
