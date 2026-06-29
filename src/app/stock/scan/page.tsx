@@ -38,6 +38,7 @@ type LookupErrorDetails = {
 interface ScannedItem {
   barcode: string;
   name: string;
+  costPrice: number;
   retailPrice: number;
   quantity: number;
   unit: string;
@@ -296,6 +297,7 @@ export default function StockScanPage() {
             {
               barcode: data.barcode,
               name: data.name,
+              costPrice: data.costPrice,
               retailPrice: data.retailPrice,
               quantity: 1,
               unit: data.unit || "ชิ้น",
@@ -564,7 +566,7 @@ export default function StockScanPage() {
                           <p className="text-lg font-extrabold leading-snug text-card-foreground">
                             {item.name}
                           </p>
-                          <div className="grid gap-2 text-sm font-semibold text-muted-foreground sm:grid-cols-2">
+                          <div className="grid gap-2 text-sm font-semibold text-muted-foreground sm:grid-cols-3">
                             <div className="flex flex-col gap-0.5">
                               <span className="text-sm font-bold tracking-wide">
                                 บาร์โค้ด
@@ -575,7 +577,15 @@ export default function StockScanPage() {
                             </div>
                             <div className="flex flex-col gap-0.5">
                               <span className="text-sm font-bold tracking-wide">
-                                ราคาต่อหน่วย
+                                ต้นทุน
+                              </span>
+                              <span className="text-card-foreground">
+                                ฿{item.costPrice.toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-sm font-bold tracking-wide">
+                                ราคาปลีก
                               </span>
                               <span className="text-card-foreground">
                                 ฿{item.retailPrice.toFixed(2)}
@@ -868,7 +878,11 @@ export default function StockScanPage() {
                         {item.name}
                       </p>
                       <p className="mt-0.5 text-sm font-semibold text-muted-foreground">
-                        ฿{item.retailPrice.toFixed(2)} • {item.barcode}
+                        ต้นทุน ฿{item.costPrice.toFixed(2)} • ปลีก ฿
+                        {item.retailPrice.toFixed(2)}
+                      </p>
+                      <p className="mt-0.5 truncate text-xs font-semibold text-muted-foreground/80">
+                        {item.barcode}
                       </p>
                     </div>
 

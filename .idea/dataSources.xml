@@ -1,14 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
-    <data-source source="LOCAL" name="BaseSeviceCar@localhost" uuid="423e5502-18d7-4772-aefd-81b7286b45b6">
-      <driver-ref>sqlserver.ms</driver-ref>
-      <synchronize>true</synchronize>
-      <jdbc-driver>com.microsoft.sqlserver.jdbc.SQLServerDriver</jdbc-driver>
-      <jdbc-url>jdbc:sqlserver://localhost:1433;database=BaseSeviceCar</jdbc-url>
-      <working-dir>$ProjectFileDir$</working-dir>
-    </data-source>
-    <data-source source="LOCAL" name="BaseSeviceCar@localhost [2]" uuid="0afb89d1-f88d-4196-86d7-873ac1c8c34c">
+    <data-source source="LOCAL" name="BaseSeviceCar@localhost" uuid="3f5f2546-5d13-4209-bbc3-01d25e116acc">
       <driver-ref>sqlserver.ms</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>com.microsoft.sqlserver.jdbc.SQLServerDriver</jdbc-driver>

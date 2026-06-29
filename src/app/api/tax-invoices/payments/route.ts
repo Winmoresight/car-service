@@ -5,7 +5,6 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
-import { receivablePaymentLogTableExists } from "@/lib/receivable-payment-log";
 import type { ApiResponse } from "@/types/api";
 
 interface ReceivablePayment {
@@ -41,71 +40,9 @@ function getDateCondition(date: string) {
   return date ? "@selectedDate" : "CONVERT(date, GETDATE())";
 }
 
-function buildBaseCte(hasWebLog: boolean, dateCondition: string) {
-  const webPayments = hasWebLog
-    ? `
-      web_payments AS (
-        SELECT
-          CAST(p.ID AS nvarchar(50)) as id,
-          p.PaidAt as paidAt,
-          p.NumberPrintSalePost as numberPrint,
-          ISNULL(p.CodeCustomer, ISNULL(m.CodeCustomer, '')) as customerCode,
-          ISNULL(p.NameCustomer, ISNULL(m.NameCustomer, N'ไม่ระบุ')) as customerName,
-          ISNULL(p.NameCar, ISNULL(m.NameCar, '')) as nameCar,
-          ISNULL(p.Province, ISNULL(m.Province, '')) as province,
-          ${getSafeMoneyExpression("p.PaidAmount")} as paidAmount,
-          ${getSafeMoneyExpression("m.TotalPrice")} as totalPrice,
-          CASE
-            WHEN LTRIM(RTRIM(ISNULL(p.PaymentMethod, ''))) = 'transfer'
-              THEN 'transfer'
-            ELSE 'cash'
-          END as paymentMethod,
-          ISNULL(p.NameBank, ISNULL(m.NameBank, '')) as nameBank,
-          ISNULL(p.CreatedBy, '') as createdBy,
-          'web' as source
-        FROM dbo.WebReceivablePayments p
-        INNER JOIN dbo.MasterSalePost m
-          ON m.NumberPrintSalePost = p.NumberPrintSalePost
-        WHERE CONVERT(date, p.PaidAt) = ${dateCondition}
-          AND m.DateSalePost IS NOT NULL
-          AND CONVERT(date, m.DateSalePost) < CONVERT(date, p.PaidAt)
-      ),
-    `
-    : `
-      web_payments AS (
-        SELECT
-          CAST(NULL AS nvarchar(50)) as id,
-          CAST(NULL AS datetime) as paidAt,
-          CAST(NULL AS nvarchar(30)) as numberPrint,
-          CAST(NULL AS nvarchar(30)) as customerCode,
-          CAST(NULL AS nvarchar(200)) as customerName,
-          CAST(NULL AS nvarchar(100)) as nameCar,
-          CAST(NULL AS nvarchar(100)) as province,
-          CAST(0 AS money) as paidAmount,
-          CAST(0 AS money) as totalPrice,
-          CAST('cash' AS nvarchar(20)) as paymentMethod,
-          CAST(NULL AS nvarchar(250)) as nameBank,
-          CAST(NULL AS nvarchar(100)) as createdBy,
-          CAST('web' AS nvarchar(20)) as source
-        WHERE 1 = 0
-      ),
-    `;
-
-  const legacyDedupe = hasWebLog
-    ? `
-          AND NOT EXISTS (
-            SELECT 1
-            FROM dbo.WebReceivablePayments wp
-            WHERE wp.NumberPrintSalePost = r.NumberPrintPost
-              AND CONVERT(date, wp.PaidAt) = CONVERT(date, r.DatePost)
-          )
-    `
-    : "";
-
+function buildBaseCte(dateCondition: string) {
   return `
-    WITH
-    ${webPayments}
-    legacy_payments AS (
+    WITH legacy_payments AS (
       SELECT
         CAST('legacy-' + ISNULL(r.NumberPrintPost, '') + '-' + CONVERT(nvarchar(30), r.DatePost, 121) AS nvarchar(100)) as id,
         r.DatePost as paidAt,
@@ -144,15 +81,10 @@ function buildBaseCte(hasWebLog: boolean, dateCondition: string) {
         ORDER BY previous.DatePost DESC
       ) previous_payment
       WHERE CONVERT(date, r.DatePost) = ${dateCondition}
-        AND m.DateSalePost IS NOT NULL
-        AND CONVERT(date, m.DateSalePost) < CONVERT(date, r.DatePost)
         AND ${getSafeMoneyExpression("r.SubMoney")} = 0
         AND ${getSafeMoneyExpression("r.PayMoney")} > 0
-        ${legacyDedupe}
     ),
     combined AS (
-      SELECT * FROM web_payments
-      UNION ALL
       SELECT * FROM legacy_payments
     )
   `;
@@ -165,9 +97,8 @@ export async function GET(request: NextRequest) {
     const offset = Number.parseInt(searchParams.get("offset") || "0", 10);
     const search = searchParams.get("search") || "";
     const selectedDate = searchParams.get("date") || "";
-    const hasWebLog = await receivablePaymentLogTableExists();
     const dateCondition = getDateCondition(selectedDate);
-    const baseCte = buildBaseCte(hasWebLog, dateCondition);
+    const baseCte = buildBaseCte(dateCondition);
     const filters: string[] = ["paidAmount > 0"];
 
     if (search) {

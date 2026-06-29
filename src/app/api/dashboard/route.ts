@@ -8,7 +8,6 @@
 import type { NextRequest } from "next/server";
 import { handleApiError, successResponse, withTimeout } from "@/lib/api-utils";
 import { executeQuery } from "@/lib/db";
-import { receivablePaymentLogTableExists } from "@/lib/receivable-payment-log";
 import type { DashboardKPI, DashboardMoneyBreakdownItem } from "@/types/api";
 
 interface OtherPaymentSummary {
@@ -375,25 +374,52 @@ async function getOptionalDailyMoneySummary({
   }
 }
 
-async function getReceivablePaymentLogSummary(
+async function getReceivablePaymentSummary(
   dateCondition: string,
   params?: Record<string, unknown>,
 ): Promise<OptionalDailyMoneySummary> {
   try {
-    if (!(await receivablePaymentLogTableExists())) {
-      return zeroOptionalDailyMoney;
-    }
-
     const [summary] = await executeQuery<OptionalDailyMoneySummary>(
       `
+        WITH legacy_payments AS (
+          SELECT
+            CASE
+              WHEN ${getSafeMoneyExpression("r.PayMoney")} - ISNULL(previous_payment.previousPayMoney, 0) > 0
+                THEN ${getSafeMoneyExpression("r.PayMoney")} - ISNULL(previous_payment.previousPayMoney, 0)
+              ELSE ${getSafeMoneyExpression("r.PayMoney")}
+            END as paid_amount,
+            CASE
+              WHEN ${getSafeMoneyExpression("m.Transfer")} > 0
+                AND (
+                  LTRIM(RTRIM(ISNULL(m.NameBank, ''))) <> ''
+                  OR ${getSafeMoneyExpression("m.Cash")} <= 0
+                )
+                THEN 'transfer'
+              ELSE 'cash'
+            END as payment_method
+          FROM dbo.MasterRecivePaymentCustomer r
+          LEFT JOIN dbo.MasterSalePost m
+            ON m.NumberPrintSalePost = r.NumberPrintPost
+          OUTER APPLY (
+            SELECT TOP 1
+              ${getSafeMoneyExpression("previous.PayMoney")} as previousPayMoney
+            FROM dbo.MasterRecivePaymentCustomer previous
+            WHERE previous.NumberPrintPost = r.NumberPrintPost
+              AND previous.DatePost < r.DatePost
+            ORDER BY previous.DatePost DESC
+          ) previous_payment
+          WHERE CONVERT(date, r.DatePost) = ${dateCondition}
+            AND ${getSafeMoneyExpression("r.SubMoney")} = 0
+            AND ${getSafeMoneyExpression("r.PayMoney")} > 0
+        )
         SELECT
           COUNT(*) as count,
-          ISNULL(SUM(${getSafeMoneyExpression("p.PaidAmount")}), 0) as total,
+          ISNULL(SUM(paid_amount), 0) as total,
           ISNULL(
             SUM(
               CASE
-                WHEN LTRIM(RTRIM(ISNULL(p.PaymentMethod, ''))) = 'cash'
-                  THEN ${getSafeMoneyExpression("p.PaidAmount")}
+                WHEN payment_method = 'cash'
+                  THEN paid_amount
                 ELSE 0
               END
             ),
@@ -402,20 +428,15 @@ async function getReceivablePaymentLogSummary(
           ISNULL(
             SUM(
               CASE
-                WHEN LTRIM(RTRIM(ISNULL(p.PaymentMethod, ''))) = 'transfer'
-                  THEN ${getSafeMoneyExpression("p.PaidAmount")}
+                WHEN payment_method = 'transfer'
+                  THEN paid_amount
                 ELSE 0
               END
             ),
             0
           ) as transfer
-        FROM dbo.WebReceivablePayments p
-        INNER JOIN dbo.MasterSalePost m
-          ON m.NumberPrintSalePost = p.NumberPrintSalePost
-        WHERE CONVERT(date, p.PaidAt) = ${dateCondition}
-          AND m.DateSalePost IS NOT NULL
-          AND CONVERT(date, m.DateSalePost) < CONVERT(date, p.PaidAt)
-          AND ${getSafeMoneyExpression("p.PaidAmount")} > 0
+        FROM legacy_payments
+        WHERE paid_amount > 0
       `,
       params,
       false,
@@ -423,7 +444,7 @@ async function getReceivablePaymentLogSummary(
 
     return summary ?? zeroOptionalDailyMoney;
   } catch (error) {
-    console.warn("Optional receivable payment log summary failed:", error);
+    console.warn("Optional receivable payment summary failed:", error);
     return zeroOptionalDailyMoney;
   }
 }
@@ -613,7 +634,7 @@ export async function GET(request: NextRequest) {
       ] = await Promise.all([
         getOtherPaymentSummary(dateExpression, dateParams),
         getReceivableSummary(dateExpression, dateParams),
-        getReceivablePaymentLogSummary(dateExpression, dateParams),
+        getReceivablePaymentSummary(dateExpression, dateParams),
         getOptionalDailyMoneySummary({
           tableName: [
             "MasterPrintOrderBuyProduct",

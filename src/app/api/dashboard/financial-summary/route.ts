@@ -6,7 +6,6 @@
 import type { NextRequest } from "next/server";
 import { handleApiError, successResponse, withTimeout } from "@/lib/api-utils";
 import { executeQuery } from "@/lib/db";
-import { receivablePaymentLogTableExists } from "@/lib/receivable-payment-log";
 import type { FinancialSummary, FinancialSummaryListItem } from "@/types/api";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -241,62 +240,9 @@ function buildPaymentCte() {
   `;
 }
 
-function buildReceivablePaymentCte(hasWebLog: boolean) {
-  const webPayments = hasWebLog
-    ? `
-      web_payments AS (
-        SELECT
-          CAST(p.ID AS nvarchar(100)) as id,
-          p.PaidAt as occurred_at,
-          ISNULL(p.NumberPrintSalePost, '') as document_no,
-          ISNULL(p.NameCustomer, ISNULL(m.NameCustomer, N'ไม่ระบุลูกค้า')) as customer_name,
-          ISNULL(p.NameCar, ISNULL(m.NameCar, '')) as name_car,
-          ISNULL(p.Province, ISNULL(m.Province, '')) as province,
-          ${getSafeMoneyExpression("p.PaidAmount")} as amount,
-          CASE
-            WHEN LTRIM(RTRIM(ISNULL(p.PaymentMethod, ''))) = 'transfer'
-              THEN 'transfer'
-            ELSE 'cash'
-          END as payment_method,
-          ISNULL(p.NameBank, ISNULL(m.NameBank, '')) as bank_name
-        FROM dbo.WebReceivablePayments p
-        INNER JOIN dbo.MasterSalePost m
-          ON m.NumberPrintSalePost = p.NumberPrintSalePost
-        WHERE CONVERT(date, p.PaidAt) BETWEEN @dateFrom AND @dateTo
-          AND m.DateSalePost IS NOT NULL
-          AND CONVERT(date, m.DateSalePost) < CONVERT(date, p.PaidAt)
-      ),
-    `
-    : `
-      web_payments AS (
-        SELECT
-          CAST(NULL AS nvarchar(100)) as id,
-          CAST(NULL AS datetime) as occurred_at,
-          CAST(NULL AS nvarchar(30)) as document_no,
-          CAST(NULL AS nvarchar(200)) as customer_name,
-          CAST(NULL AS nvarchar(100)) as name_car,
-          CAST(NULL AS nvarchar(100)) as province,
-          CAST(0 AS money) as amount,
-          CAST('cash' AS nvarchar(20)) as payment_method,
-          CAST(NULL AS nvarchar(250)) as bank_name
-        WHERE 1 = 0
-      ),
-    `;
-  const legacyDedupe = hasWebLog
-    ? `
-        AND NOT EXISTS (
-          SELECT 1
-          FROM dbo.WebReceivablePayments wp
-          WHERE wp.NumberPrintSalePost = r.NumberPrintPost
-            AND CONVERT(date, wp.PaidAt) = CONVERT(date, r.DatePost)
-        )
-    `
-    : "";
-
+function buildReceivablePaymentCte() {
   return `
-    WITH
-    ${webPayments}
-    legacy_payments AS (
+    WITH legacy_payments AS (
       SELECT
         CAST('legacy-' + ISNULL(r.NumberPrintPost, '') + '-' + CONVERT(nvarchar(30), r.DatePost, 121) AS nvarchar(100)) as id,
         r.DatePost as occurred_at,
@@ -331,15 +277,10 @@ function buildReceivablePaymentCte(hasWebLog: boolean) {
         ORDER BY previous.DatePost DESC
       ) previous_payment
       WHERE CONVERT(date, r.DatePost) BETWEEN @dateFrom AND @dateTo
-        AND m.DateSalePost IS NOT NULL
-        AND CONVERT(date, m.DateSalePost) < CONVERT(date, r.DatePost)
         AND ${getSafeMoneyExpression("r.SubMoney")} = 0
         AND ${getSafeMoneyExpression("r.PayMoney")} > 0
-        ${legacyDedupe}
     ),
     combined AS (
-      SELECT * FROM web_payments
-      UNION ALL
       SELECT * FROM legacy_payments
     )
   `;
@@ -600,11 +541,8 @@ async function getPaymentData(params: Record<string, unknown>) {
   };
 }
 
-async function getReceivablePayments(
-  params: Record<string, unknown>,
-  hasWebLog: boolean,
-) {
-  const cte = buildReceivablePaymentCte(hasWebLog);
+async function getReceivablePayments(params: Record<string, unknown>) {
+  const cte = buildReceivablePaymentCte();
   const [summaryRows, rows] = await Promise.all([
     executeQuery<ReceivablePaymentSummaryRow>(
       `
@@ -849,7 +787,6 @@ export async function GET(request: NextRequest) {
     const params = { dateFrom, dateTo };
 
     const data = await withTimeout(async () => {
-      const hasWebLog = await receivablePaymentLogTableExists();
       const [
         categories,
         saleSummary,
@@ -862,7 +799,7 @@ export async function GET(request: NextRequest) {
         getCategories(params),
         getSaleSummary(params),
         getPaymentData(params),
-        getReceivablePayments(params, hasWebLog),
+        getReceivablePayments(params),
         getPaidSales(params),
         getTransfers(params),
         getOutstandingReceivables(params),

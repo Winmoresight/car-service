@@ -153,7 +153,7 @@ export default function SalesPage() {
     getTodayRange(),
   );
   const [limit, setLimit] = useState(20);
-  const [salesFilter, setSalesFilter] = useState<SalesFilter>("unpaid");
+  const [salesFilter, setSalesFilter] = useState<SalesFilter>("all");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -182,20 +182,22 @@ export default function SalesPage() {
 
   // สร้าง URL สำหรับ API พร้อม query parameters
   const buildApiUrl = () => {
+    const trimmedSearch = searchTerm.trim();
+    const isUsingDefaultDateRange = isSameDateRange(dateRange, getTodayRange());
     const params = new URLSearchParams({
       limit: limit.toString(),
       offset: (page * limit).toString(),
     });
 
-    if (searchTerm) {
-      params.append("search", searchTerm);
+    if (trimmedSearch) {
+      params.append("search", trimmedSearch);
     }
 
-    if (dateRange?.from) {
+    if (dateRange?.from && (!trimmedSearch || !isUsingDefaultDateRange)) {
       params.append("startDate", format(dateRange.from, "yyyy-MM-dd"));
     }
 
-    if (dateRange?.to) {
+    if (dateRange?.to && (!trimmedSearch || !isUsingDefaultDateRange)) {
       params.append("endDate", format(dateRange.to, "yyyy-MM-dd"));
     }
 
@@ -295,12 +297,12 @@ export default function SalesPage() {
   const handleClearFilters = () => {
     setSearchTerm("");
     setDateRange(todayRange);
-    setSalesFilter("unpaid");
+    setSalesFilter("all");
     setPage(0);
   };
 
   const hasActiveFilters =
-    searchTerm || salesFilter !== "unpaid" || !isDefaultTodayRange;
+    searchTerm || salesFilter !== "all" || !isDefaultTodayRange;
 
   const handleViewSale = (saleId: string) => {
     setSelectedSaleId(saleId);
@@ -573,7 +575,7 @@ export default function SalesPage() {
                   {dateRange.to && ` - ${format(dateRange.to, "d MMM yyyy")}`}
                 </Badge>
               )}
-              {salesFilter !== "unpaid" && (
+              {salesFilter !== "all" && (
                 <Badge variant="secondary">
                   ชำระ: {getSalesFilterLabel(salesFilter)}
                 </Badge>
