@@ -18,6 +18,7 @@ import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { outfit } from "@/components/fonts/fonts";
+import { ProductDetailDialog } from "@/components/products/product-detail-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -60,6 +61,9 @@ export default function ProductsPage() {
   const [activeTab, setActiveTab] = useState<ProductTab>("all");
   const [page, setPage] = useState(0);
   const [limit, setLimit] = useState(20);
+  const [selectedProduct, setSelectedProduct] = useState<TopProduct | null>(
+    null,
+  );
 
   const buildApiUrl = () => {
     const params = new URLSearchParams({
@@ -166,6 +170,10 @@ export default function ProductsPage() {
       barClassName: "bg-main-red",
       rowClassName: "hover:bg-red-50/40 dark:hover:bg-red-500/5",
     };
+  };
+
+  const openProductDetail = (product: TopProduct) => {
+    setSelectedProduct(product);
   };
 
   return (
@@ -446,8 +454,22 @@ export default function ProductsPage() {
                                     {page * limit + index + 1}
                                   </div>
                                   <div className="flex min-w-0 flex-col">
-                                    <span className="max-w-[150px] truncate text-base font-bold text-card-foreground transition-colors group-hover:text-main-blue min-[420px]:max-w-[220px] min-[550px]:max-w-[330px] min-[1180px]:max-w-[520px]">
+                                    <button
+                                      type="button"
+                                      onClick={() => openProductDetail(product)}
+                                      className="max-w-[150px] cursor-pointer truncate text-left text-base font-bold text-card-foreground transition-colors group-hover:text-main-blue hover:text-main-blue focus-visible:text-main-blue focus-visible:outline-none min-[420px]:max-w-[220px] min-[550px]:max-w-[330px] min-[1180px]:max-w-[520px]"
+                                    >
                                       {product.name || "ไม่ระบุสินค้า"}
+                                    </button>
+                                    <span
+                                      className={cn(
+                                        outfit.className,
+                                        "max-w-[180px] truncate text-xs font-semibold text-muted-foreground",
+                                      )}
+                                    >
+                                      {product.barcode
+                                        ? `Barcode ${product.barcode}`
+                                        : "กดเพื่อดูรายละเอียดสินค้า"}
                                     </span>
                                     <span className="text-xs font-semibold text-muted-foreground min-[620px]:hidden">
                                       {formatNumber(product.quantity)} ชิ้น
@@ -609,6 +631,12 @@ export default function ProductsPage() {
           </Tabs>
         </div>
       </div>
+
+      <ProductDetailDialog
+        product={selectedProduct}
+        isOpen={selectedProduct !== null}
+        onClose={() => setSelectedProduct(null)}
+      />
     </div>
   );
 }

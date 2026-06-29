@@ -140,6 +140,8 @@ export interface DailySales {
 // Top Product
 export interface TopProduct {
   name: string;
+  barcode?: string;
+  productCode?: string;
   sales: number;
   profit: number;
   quantity: number;

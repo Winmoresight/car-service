@@ -80,6 +80,13 @@ const fallbackBarcodeFormats = [
   "qr_code",
 ] as const;
 
+const cameraVideoConstraints: MediaTrackConstraints = {
+  facingMode: { ideal: "environment" },
+  width: { ideal: 1920 },
+  height: { ideal: 1080 },
+  frameRate: { ideal: 30 },
+};
+
 const fetcher = async (url: string, signal?: AbortSignal) => {
   const response = await fetch(url, { signal });
   const payload = (await response.json()) as ApiResponse<BarcodeScanResult>;
@@ -100,6 +107,10 @@ const fetcher = async (url: string, signal?: AbortSignal) => {
 
 function normalizeBarcode(value: string) {
   return value.trim().replace(/\s+/g, "");
+}
+
+function isPlausibleBarcodeValue(value: string) {
+  return /^[0-9A-Za-z._-]{4,30}$/.test(value);
 }
 
 function formatLookupErrorMessage(error: unknown) {
@@ -149,6 +160,7 @@ export default function StockScanPage() {
   const scanCooldownsRef = useRef<{ [barcode: string]: number }>({});
   const drawerTouchStartYRef = useRef<number | null>(null);
   const lastDrawerSwipeAtRef = useRef(0);
+  const lastRejectedScanAtRef = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -261,7 +273,10 @@ export default function StockScanPage() {
     return barcodeDetectorRef.current;
   };
 
-  const handleBarcodeScanned = async (rawBarcode: string) => {
+  const handleBarcodeScanned = async (
+    rawBarcode: string,
+    source: "camera" | "manual" = "manual",
+  ) => {
     const normalizedBarcode = normalizeBarcode(rawBarcode);
 
     if (!normalizedBarcode || lookupInFlightRef.current) {
@@ -269,6 +284,22 @@ export default function StockScanPage() {
     }
 
     const now = Date.now();
+
+    if (!isPlausibleBarcodeValue(normalizedBarcode)) {
+      if (source === "camera" && now - lastRejectedScanAtRef.current > 1800) {
+        setLookupState("idle");
+        setFeedback("อ่านบาร์โค้ดไม่ชัด ลองเล็งให้เส้นอยู่เต็มกรอบอีกครั้ง");
+        lastRejectedScanAtRef.current = now;
+      }
+
+      if (source === "manual") {
+        setLookupState("error");
+        setFeedback("รูปแบบบาร์โค้ดไม่ถูกต้อง");
+      }
+
+      return;
+    }
+
     const lastScanTime = scanCooldownsRef.current[normalizedBarcode] || 0;
     if (now - lastScanTime < 2500) {
       return;
@@ -365,13 +396,24 @@ export default function StockScanPage() {
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-        },
+        video: cameraVideoConstraints,
         audio: false,
       });
 
       streamRef.current = stream;
+      const [cameraTrack] = stream.getVideoTracks();
+
+      try {
+        await cameraTrack?.applyConstraints({
+          advanced: [
+            {
+              focusMode: "continuous",
+            } as MediaTrackConstraintSet,
+          ],
+        });
+      } catch {
+        // Some mobile browsers ignore focus controls; the stream still works.
+      }
 
       const video = videoRef.current;
 
@@ -401,7 +443,7 @@ export default function StockScanPage() {
             : "";
 
           if (barcodeValue) {
-            await handleBarcodeScanned(barcodeValue);
+            await handleBarcodeScanned(barcodeValue, "camera");
           }
         } catch {
           // ignore

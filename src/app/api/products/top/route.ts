@@ -101,6 +101,8 @@ export async function GET(request: NextRequest) {
       WITH SourceData AS (
         SELECT
           ISNULL(NULLIF(NameProduct, ''), 'ไม่ระบุสินค้า') as name,
+          ISNULL(NULLIF(BarCode, ''), '') as barcode,
+          '' as productCode,
           ISNULL(NumProduct, 0) as quantity,
           ISNULL(SumPrice, 0) as total_sales,
           ISNULL(SumProfit, 0) as total_profit
@@ -111,6 +113,8 @@ export async function GET(request: NextRequest) {
 
         SELECT
           COALESCE(NULLIF(m.NameProduct, ''), 'ไม่ระบุสินค้า') as name,
+          ISNULL(NULLIF(d.BarCode, ''), '') as barcode,
+          ISNULL(NULLIF(m.CodeProduct, ''), '') as productCode,
           0 as quantity,
           0 as total_sales,
           0 as total_profit
@@ -119,16 +123,36 @@ export async function GET(request: NextRequest) {
         WHERE @includeMasterProducts = 1
           ${masterSearchCondition}
       ),
-      ProductData AS (
+      RankedSourceData AS (
         SELECT
           name,
-          ISNULL(SUM(quantity), 0) as quantity,
-          ISNULL(SUM(total_sales), 0) as total_sales,
-          ISNULL(SUM(total_profit), 0) as total_profit
+          barcode,
+          productCode,
+          quantity,
+          total_sales,
+          total_profit,
+          ROW_NUMBER() OVER (
+            PARTITION BY name
+            ORDER BY
+              CASE WHEN barcode <> '' THEN 0 ELSE 1 END,
+              total_sales DESC,
+              quantity DESC,
+              barcode ASC
+          ) as source_rank
         FROM SourceData
-        GROUP BY name
+      ),
+      ProductData AS (
+        SELECT
+          ranked.name,
+          MAX(CASE WHEN ranked.source_rank = 1 THEN ranked.barcode END) as barcode,
+          MAX(CASE WHEN ranked.source_rank = 1 THEN ranked.productCode END) as productCode,
+          ISNULL(SUM(ranked.quantity), 0) as quantity,
+          ISNULL(SUM(ranked.total_sales), 0) as total_sales,
+          ISNULL(SUM(ranked.total_profit), 0) as total_profit
+        FROM RankedSourceData ranked
+        GROUP BY ranked.name
         HAVING @includeMasterProducts = 1
-          OR ISNULL(SUM(total_sales), 0) > 0
+          OR ISNULL(SUM(ranked.total_sales), 0) > 0
       )
     `;
 
@@ -137,6 +161,8 @@ export async function GET(request: NextRequest) {
       FilteredData AS (
         SELECT
           name,
+          barcode,
+          productCode,
           quantity,
           total_sales,
           total_profit
@@ -146,6 +172,8 @@ export async function GET(request: NextRequest) {
       PaginatedData AS (
         SELECT
           name,
+          barcode,
+          productCode,
           quantity,
           total_sales,
           total_profit,
@@ -154,6 +182,8 @@ export async function GET(request: NextRequest) {
       )
       SELECT
         name,
+        barcode,
+        productCode,
         quantity,
         total_sales,
         total_profit
@@ -164,6 +194,8 @@ export async function GET(request: NextRequest) {
 
     const results = await executeQuery<{
       name: string;
+      barcode: string;
+      productCode: string;
       quantity: number;
       total_sales: number;
       total_profit: number;
@@ -227,6 +259,8 @@ export async function GET(request: NextRequest) {
     // คำนวณ profit margin
     const topProducts: TopProduct[] = results.map((row) => ({
       name: row.name,
+      barcode: row.barcode || "",
+      productCode: row.productCode || "",
       sales: row.total_sales,
       profit: row.total_profit,
       quantity: row.quantity,
