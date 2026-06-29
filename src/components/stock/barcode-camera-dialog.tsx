@@ -11,47 +11,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  type BarcodeScannerEngine,
+  type BrowserBarcodeScanner,
+  createBrowserBarcodeScanner,
+} from "@/lib/browser-barcode-scanner";
 import { cn } from "@/lib/utils";
-
-type BarcodeDetection = {
-  rawValue: string;
-};
-
-type BarcodeDetectorInstance = {
-  detect(source: HTMLVideoElement): Promise<BarcodeDetection[]>;
-};
-
-type BarcodeDetectorConstructor = {
-  new (options?: { formats?: string[] }): BarcodeDetectorInstance;
-  getSupportedFormats?: () => Promise<string[]>;
-};
 
 interface BarcodeCameraDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onDetected: (barcode: string) => void;
 }
-
-const preferredBarcodeFormats = [
-  "ean_13",
-  "ean_8",
-  "code_128",
-  "code_39",
-  "qr_code",
-  "upc_a",
-  "upc_e",
-  "itf",
-  "code_93",
-  "codabar",
-] as const;
-
-const fallbackBarcodeFormats = [
-  "ean_13",
-  "ean_8",
-  "code_128",
-  "code_39",
-  "qr_code",
-] as const;
 
 function normalizeBarcode(value: string) {
   return value.trim().replace(/\s+/g, "");
@@ -71,33 +42,6 @@ function getCameraErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "เปิดกล้องไม่สำเร็จ";
 }
 
-async function createBarcodeDetector() {
-  const Detector = (
-    window as Window & {
-      BarcodeDetector?: BarcodeDetectorConstructor;
-    }
-  ).BarcodeDetector;
-
-  if (!Detector) {
-    return null;
-  }
-
-  let formats: string[] = [...fallbackBarcodeFormats];
-
-  if (Detector.getSupportedFormats) {
-    const supportedFormats = await Detector.getSupportedFormats();
-    formats = preferredBarcodeFormats.filter((format) =>
-      supportedFormats.includes(format),
-    );
-  }
-
-  try {
-    return formats.length > 0 ? new Detector({ formats }) : new Detector();
-  } catch {
-    return new Detector();
-  }
-}
-
 export function BarcodeCameraDialog({
   open,
   onOpenChange,
@@ -108,9 +52,12 @@ export function BarcodeCameraDialog({
   >("idle");
   const [message, setMessage] = useState("");
   const [manualBarcode, setManualBarcode] = useState("");
+  const [scannerEngine, setScannerEngine] =
+    useState<BarcodeScannerEngine | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanTimerRef = useRef<number | null>(null);
+  const scannerRef = useRef<BrowserBarcodeScanner | null>(null);
   const onDetectedRef = useRef(onDetected);
   const onOpenChangeRef = useRef(onOpenChange);
 
@@ -133,6 +80,8 @@ export function BarcodeCameraDialog({
     }
 
     streamRef.current = null;
+    scannerRef.current = null;
+    setScannerEngine(null);
 
     if (videoRef.current) {
       videoRef.current.srcObject = null;
@@ -174,11 +123,9 @@ export function BarcodeCameraDialog({
           throw new Error("เบราว์เซอร์นี้ไม่รองรับการเปิดกล้อง");
         }
 
-        const detector = await createBarcodeDetector();
-
-        if (!detector) {
-          throw new Error("เบราว์เซอร์นี้ไม่รองรับการอ่านบาร์โค้ดจากกล้อง");
-        }
+        const scanner = await createBrowserBarcodeScanner();
+        scannerRef.current = scanner;
+        setScannerEngine(scanner.engine);
 
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
@@ -205,7 +152,11 @@ export function BarcodeCameraDialog({
         video.srcObject = stream;
         await video.play();
         setStatus("scanning");
-        setMessage("เล็งบาร์โค้ดให้อยู่กลางกรอบ");
+        setMessage(
+          scanner.engine === "native"
+            ? "เล็งบาร์โค้ดให้อยู่กลางกรอบ"
+            : "เล็งบาร์โค้ดให้อยู่กลางกรอบ (โหมดสำรอง iPhone)",
+        );
 
         const scanFrame = async () => {
           if (cancelled || !streamRef.current) {
@@ -214,7 +165,7 @@ export function BarcodeCameraDialog({
 
           try {
             if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-              const detections = await detector.detect(video);
+              const detections = await scanner.detect(video);
               const barcode = detections[0]?.rawValue;
 
               if (barcode) {
@@ -325,6 +276,11 @@ export function BarcodeCameraDialog({
               <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500" />
             ) : null}
             <span>{message || "พร้อมเปิดกล้อง"}</span>
+            {status === "scanning" && scannerEngine === "zxing" ? (
+              <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-600">
+                ZXing fallback
+              </span>
+            ) : null}
           </div>
 
           <div className="flex items-center justify-between gap-3">

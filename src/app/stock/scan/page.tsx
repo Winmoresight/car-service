@@ -18,25 +18,15 @@ import { type TouchEvent, useEffect, useRef, useState } from "react";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  type BarcodeScannerEngine,
+  type BrowserBarcodeScanner,
+  createBrowserBarcodeScanner,
+} from "@/lib/browser-barcode-scanner";
 import { cn } from "@/lib/utils";
 import type { ApiResponse, BarcodeScanResult } from "@/types/api";
 
 type LookupState = "idle" | "loading" | "found" | "missing" | "error";
-
-type BarcodeDetection = {
-  rawValue: string;
-};
-
-type BarcodeDetectorInstance = {
-  detect(
-    source: HTMLVideoElement | HTMLCanvasElement,
-  ): Promise<BarcodeDetection[]>;
-};
-
-type BarcodeDetectorConstructor = {
-  new (options?: { formats?: string[] }): BarcodeDetectorInstance;
-  getSupportedFormats?: () => Promise<string[]>;
-};
 
 type LookupErrorDetails = {
   stage?: string;
@@ -45,12 +35,6 @@ type LookupErrorDetails = {
   barcode?: string;
 };
 
-declare global {
-  interface Window {
-    BarcodeDetector?: BarcodeDetectorConstructor;
-  }
-}
-
 interface ScannedItem {
   barcode: string;
   name: string;
@@ -58,27 +42,6 @@ interface ScannedItem {
   quantity: number;
   unit: string;
 }
-
-const preferredBarcodeFormats = [
-  "ean_13",
-  "ean_8",
-  "code_128",
-  "code_39",
-  "qr_code",
-  "upc_a",
-  "upc_e",
-  "itf",
-  "code_93",
-  "codabar",
-] as const;
-
-const fallbackBarcodeFormats = [
-  "ean_13",
-  "ean_8",
-  "code_128",
-  "code_39",
-  "qr_code",
-] as const;
 
 const cameraVideoConstraints: MediaTrackConstraints = {
   facingMode: { ideal: "environment" },
@@ -145,6 +108,8 @@ export default function StockScanPage() {
   const [beepEnabled, setBeepEnabled] = useState(true);
   const [manualBarcode, setManualBarcode] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [scannerEngine, setScannerEngine] =
+    useState<BarcodeScannerEngine | null>(null);
   const [isScannerDrawerExpanded, setIsScannerDrawerExpanded] = useState(true);
 
   const [lookupState, setLookupState] = useState<LookupState>("idle");
@@ -155,7 +120,7 @@ export default function StockScanPage() {
   const streamRef = useRef<MediaStream | null>(null);
   const scanTimerRef = useRef<number | null>(null);
   const lookupAbortRef = useRef<AbortController | null>(null);
-  const barcodeDetectorRef = useRef<BarcodeDetectorInstance | null>(null);
+  const barcodeScannerRef = useRef<BrowserBarcodeScanner | null>(null);
   const lookupInFlightRef = useRef(false);
   const scanCooldownsRef = useRef<{ [barcode: string]: number }>({});
   const drawerTouchStartYRef = useRef<number | null>(null);
@@ -237,40 +202,21 @@ export default function StockScanPage() {
     lookupAbortRef.current = null;
     lookupInFlightRef.current = false;
     setIsCameraScanning(false);
+    setScannerEngine(null);
     setCameraError(null);
     setLookupState("idle");
     setFeedback("");
     setErrorMessage(null);
   };
 
-  const ensureBarcodeDetector = async () => {
-    if (barcodeDetectorRef.current) {
-      return barcodeDetectorRef.current;
+  const ensureBarcodeScanner = async () => {
+    if (barcodeScannerRef.current) {
+      return barcodeScannerRef.current;
     }
 
-    const Detector = window.BarcodeDetector;
+    barcodeScannerRef.current = await createBrowserBarcodeScanner();
 
-    if (!Detector) {
-      return null;
-    }
-
-    let formats: string[] = [...fallbackBarcodeFormats];
-
-    if (Detector.getSupportedFormats) {
-      const supportedFormats = await Detector.getSupportedFormats();
-      formats = preferredBarcodeFormats.filter((format) =>
-        supportedFormats.includes(format),
-      );
-    }
-
-    try {
-      barcodeDetectorRef.current =
-        formats.length > 0 ? new Detector({ formats }) : new Detector();
-    } catch {
-      barcodeDetectorRef.current = new Detector();
-    }
-
-    return barcodeDetectorRef.current;
+    return barcodeScannerRef.current;
   };
 
   const handleBarcodeScanned = async (
@@ -389,11 +335,8 @@ export default function StockScanPage() {
         throw new Error("เบราว์เซอร์นี้ไม่รองรับการเปิดกล้อง");
       }
 
-      const detector = await ensureBarcodeDetector();
-
-      if (!detector) {
-        throw new Error("เบราว์เซอร์นี้ไม่รองรับการอ่านบาร์โค้ดจากกล้อง");
-      }
+      const scanner = await ensureBarcodeScanner();
+      setScannerEngine(scanner.engine);
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: cameraVideoConstraints,
@@ -425,7 +368,11 @@ export default function StockScanPage() {
       await video.play();
 
       setLookupState("idle");
-      setFeedback("กำลังสแกนบาร์โค้ดจากกล้อง...");
+      setFeedback(
+        scanner.engine === "native"
+          ? "กำลังสแกนบาร์โค้ดจากกล้อง..."
+          : "กำลังสแกนด้วยโหมดสำรองสำหรับ iPhone...",
+      );
 
       const scanFrame = async () => {
         if (!streamRef.current) {
@@ -437,7 +384,7 @@ export default function StockScanPage() {
             return;
           }
 
-          const detections = await detector.detect(video);
+          const detections = await scanner.detect(video);
           const barcodeValue = detections[0]?.rawValue
             ? normalizeBarcode(detections[0].rawValue)
             : "";
@@ -791,7 +738,10 @@ export default function StockScanPage() {
                   </label>
                   <div className="pt-2 border-t border-zinc-800 flex flex-col gap-1">
                     <span className="text-[10px] text-zinc-500">
-                      กล้อง: โหมดตรวจจับบาร์โค้ด
+                      กล้อง:{" "}
+                      {scannerEngine === "zxing"
+                        ? "โหมดสำรอง ZXing"
+                        : "โหมดตรวจจับบาร์โค้ด"}
                     </span>
                     <span className="text-xs font-medium text-emerald-500">
                       ทำงานอยู่ (กล้องหลัง)

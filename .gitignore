@@ -45,3 +45,4 @@ logs/*.log
 .pm2
 /.idea
 /.idea
+/.bun-cache
