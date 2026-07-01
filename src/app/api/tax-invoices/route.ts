@@ -499,6 +499,7 @@ export async function PATCH(request: NextRequest) {
       customerName: string;
       nameCar: string;
       province: string;
+      brandAndGenerate: string;
       totalPrice: number;
       cash: number;
       transfer: number;
