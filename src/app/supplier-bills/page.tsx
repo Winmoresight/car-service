@@ -69,7 +69,9 @@ import type {
   SupplierBillPaymentState,
   SupplierBillsCatalogPayload,
   SupplierBillsPayload,
+  SupplierCatalogOption,
   SupplierCatalogProduct,
+  SupplierCatalogSupplier,
 } from "@/types/api";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -278,6 +280,10 @@ interface SupplierProductDraft {
   retailPrice: string;
 }
 
+interface EmployeeUserOption {
+  nameUser: string;
+}
+
 type SupplierScanFeedback = {
   type: "success" | "warning" | "error";
   message: string;
@@ -452,6 +458,19 @@ async function fetchSupplierProductOptions(
     (await response.json()) as ApiResponse<SupplierBillsCatalogPayload>;
 
   return result.success && result.data ? result.data.products : [];
+}
+
+async function fetchEmployeeUserOptions(search: string, signal: AbortSignal) {
+  const response = await fetch(
+    `/api/employees/users?search=${encodeURIComponent(search)}&limit=12`,
+    { signal },
+  );
+  const data = (await response.json()) as {
+    success: boolean;
+    data?: EmployeeUserOption[];
+  };
+
+  return data.success && data.data ? data.data : [];
 }
 
 async function fetchSupplierProductByBarcode(barcode: string) {
@@ -872,7 +891,7 @@ function SupplierBillCreateDialog({
   const [status, setStatus] = useState<SupplierEditableStatus>(
     defaultSupplierBillStatus,
   );
-  const [createdBy, setCreatedBy] = useState("admin");
+  const [createdBy, setCreatedBy] = useState("");
   const [specialDiscount, setSpecialDiscount] = useState("");
   const [items, setItems] = useState<SupplierBillDraftLine[]>([
     createEmptyLine(),
@@ -927,12 +946,57 @@ function SupplierBillCreateDialog({
   const selectedSupplier = suppliers.find(
     (supplier) => supplier.code === selectedSupplierCode,
   );
+  const selectedSupplierLabel = selectedSupplier
+    ? `${selectedSupplier.code} · ${selectedSupplier.name}`
+    : "";
   const creditorTypes = catalog?.creditorTypes ?? [];
   const units = uniqueCatalogOptionsByName(catalog?.units ?? []);
   const selectedProductCategory = productCatalog?.categories.find(
     (category) => String(category.id) === productDraft.categoryId,
   );
   const totals = getDraftTotals(items, specialDiscount);
+  const fetchSupplierOptions = useCallback(
+    async (search: string, signal: AbortSignal) => {
+      if (signal.aborted) {
+        return [];
+      }
+
+      const normalizedSearch = search.trim().toLowerCase();
+
+      if (!normalizedSearch) {
+        return suppliers;
+      }
+
+      return suppliers.filter((supplier) =>
+        [
+          supplier.code,
+          supplier.name,
+          supplier.phone,
+          supplier.type,
+          supplier.taxId,
+        ].some((value) => value.toLowerCase().includes(normalizedSearch)),
+      );
+    },
+    [suppliers],
+  );
+  const fetchSupplierUnitOptions = useCallback(
+    async (search: string, signal: AbortSignal) => {
+      if (signal.aborted) {
+        return [];
+      }
+
+      const normalizedSearch = search.trim().toLowerCase();
+
+      if (!normalizedSearch) {
+        return units;
+      }
+
+      return units.filter((unit) =>
+        unit.name.toLowerCase().includes(normalizedSearch),
+      );
+    },
+    [units],
+  );
   const fetchProductCategoryOptions = useCallback(
     async (search: string, signal: AbortSignal) =>
       filterStockCatalogOptions(
@@ -960,7 +1024,7 @@ function SupplierBillCreateDialog({
     setNewSupplier(createEmptySupplier());
     setBillDate(getTodayInputDate());
     setStatus(defaultSupplierBillStatus);
-    setCreatedBy("admin");
+    setCreatedBy("");
     setSpecialDiscount("");
     setItems([createEmptyLine()]);
     setIsBarcodeScannerOpen(false);
@@ -1108,9 +1172,7 @@ function SupplierBillCreateDialog({
       setScanFeedback({
         type: "error",
         message:
-          error instanceof Error
-            ? error.message
-            : "ค้นหาสินค้าจากบาร์โค้ดไม่สำเร็จ",
+          error instanceof Error ? error.message : "ค้นหาสินค้าจากบาร์โค้ดไม่สำเร็จ",
       });
     } finally {
       setIsLookingUpBarcode(false);
@@ -1142,9 +1204,7 @@ function SupplierBillCreateDialog({
         (await response.json()) as ApiResponse<StockProductCreateResult>;
 
       if (!response.ok || !result.success) {
-        throw new Error(
-          getResponseErrorMessage(result) || "เพิ่มสินค้าไม่สำเร็จ",
-        );
+        throw new Error(getResponseErrorMessage(result) || "เพิ่มสินค้าไม่สำเร็จ");
       }
 
       const createdProduct = result.data;
@@ -1204,6 +1264,10 @@ function SupplierBillCreateDialog({
 
     if (supplierMode === "new" && !newSupplier.name.trim()) {
       return "กรุณาระบุชื่อคู่ค้าใหม่";
+    }
+
+    if (!createdBy.trim()) {
+      return "กรุณาเลือกผู้บันทึกก่อนเพิ่มบิลคู่ค้า";
     }
 
     const validItems = items.filter((item) => item.name.trim());
@@ -1286,7 +1350,7 @@ function SupplierBillCreateDialog({
               : undefined,
           billDate,
           status,
-          createdBy,
+          createdBy: createdBy.trim(),
           specialDiscount: parseMoneyInput(specialDiscount) ?? 0,
           items: payloadItems,
         }),
@@ -1327,9 +1391,7 @@ function SupplierBillCreateDialog({
               <div className="space-y-4 rounded-[8px] border bg-[#FCFCFC] p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h3 className="font-bold text-card-foreground">
-                      ข้อมูลคู่ค้า
-                    </h3>
+                    <h3 className="font-bold text-card-foreground">ข้อมูลคู่ค้า</h3>
                     <p className="mt-1 text-sm font-semibold text-muted-foreground">
                       เลือกคู่ค้าเดิมหรือเพิ่มคู่ค้าใหม่
                     </p>
@@ -1370,25 +1432,30 @@ function SupplierBillCreateDialog({
                       <span className="block text-sm font-bold text-card-foreground">
                         คู่ค้า
                       </span>
-                      <Select
-                        value={selectedSupplierCode}
-                        onValueChange={setSelectedSupplierCode}
+                      <AsyncSearchableSelect<SupplierCatalogSupplier>
+                        selectedLabel={selectedSupplierLabel}
+                        placeholder="เลือกคู่ค้า"
+                        searchPlaceholder="ค้นหาคู่ค้า..."
+                        emptyMessage="ไม่พบคู่ค้า"
                         disabled={catalogLoading}
-                      >
-                        <SelectTrigger className="h-11 w-full rounded-[8px] py-0 font-bold data-[size=default]:h-11">
-                          <SelectValue placeholder="เลือกคู่ค้า" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {suppliers.map((supplier) => (
-                            <SelectItem
-                              key={supplier.code}
-                              value={supplier.code}
-                            >
-                              {supplier.code} · {supplier.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        fetchOptions={fetchSupplierOptions}
+                        getOptionKey={(supplier) => supplier.code}
+                        getOptionLabel={(supplier) =>
+                          `${supplier.code} · ${supplier.name}`
+                        }
+                        getOptionDescription={(supplier) =>
+                          [supplier.phone, supplier.type, supplier.taxId]
+                            .filter(Boolean)
+                            .join(" · ")
+                        }
+                        isOptionSelected={(supplier) =>
+                          supplier.code === selectedSupplierCode
+                        }
+                        onSelect={(supplier) =>
+                          setSelectedSupplierCode(supplier.code)
+                        }
+                        triggerClassName="h-11 rounded-[8px] py-0 font-bold"
+                      />
                     </div>
 
                     {selectedSupplier ? (
@@ -1609,17 +1676,23 @@ function SupplierBillCreateDialog({
                   </div>
 
                   <div className="space-y-2">
-                    <label
-                      htmlFor="supplier-bill-user"
-                      className="block text-sm font-bold text-card-foreground"
-                    >
+                    <span className="block text-sm font-bold text-card-foreground">
                       ผู้บันทึก
-                    </label>
-                    <Input
-                      id="supplier-bill-user"
-                      value={createdBy}
-                      onChange={(event) => setCreatedBy(event.target.value)}
-                      className="h-11 rounded-[8px] font-semibold"
+                      <span className="text-main-red"> *</span>
+                    </span>
+                    <AsyncSearchableSelect<EmployeeUserOption>
+                      selectedLabel={createdBy || undefined}
+                      placeholder="เลือกผู้บันทึก"
+                      searchPlaceholder="ค้นหาชื่อพนักงาน..."
+                      emptyMessage="ไม่พบชื่อพนักงาน"
+                      fetchOptions={fetchEmployeeUserOptions}
+                      getOptionKey={(employee) => employee.nameUser}
+                      getOptionLabel={(employee) => employee.nameUser}
+                      isOptionSelected={(employee) =>
+                        employee.nameUser === createdBy
+                      }
+                      onSelect={(employee) => setCreatedBy(employee.nameUser)}
+                      triggerClassName="h-11 rounded-[8px] py-0 font-semibold"
                     />
                   </div>
 
@@ -1654,15 +1727,11 @@ function SupplierBillCreateDialog({
                   </div>
                   <div className="mt-3 grid gap-2 text-sm font-semibold">
                     <div className="flex justify-between gap-3">
-                      <span className="text-muted-foreground">
-                        ยอดรวมสินค้า
-                      </span>
+                      <span className="text-muted-foreground">ยอดรวมสินค้า</span>
                       <span>{formatCurrency(totals.subTotal)}</span>
                     </div>
                     <div className="flex justify-between gap-3">
-                      <span className="text-muted-foreground">
-                        ส่วนลดสินค้า
-                      </span>
+                      <span className="text-muted-foreground">ส่วนลดสินค้า</span>
                       <span>{formatCurrency(totals.productDiscount)}</span>
                     </div>
                     <div className="flex justify-between gap-3">
@@ -1677,9 +1746,7 @@ function SupplierBillCreateDialog({
             <div className="rounded-[8px] border bg-card p-4">
               <div className="mb-4 flex flex-col justify-between gap-3 min-[680px]:flex-row min-[680px]:items-center">
                 <div>
-                  <h3 className="font-bold text-card-foreground">
-                    รายการสินค้า
-                  </h3>
+                  <h3 className="font-bold text-card-foreground">รายการสินค้า</h3>
                   <p className="mt-1 text-sm font-semibold text-muted-foreground">
                     กรอกจากบิลคู่ค้า หรือเลือกสินค้าเดิมเพื่อช่วยเติมข้อมูล
                   </p>
@@ -1741,8 +1808,7 @@ function SupplierBillCreateDialog({
                           เพิ่มสินค้าใหม่จากบาร์โค้ด
                         </h4>
                         <p className="mt-1 text-sm font-semibold text-muted-foreground">
-                          สินค้านี้จะถูกสร้างในสต็อกก่อน
-                          แล้วเติมกลับเข้าบิลคู่ค้า
+                          สินค้านี้จะถูกสร้างในสต็อกก่อน แล้วเติมกลับเข้าบิลคู่ค้า
                         </p>
                       </div>
                     </div>
@@ -2036,23 +2102,20 @@ function SupplierBillCreateDialog({
                         <span className="block text-xs font-bold text-muted-foreground">
                           หน่วย
                         </span>
-                        <Select
-                          value={item.unit}
-                          onValueChange={(value) =>
-                            updateLine(item.id, { unit: value })
+                        <AsyncSearchableSelect<SupplierCatalogOption>
+                          selectedLabel={item.unit}
+                          placeholder="หน่วย"
+                          searchPlaceholder="ค้นหาหน่วย..."
+                          emptyMessage="ไม่พบหน่วย"
+                          fetchOptions={fetchSupplierUnitOptions}
+                          getOptionKey={(unit) => String(unit.id)}
+                          getOptionLabel={(unit) => unit.name}
+                          isOptionSelected={(unit) => unit.name === item.unit}
+                          onSelect={(unit) =>
+                            updateLine(item.id, { unit: unit.name })
                           }
-                        >
-                          <SelectTrigger className="w-full rounded-[8px] font-bold h-11 data-[size=default]:h-11 mb-0">
-                            <SelectValue placeholder="หน่วย" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {units.map((unit) => (
-                              <SelectItem key={unit.id} value={unit.name}>
-                                {unit.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          triggerClassName="mb-0 h-11 rounded-[8px] py-0 font-bold"
+                        />
                       </div>
 
                       <div className="space-y-2">
