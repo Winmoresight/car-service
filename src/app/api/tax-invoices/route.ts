@@ -64,6 +64,116 @@ function normalizeMoneyValue(value: unknown) {
   return Number(number.toFixed(2));
 }
 
+function formatLegacyPaymentNo(params: {
+  shortCode: string;
+  date: Date;
+  reportNumber: number;
+}) {
+  const month = String(params.date.getMonth() + 1);
+  const shortYear = String(params.date.getFullYear()).slice(-2);
+  const paddedReportNumber = String(params.reportNumber).padStart(6, "0");
+
+  return `${params.shortCode}${month}${shortYear}${paddedReportNumber}`;
+}
+
+function formatLegacyTime(date: Date) {
+  return [
+    String(date.getHours()).padStart(2, "0"),
+    String(date.getMinutes()).padStart(2, "0"),
+  ].join(":");
+}
+
+function getLegacyDateOnly(date: Date) {
+  return new Date(
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()),
+  );
+}
+
+async function createLegacyPaymentNo(
+  transaction: sql.Transaction,
+  paidAt: Date,
+) {
+  const yearToday = String(paidAt.getFullYear());
+  const seedRequest = new sql.Request(transaction);
+
+  seedRequest.input("yearToday", sql.NVarChar(20), yearToday);
+  seedRequest.input("shortCode", sql.NVarChar(15), "PY");
+
+  await seedRequest.query(`
+    IF NOT EXISTS (
+      SELECT 1
+      FROM dbo.NumberPrintPaymentCustomer WITH (UPDLOCK, HOLDLOCK)
+      WHERE YearToday = @yearToday
+    )
+    BEGIN
+      INSERT INTO dbo.NumberPrintPaymentCustomer (YearToday, ShortCH, NumReport)
+      VALUES (@yearToday, @shortCode, 0)
+    END
+  `);
+
+  const readRequest = new sql.Request(transaction);
+  readRequest.input("yearToday", sql.NVarChar(20), yearToday);
+
+  const numberRows = await readRequest.query<{
+    ShortCH: string | null;
+    NumReport: number | null;
+  }>(`
+    SELECT TOP 1
+      ISNULL(ShortCH, 'PY') AS ShortCH,
+      ISNULL(NumReport, 0) AS NumReport
+    FROM dbo.NumberPrintPaymentCustomer WITH (UPDLOCK, HOLDLOCK)
+    WHERE YearToday = @yearToday
+    ORDER BY ShortCH
+  `);
+
+  const numberRow = numberRows.recordset[0];
+
+  if (!numberRow) {
+    throw new Error("ไม่พบข้อมูลเลขรันรับชำระ NumberPrintPaymentCustomer");
+  }
+
+  const shortCode = sanitizeText(numberRow.ShortCH) || "PY";
+  let reportNumber = Number(numberRow.NumReport || 0) + 1;
+
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const paymentNo = formatLegacyPaymentNo({
+      shortCode,
+      date: paidAt,
+      reportNumber,
+    });
+    const existingRequest = new sql.Request(transaction);
+    existingRequest.input("paymentNo", sql.NVarChar(30), paymentNo);
+
+    const existingRows = await existingRequest.query<{ count: number }>(`
+      SELECT COUNT(*) AS count
+      FROM dbo.MasterPaymentCustomer WITH (UPDLOCK, HOLDLOCK)
+      WHERE NumberPrint = @paymentNo
+    `);
+
+    if (!existingRows.recordset[0]?.count) {
+      const updateRequest = new sql.Request(transaction);
+      updateRequest.input("yearToday", sql.NVarChar(20), yearToday);
+      updateRequest.input("shortCode", sql.NVarChar(15), shortCode);
+      updateRequest.input("reportNumber", sql.Int, reportNumber);
+
+      await updateRequest.query(`
+        UPDATE dbo.NumberPrintPaymentCustomer
+        SET NumReport = @reportNumber
+        WHERE YearToday = @yearToday
+          AND ISNULL(ShortCH, 'PY') = @shortCode
+      `);
+
+      return paymentNo;
+    }
+
+    reportNumber += 1;
+  }
+
+  throw new Error(
+    "ไม่สามารถสร้างเลขรับชำระจาก NumberPrintPaymentCustomer ที่ไม่ซ้ำได้",
+  );
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -204,6 +314,7 @@ export async function GET(request: NextRequest) {
       customerName: string;
       nameCar: string;
       province: string;
+      brandAndGenerate: string;
       totalPrice: number;
       cash: number;
       transfer: number;
@@ -400,6 +511,7 @@ export async function PATCH(request: NextRequest) {
         ISNULL(m.NameCustomer, N'ไม่ระบุ') as customerName,
         ISNULL(m.NameCar, '') as nameCar,
         ISNULL(m.Province, '') as province,
+        ISNULL(m.BrandAndGenerate, '') as brandAndGenerate,
         ${getSafeMoneyExpression("m.TotalPrice")} as totalPrice,
         ${getSafeMoneyExpression("m.Cash")} as cash,
         ${getSafeMoneyExpression("m.Transfer")} as transfer,
@@ -537,6 +649,111 @@ export async function PATCH(request: NextRequest) {
     `);
 
     const paidAt = new Date();
+    const paidDate = getLegacyDateOnly(paidAt);
+    const paymentNo = await createLegacyPaymentNo(transaction, paidAt);
+    const legacyPaymentMethod =
+      paymentMethod === "transfer" ? "เงินโอน" : "เงินสด";
+    const legacyPaymentRequest = new sql.Request(transaction);
+
+    legacyPaymentRequest.input("datePay", sql.DateTime, paidDate);
+    legacyPaymentRequest.input(
+      "times",
+      sql.NVarChar(10),
+      formatLegacyTime(paidAt),
+    );
+    legacyPaymentRequest.input(
+      "customerCode",
+      sql.NVarChar(30),
+      sale.codeCustomer,
+    );
+    legacyPaymentRequest.input("nameCar", sql.NVarChar(100), sale.nameCar);
+    legacyPaymentRequest.input("province", sql.NVarChar(100), sale.province);
+    legacyPaymentRequest.input(
+      "brandAndGenerate",
+      sql.NVarChar(200),
+      sale.brandAndGenerate,
+    );
+    legacyPaymentRequest.input(
+      "customerName",
+      sql.NVarChar(sql.MAX),
+      sale.customerName,
+    );
+    legacyPaymentRequest.input("paymentNo", sql.NVarChar(30), paymentNo);
+    legacyPaymentRequest.input("paidAmount", sql.Money, effectivePaymentAmount);
+    legacyPaymentRequest.input(
+      "payCash",
+      sql.Money,
+      paymentMethod === "cash" ? effectivePaymentAmount : 0,
+    );
+    legacyPaymentRequest.input(
+      "payTransfer",
+      sql.Money,
+      paymentMethod === "transfer" ? effectivePaymentAmount : 0,
+    );
+    legacyPaymentRequest.input("nameBank", sql.NVarChar(250), nameBank);
+    legacyPaymentRequest.input("cardBank", sql.NVarChar(250), "");
+    legacyPaymentRequest.input("userName", sql.NVarChar(250), "WEB");
+    legacyPaymentRequest.input(
+      "paymentMethod",
+      sql.NVarChar(30),
+      legacyPaymentMethod,
+    );
+    legacyPaymentRequest.input("billNo", sql.NVarChar(30), billNo);
+
+    await legacyPaymentRequest.query(`
+      INSERT INTO dbo.MasterPaymentCustomer (
+        DatePay,
+        Times,
+        CodeCustomer,
+        NameCar,
+        Province,
+        BrandAndGenerate,
+        NameCustomer,
+        NumberPrint,
+        TotalPrice,
+        PayCash,
+        PayTransfer,
+        NameBank,
+        CardBank,
+        UserName
+      )
+      VALUES (
+        @datePay,
+        @times,
+        @customerCode,
+        @nameCar,
+        @province,
+        @brandAndGenerate,
+        @customerName,
+        @paymentNo,
+        @paidAmount,
+        @payCash,
+        @payTransfer,
+        @nameBank,
+        @cardBank,
+        @userName
+      );
+
+      INSERT INTO dbo.DetailPaymentCustomer (
+        DatePay,
+        NumberPrintPost,
+        CodeCustomer,
+        NameCustomer,
+        TotalPrice,
+        TypePayment,
+        FormNumberPrint
+      )
+      VALUES (
+        @datePay,
+        @paymentNo,
+        @customerCode,
+        @customerName,
+        @paidAmount,
+        @paymentMethod,
+        @billNo
+      );
+    `);
+
     const receivableRequest = new sql.Request(transaction);
     receivableRequest.input("datePost", sql.DateTime, paidAt);
     receivableRequest.input("billNo", billNo);
@@ -617,6 +834,7 @@ export async function PATCH(request: NextRequest) {
       success: true,
       data: {
         numberPrint: billNo,
+        paymentNumber: paymentNo,
         status: nextRemainingAmount > 0 ? "ค้างชำระ" : "ชำระเงินแล้ว",
         paidAmount: effectivePaymentAmount,
         receivableAmount: nextRemainingAmount,

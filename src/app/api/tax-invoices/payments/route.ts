@@ -5,6 +5,10 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
+import {
+  buildReceivablePaymentCte,
+  getReceivablePaymentSourceConfig,
+} from "@/lib/receivable-payment-source";
 import type { ApiResponse } from "@/types/api";
 
 interface ReceivablePayment {
@@ -30,66 +34,8 @@ interface ReceivablePaymentSummary {
   transfer: number;
 }
 
-function getSafeMoneyExpression(valueExpression: string) {
-  const textExpression = `CONVERT(nvarchar(100), ${valueExpression})`;
-
-  return `ISNULL(CONVERT(money, CASE WHEN ${valueExpression} IS NULL THEN '0' WHEN ISNUMERIC(${textExpression}) = 1 THEN ${textExpression} ELSE '0' END), 0)`;
-}
-
 function getDateCondition(date: string) {
   return date ? "@selectedDate" : "CONVERT(date, GETDATE())";
-}
-
-function buildBaseCte(dateCondition: string) {
-  return `
-    WITH legacy_payments AS (
-      SELECT
-        CAST('legacy-' + ISNULL(r.NumberPrintPost, '') + '-' + CONVERT(nvarchar(30), r.DatePost, 121) AS nvarchar(100)) as id,
-        r.DatePost as paidAt,
-        r.NumberPrintPost as numberPrint,
-        ISNULL(r.CodeCustomer, ISNULL(m.CodeCustomer, '')) as customerCode,
-        ISNULL(r.NameCustomer, ISNULL(m.NameCustomer, N'ไม่ระบุ')) as customerName,
-        ISNULL(m.NameCar, '') as nameCar,
-        ISNULL(m.Province, '') as province,
-        CASE
-          WHEN ${getSafeMoneyExpression("r.PayMoney")} - ISNULL(previous_payment.previousPayMoney, 0) > 0
-            THEN ${getSafeMoneyExpression("r.PayMoney")} - ISNULL(previous_payment.previousPayMoney, 0)
-          ELSE ${getSafeMoneyExpression("r.PayMoney")}
-        END as paidAmount,
-        ${getSafeMoneyExpression("r.TotalPrice")} as totalPrice,
-        CASE
-          WHEN ${getSafeMoneyExpression("m.Transfer")} > 0
-            AND (
-              LTRIM(RTRIM(ISNULL(m.NameBank, ''))) <> ''
-              OR ${getSafeMoneyExpression("m.Cash")} <= 0
-            )
-            THEN 'transfer'
-          ELSE 'cash'
-        END as paymentMethod,
-        ISNULL(m.NameBank, '') as nameBank,
-        '' as createdBy,
-        'legacy' as source
-      FROM dbo.MasterRecivePaymentCustomer r
-      LEFT JOIN dbo.MasterSalePost m
-        ON m.NumberPrintSalePost = r.NumberPrintPost
-      OUTER APPLY (
-        SELECT TOP 1
-          ${getSafeMoneyExpression("previous.PayMoney")} as previousPayMoney
-        FROM dbo.MasterRecivePaymentCustomer previous
-        WHERE previous.NumberPrintPost = r.NumberPrintPost
-          AND previous.DatePost < r.DatePost
-        ORDER BY previous.DatePost DESC
-      ) previous_payment
-      WHERE CONVERT(date, r.DatePost) = ${dateCondition}
-        AND m.DateSalePost IS NOT NULL
-        AND CONVERT(date, m.DateSalePost) < CONVERT(date, r.DatePost)
-        AND ${getSafeMoneyExpression("r.SubMoney")} = 0
-        AND ${getSafeMoneyExpression("r.PayMoney")} > 0
-    ),
-    combined AS (
-      SELECT * FROM legacy_payments
-    )
-  `;
 }
 
 export async function GET(request: NextRequest) {
@@ -100,17 +46,21 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search") || "";
     const selectedDate = searchParams.get("date") || "";
     const dateCondition = getDateCondition(selectedDate);
-    const baseCte = buildBaseCte(dateCondition);
-    const filters: string[] = ["paidAmount > 0"];
+    const sourceConfig = await getReceivablePaymentSourceConfig();
+    const baseCte = buildReceivablePaymentCte(
+      sourceConfig,
+      (dateExpression) => `CONVERT(date, ${dateExpression}) = ${dateCondition}`,
+    );
+    const filters: string[] = ["amount > 0"];
 
     if (search) {
       filters.push(`(
-        numberPrint LIKE @search
-        OR customerName LIKE @search
-        OR customerCode LIKE @search
-        OR nameCar LIKE @search
+        document_no LIKE @search
+        OR customer_name LIKE @search
+        OR customer_code LIKE @search
+        OR name_car LIKE @search
         OR province LIKE @search
-        OR nameBank LIKE @search
+        OR bank_name LIKE @search
       )`);
     }
 
@@ -124,17 +74,17 @@ export async function GET(request: NextRequest) {
 
     const rows = await executeQuery<{
       id: string;
-      paidAt: Date;
-      numberPrint: string;
-      customerCode: string;
-      customerName: string;
-      nameCar: string;
+      paid_at: Date;
+      number_print: string;
+      customer_code: string;
+      customer_name: string;
+      name_car: string;
       province: string;
-      paidAmount: number;
-      totalPrice: number;
-      paymentMethod: "cash" | "transfer";
-      nameBank: string;
-      createdBy: string;
+      paid_amount: number;
+      total_price: number;
+      payment_method: "cash" | "transfer";
+      bank_name: string;
+      created_by: string;
       source: "web" | "legacy";
     }>(
       `
@@ -142,23 +92,23 @@ export async function GET(request: NextRequest) {
         paginated AS (
           SELECT
             *,
-            ROW_NUMBER() OVER (ORDER BY paidAt DESC, numberPrint DESC) as row_number
+            ROW_NUMBER() OVER (ORDER BY occurred_at DESC, document_no DESC) as row_number
           FROM combined
           ${whereClause}
         )
         SELECT
           id,
-          paidAt,
-          numberPrint,
-          customerCode,
-          customerName,
-          nameCar,
+          occurred_at as paid_at,
+          document_no as number_print,
+          customer_code,
+          customer_name,
+          name_car,
           province,
-          paidAmount,
-          totalPrice,
-          paymentMethod,
-          nameBank,
-          createdBy,
+          amount as paid_amount,
+          total_price,
+          payment_method,
+          bank_name,
+          created_by,
           source
         FROM paginated
         WHERE row_number > @offset AND row_number <= (@offset + @limit)
@@ -182,13 +132,13 @@ export async function GET(request: NextRequest) {
         ${baseCte}
         SELECT
           COUNT(*) as count,
-          ISNULL(SUM(paidAmount), 0) as total,
+          ISNULL(SUM(amount), 0) as total,
           ISNULL(
-            SUM(CASE WHEN paymentMethod = 'cash' THEN paidAmount ELSE 0 END),
+            SUM(CASE WHEN payment_method = 'cash' THEN amount ELSE 0 END),
             0
           ) as cash,
           ISNULL(
-            SUM(CASE WHEN paymentMethod = 'transfer' THEN paidAmount ELSE 0 END),
+            SUM(CASE WHEN payment_method = 'transfer' THEN amount ELSE 0 END),
             0
           ) as transfer
         FROM combined
@@ -199,17 +149,17 @@ export async function GET(request: NextRequest) {
 
     const payments: ReceivablePayment[] = rows.map((row) => ({
       id: row.id,
-      paidAt: new Date(row.paidAt).toISOString(),
-      numberPrint: row.numberPrint,
-      customerCode: row.customerCode,
-      customerName: row.customerName,
-      nameCar: row.nameCar,
+      paidAt: new Date(row.paid_at).toISOString(),
+      numberPrint: row.number_print,
+      customerCode: row.customer_code,
+      customerName: row.customer_name,
+      nameCar: row.name_car,
       province: row.province,
-      paidAmount: Number(row.paidAmount) || 0,
-      totalPrice: Number(row.totalPrice) || 0,
-      paymentMethod: row.paymentMethod === "transfer" ? "transfer" : "cash",
-      nameBank: row.nameBank,
-      createdBy: row.createdBy,
+      paidAmount: Number(row.paid_amount) || 0,
+      totalPrice: Number(row.total_price) || 0,
+      paymentMethod: row.payment_method === "transfer" ? "transfer" : "cash",
+      nameBank: row.bank_name,
+      createdBy: row.created_by,
       source: row.source === "web" ? "web" : "legacy",
     }));
 

@@ -8,6 +8,10 @@
 import type { NextRequest } from "next/server";
 import { handleApiError, successResponse, withTimeout } from "@/lib/api-utils";
 import { executeQuery } from "@/lib/db";
+import {
+  buildReceivablePaymentCte,
+  getReceivablePaymentSourceConfig,
+} from "@/lib/receivable-payment-source";
 import type { DashboardKPI, DashboardMoneyBreakdownItem } from "@/types/api";
 
 interface OtherPaymentSummary {
@@ -379,66 +383,31 @@ async function getReceivablePaymentSummary(
   params?: Record<string, unknown>,
 ): Promise<OptionalDailyMoneySummary> {
   try {
+    const sourceConfig = await getReceivablePaymentSourceConfig();
+    const cte = buildReceivablePaymentCte(
+      sourceConfig,
+      (dateExpression) => `CONVERT(date, ${dateExpression}) = ${dateCondition}`,
+    );
     const [summary] = await executeQuery<OptionalDailyMoneySummary>(
       `
-        WITH legacy_payments AS (
-          SELECT
-            CASE
-              WHEN ${getSafeMoneyExpression("r.PayMoney")} - ISNULL(previous_payment.previousPayMoney, 0) > 0
-                THEN ${getSafeMoneyExpression("r.PayMoney")} - ISNULL(previous_payment.previousPayMoney, 0)
-              ELSE ${getSafeMoneyExpression("r.PayMoney")}
-            END as paid_amount,
-            CASE
-              WHEN ${getSafeMoneyExpression("m.Transfer")} > 0
-                AND (
-                  LTRIM(RTRIM(ISNULL(m.NameBank, ''))) <> ''
-                  OR ${getSafeMoneyExpression("m.Cash")} <= 0
-                )
-                THEN 'transfer'
-              ELSE 'cash'
-            END as payment_method
-          FROM dbo.MasterRecivePaymentCustomer r
-          LEFT JOIN dbo.MasterSalePost m
-            ON m.NumberPrintSalePost = r.NumberPrintPost
-          OUTER APPLY (
-            SELECT TOP 1
-              ${getSafeMoneyExpression("previous.PayMoney")} as previousPayMoney
-            FROM dbo.MasterRecivePaymentCustomer previous
-            WHERE previous.NumberPrintPost = r.NumberPrintPost
-              AND previous.DatePost < r.DatePost
-            ORDER BY previous.DatePost DESC
-          ) previous_payment
-          WHERE CONVERT(date, r.DatePost) = ${dateCondition}
-            AND m.DateSalePost IS NOT NULL
-            AND CONVERT(date, m.DateSalePost) < CONVERT(date, r.DatePost)
-            AND ${getSafeMoneyExpression("r.SubMoney")} = 0
-            AND ${getSafeMoneyExpression("r.PayMoney")} > 0
-        )
+        ${cte}
         SELECT
           COUNT(*) as count,
-          ISNULL(SUM(paid_amount), 0) as total,
+          ISNULL(SUM(amount), 0) as total,
           ISNULL(
             SUM(
-              CASE
-                WHEN payment_method = 'cash'
-                  THEN paid_amount
-                ELSE 0
-              END
+              CASE WHEN payment_method = 'cash' THEN amount ELSE 0 END
             ),
             0
           ) as cash,
           ISNULL(
             SUM(
-              CASE
-                WHEN payment_method = 'transfer'
-                  THEN paid_amount
-                ELSE 0
-              END
+              CASE WHEN payment_method = 'transfer' THEN amount ELSE 0 END
             ),
             0
           ) as transfer
-        FROM legacy_payments
-        WHERE paid_amount > 0
+        FROM combined
+        WHERE amount > 0
       `,
       params,
       false,

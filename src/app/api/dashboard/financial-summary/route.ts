@@ -6,6 +6,10 @@
 import type { NextRequest } from "next/server";
 import { handleApiError, successResponse, withTimeout } from "@/lib/api-utils";
 import { executeQuery } from "@/lib/db";
+import {
+  buildReceivablePaymentCte as buildSharedReceivablePaymentCte,
+  getReceivablePaymentSourceConfig,
+} from "@/lib/receivable-payment-source";
 import type { FinancialSummary, FinancialSummaryListItem } from "@/types/api";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -236,54 +240,6 @@ function buildPaymentCte() {
           ELSE credit_value
         END as effective_total
       FROM normalized
-    )
-  `;
-}
-
-function buildReceivablePaymentCte() {
-  return `
-    WITH legacy_payments AS (
-      SELECT
-        CAST('legacy-' + ISNULL(r.NumberPrintPost, '') + '-' + CONVERT(nvarchar(30), r.DatePost, 121) AS nvarchar(100)) as id,
-        r.DatePost as occurred_at,
-        ISNULL(r.NumberPrintPost, '') as document_no,
-        ISNULL(r.NameCustomer, ISNULL(m.NameCustomer, N'ไม่ระบุลูกค้า')) as customer_name,
-        ISNULL(m.NameCar, '') as name_car,
-        ISNULL(m.Province, '') as province,
-        CASE
-          WHEN ${getSafeMoneyExpression("r.PayMoney")} - ISNULL(previous_payment.previous_pay_money, 0) > 0
-            THEN ${getSafeMoneyExpression("r.PayMoney")} - ISNULL(previous_payment.previous_pay_money, 0)
-          ELSE ${getSafeMoneyExpression("r.PayMoney")}
-        END as amount,
-        CASE
-          WHEN ${getSafeMoneyExpression("m.Transfer")} > 0
-            AND (
-              LTRIM(RTRIM(ISNULL(m.NameBank, ''))) <> ''
-              OR ${getSafeMoneyExpression("m.Cash")} <= 0
-            )
-            THEN 'transfer'
-          ELSE 'cash'
-        END as payment_method,
-        ISNULL(m.NameBank, '') as bank_name
-      FROM dbo.MasterRecivePaymentCustomer r
-      LEFT JOIN dbo.MasterSalePost m
-        ON m.NumberPrintSalePost = r.NumberPrintPost
-      OUTER APPLY (
-        SELECT TOP 1
-          ${getSafeMoneyExpression("previous.PayMoney")} as previous_pay_money
-        FROM dbo.MasterRecivePaymentCustomer previous
-        WHERE previous.NumberPrintPost = r.NumberPrintPost
-          AND previous.DatePost < r.DatePost
-        ORDER BY previous.DatePost DESC
-      ) previous_payment
-      WHERE CONVERT(date, r.DatePost) BETWEEN @dateFrom AND @dateTo
-        AND m.DateSalePost IS NOT NULL
-        AND CONVERT(date, m.DateSalePost) < CONVERT(date, r.DatePost)
-        AND ${getSafeMoneyExpression("r.SubMoney")} = 0
-        AND ${getSafeMoneyExpression("r.PayMoney")} > 0
-    ),
-    combined AS (
-      SELECT * FROM legacy_payments
     )
   `;
 }
@@ -544,7 +500,12 @@ async function getPaymentData(params: Record<string, unknown>) {
 }
 
 async function getReceivablePayments(params: Record<string, unknown>) {
-  const cte = buildReceivablePaymentCte();
+  const sourceConfig = await getReceivablePaymentSourceConfig();
+  const cte = buildSharedReceivablePaymentCte(
+    sourceConfig,
+    (dateExpression) =>
+      `CONVERT(date, ${dateExpression}) BETWEEN @dateFrom AND @dateTo`,
+  );
   const [summaryRows, rows] = await Promise.all([
     executeQuery<ReceivablePaymentSummaryRow>(
       `
