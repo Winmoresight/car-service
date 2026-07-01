@@ -5,13 +5,16 @@
  */
 
 import {
+  AlertCircle,
   Building2,
+  Camera,
   CheckCircle2,
   CircleHelp,
   ClipboardList,
   Clock3,
   FilePlus2,
   Loader2,
+  Package,
   Plus,
   ReceiptText,
   Save,
@@ -21,12 +24,12 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
-import type { FormEvent } from "react";
-import { useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useState } from "react";
 import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { outfit } from "@/components/fonts/fonts";
+import { BarcodeCameraDialog } from "@/components/stock/barcode-camera-dialog";
 import AsyncSearchableSelect from "@/components/ui/async-searchable-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -59,6 +62,9 @@ import {
 import { cn } from "@/lib/utils";
 import type {
   ApiResponse,
+  StockCatalogOption,
+  StockProductCatalogPayload,
+  StockProductCreateResult,
   SupplierBill,
   SupplierBillPaymentState,
   SupplierBillsCatalogPayload,
@@ -261,6 +267,22 @@ interface NewSupplierDraft {
   detail: string;
 }
 
+interface SupplierProductDraft {
+  categoryId: string;
+  barcode: string;
+  name: string;
+  unit: string;
+  packageQuantity: string;
+  packageUnit: string;
+  costPrice: string;
+  retailPrice: string;
+}
+
+type SupplierScanFeedback = {
+  type: "success" | "warning" | "error";
+  message: string;
+};
+
 const defaultSupplierBillStatus: SupplierEditableStatus = "ค้างชำระ";
 
 function getTodayInputDate() {
@@ -298,6 +320,19 @@ function createEmptySupplier(): NewSupplierDraft {
   };
 }
 
+function createEmptyProductDraft(): SupplierProductDraft {
+  return {
+    categoryId: "25",
+    barcode: "",
+    name: "",
+    unit: "",
+    packageQuantity: "1",
+    packageUnit: "",
+    costPrice: "",
+    retailPrice: "",
+  };
+}
+
 function getMoneyInputValue(value: number) {
   return value > 0 ? String(value) : "";
 }
@@ -306,6 +341,64 @@ function parsePositiveNumberInput(value: string) {
   const parsed = parseMoneyInput(value);
 
   return parsed !== null && parsed > 0 ? parsed : null;
+}
+
+function normalizeBarcodeValue(value: string) {
+  return value.trim().replace(/\s+/g, "");
+}
+
+function getResponseErrorMessage<T>(response: ApiResponse<T>) {
+  return response.success ? "" : response.error;
+}
+
+function getScanFeedbackClassName(type: SupplierScanFeedback["type"]) {
+  if (type === "success") {
+    return "border-emerald-100 bg-emerald-50 text-main-green dark:border-emerald-500/20 dark:bg-emerald-500/10";
+  }
+
+  if (type === "warning") {
+    return "border-orange-100 bg-orange-50 text-main-orange dark:border-orange-500/20 dark:bg-orange-500/10";
+  }
+
+  return "border-red-100 bg-red-50 text-main-red dark:border-red-500/20 dark:bg-red-500/10";
+}
+
+function getLineProductUpdates(
+  line: SupplierBillDraftLine,
+  product: SupplierCatalogProduct,
+) {
+  return {
+    barcode: product.barcode,
+    name: product.name,
+    unit: product.unit || line.unit,
+    unitPrice: getMoneyInputValue(product.unitPrice),
+    cost: getMoneyInputValue(product.cost),
+    caseProduct: product.caseProduct || 25,
+  };
+}
+
+function applyProductToDraftLine(
+  line: SupplierBillDraftLine,
+  product: SupplierCatalogProduct,
+) {
+  return {
+    ...line,
+    ...getLineProductUpdates(line, product),
+  };
+}
+
+function createLineFromProduct(product: SupplierCatalogProduct) {
+  return applyProductToDraftLine(createEmptyLine(), product);
+}
+
+function getIncrementedQuantityInput(value: string) {
+  const nextQuantity = Number(
+    ((parsePositiveNumberInput(value) ?? 0) + 1).toFixed(2),
+  );
+
+  return Number.isInteger(nextQuantity)
+    ? String(nextQuantity)
+    : String(nextQuantity);
 }
 
 function getDraftLineTotal(item: SupplierBillDraftLine) {
@@ -359,6 +452,46 @@ async function fetchSupplierProductOptions(
     (await response.json()) as ApiResponse<SupplierBillsCatalogPayload>;
 
   return result.success && result.data ? result.data.products : [];
+}
+
+async function fetchSupplierProductByBarcode(barcode: string) {
+  const normalizedBarcode = normalizeBarcodeValue(barcode);
+  const params = new URLSearchParams({ q: normalizedBarcode });
+  const response = await fetch(`/api/supplier-bills/catalog?${params}`);
+  const result =
+    (await response.json()) as ApiResponse<SupplierBillsCatalogPayload>;
+
+  if (!response.ok || !result.success) {
+    throw new Error(getResponseErrorMessage(result) || "ค้นหาสินค้าไม่สำเร็จ");
+  }
+
+  return (
+    result.data.products.find(
+      (product) =>
+        normalizeBarcodeValue(product.barcode).toLowerCase() ===
+        normalizedBarcode.toLowerCase(),
+    ) ?? null
+  );
+}
+
+function filterStockCatalogOptions(
+  options: StockCatalogOption[],
+  search: string,
+  signal: AbortSignal,
+) {
+  if (signal.aborted) {
+    return [];
+  }
+
+  const normalizedSearch = search.trim().toLowerCase();
+
+  if (!normalizedSearch) {
+    return options;
+  }
+
+  return options.filter((option) =>
+    option.name.toLowerCase().includes(normalizedSearch),
+  );
 }
 
 function uniqueCatalogOptionsByName<T extends { name: string }>(options: T[]) {
@@ -744,25 +877,81 @@ function SupplierBillCreateDialog({
   const [items, setItems] = useState<SupplierBillDraftLine[]>([
     createEmptyLine(),
   ]);
+  const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
+  const [isLookingUpBarcode, setIsLookingUpBarcode] = useState(false);
+  const [newProductBarcode, setNewProductBarcode] = useState<string | null>(
+    null,
+  );
+  const [productDraft, setProductDraft] = useState<SupplierProductDraft>(
+    createEmptyProductDraft,
+  );
+  const [isCreatingProduct, setIsCreatingProduct] = useState(false);
+  const [createProductError, setCreateProductError] = useState<string | null>(
+    null,
+  );
+  const [scanFeedback, setScanFeedback] = useState<SupplierScanFeedback | null>(
+    null,
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const { data: catalogData, isLoading: catalogLoading } = useSWR<
-    ApiResponse<SupplierBillsCatalogPayload>
-  >(open ? "/api/supplier-bills/catalog" : null, fetcher);
+  const {
+    data: catalogData,
+    isLoading: catalogLoading,
+    mutate: mutateCatalog,
+  } = useSWR<ApiResponse<SupplierBillsCatalogPayload>>(
+    open ? "/api/supplier-bills/catalog" : null,
+    fetcher,
+  );
+  const selectedProductCategoryId =
+    Number.parseInt(productDraft.categoryId || "25", 10) || 25;
+  const isNewProductEditorOpen = Boolean(newProductBarcode);
+  const {
+    data: productCatalogData,
+    isLoading: productCatalogLoading,
+    mutate: mutateProductCatalog,
+  } = useSWR<ApiResponse<StockProductCatalogPayload>>(
+    open && isNewProductEditorOpen
+      ? `/api/stock?type=catalog&categoryId=${selectedProductCategoryId}`
+      : null,
+    fetcher,
+  );
   const catalog =
     catalogData?.success && catalogData.data ? catalogData.data : null;
+  const productCatalog =
+    productCatalogData?.success && productCatalogData.data
+      ? productCatalogData.data
+      : null;
   const suppliers = catalog?.suppliers ?? [];
   const selectedSupplier = suppliers.find(
     (supplier) => supplier.code === selectedSupplierCode,
   );
   const creditorTypes = catalog?.creditorTypes ?? [];
   const units = uniqueCatalogOptionsByName(catalog?.units ?? []);
+  const selectedProductCategory = productCatalog?.categories.find(
+    (category) => String(category.id) === productDraft.categoryId,
+  );
   const totals = getDraftTotals(items, specialDiscount);
+  const fetchProductCategoryOptions = useCallback(
+    async (search: string, signal: AbortSignal) =>
+      filterStockCatalogOptions(
+        productCatalog?.categories ?? [],
+        search,
+        signal,
+      ),
+    [productCatalog?.categories],
+  );
+  const fetchProductUnitOptions = useCallback(
+    async (search: string, signal: AbortSignal) =>
+      filterStockCatalogOptions(productCatalog?.units ?? [], search, signal),
+    [productCatalog?.units],
+  );
 
   useEffect(() => {
     if (!open) {
+      setIsBarcodeScannerOpen(false);
+      setIsLookingUpBarcode(false);
       return;
     }
 
@@ -774,10 +963,48 @@ function SupplierBillCreateDialog({
     setCreatedBy("admin");
     setSpecialDiscount("");
     setItems([createEmptyLine()]);
+    setIsBarcodeScannerOpen(false);
+    setIsLookingUpBarcode(false);
+    setNewProductBarcode(null);
+    setProductDraft(createEmptyProductDraft());
+    setIsCreatingProduct(false);
+    setCreateProductError(null);
+    setScanFeedback(null);
     setErrorMessage(null);
     setSuccessMessage(null);
     setIsSaving(false);
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !isNewProductEditorOpen || !productCatalog) {
+      return;
+    }
+
+    setProductDraft((current) => {
+      const categoryId =
+        current.categoryId ||
+        (productCatalog.categories[0]?.id
+          ? String(productCatalog.categories[0].id)
+          : "");
+      const unit = current.unit || productCatalog.units[0]?.name || "";
+      const packageUnit = current.packageUnit || unit;
+
+      if (
+        current.categoryId === categoryId &&
+        current.unit === unit &&
+        current.packageUnit === packageUnit
+      ) {
+        return current;
+      }
+
+      return {
+        ...current,
+        categoryId,
+        unit,
+        packageUnit,
+      };
+    });
+  }, [isNewProductEditorOpen, open, productCatalog]);
 
   const updateLine = (id: string, updates: Partial<SupplierBillDraftLine>) => {
     setItems((currentItems) =>
@@ -791,14 +1018,175 @@ function SupplierBillCreateDialog({
     line: SupplierBillDraftLine,
     product: SupplierCatalogProduct,
   ) => {
-    updateLine(line.id, {
-      barcode: product.barcode,
-      name: product.name,
-      unit: product.unit || line.unit,
-      unitPrice: getMoneyInputValue(product.unitPrice),
-      cost: getMoneyInputValue(product.cost),
-      caseProduct: product.caseProduct || 25,
+    updateLine(line.id, getLineProductUpdates(line, product));
+  };
+
+  const updateProductDraft = (updates: Partial<SupplierProductDraft>) => {
+    setProductDraft((current) => ({ ...current, ...updates }));
+  };
+
+  const applyScannedProductToItems = (product: SupplierCatalogProduct) => {
+    const normalizedProductBarcode = normalizeBarcodeValue(
+      product.barcode,
+    ).toLowerCase();
+
+    setItems((currentItems) => {
+      const existingIndex = normalizedProductBarcode
+        ? currentItems.findIndex(
+            (item) =>
+              normalizeBarcodeValue(item.barcode).toLowerCase() ===
+              normalizedProductBarcode,
+          )
+        : -1;
+
+      if (existingIndex >= 0) {
+        return currentItems.map((item, index) =>
+          index === existingIndex
+            ? {
+                ...item,
+                quantity: getIncrementedQuantityInput(item.quantity),
+              }
+            : item,
+        );
+      }
+
+      const emptyIndex = currentItems.findIndex(
+        (item) => !item.name.trim() && !item.barcode.trim(),
+      );
+
+      if (emptyIndex >= 0) {
+        return currentItems.map((item, index) =>
+          index === emptyIndex ? applyProductToDraftLine(item, product) : item,
+        );
+      }
+
+      return [...currentItems, createLineFromProduct(product)];
     });
+  };
+
+  const handleBarcodeDetected = async (rawBarcode: string) => {
+    const barcode = normalizeBarcodeValue(rawBarcode);
+
+    if (!barcode) {
+      setScanFeedback({
+        type: "error",
+        message: "กรุณาระบุบาร์โค้ด",
+      });
+      return;
+    }
+
+    try {
+      setIsLookingUpBarcode(true);
+      setCreateProductError(null);
+      setScanFeedback(null);
+      setNewProductBarcode(null);
+
+      const product = await fetchSupplierProductByBarcode(barcode);
+
+      if (product) {
+        applyScannedProductToItems(product);
+        setScanFeedback({
+          type: "success",
+          message: `พบ ${product.name} แล้ว เติมเข้ารายการสินค้าเรียบร้อย`,
+        });
+        return;
+      }
+
+      setNewProductBarcode(barcode);
+      setProductDraft((current) => ({
+        ...createEmptyProductDraft(),
+        categoryId: current.categoryId || "25",
+        barcode,
+        unit: current.unit,
+        packageUnit: current.packageUnit || current.unit,
+      }));
+      setScanFeedback({
+        type: "warning",
+        message: `ยังไม่พบสินค้าเลข ${barcode} ในระบบเดิม เพิ่มข้อมูลสินค้าใหม่ก่อนใช้งาน`,
+      });
+    } catch (error) {
+      setScanFeedback({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "ค้นหาสินค้าจากบาร์โค้ดไม่สำเร็จ",
+      });
+    } finally {
+      setIsLookingUpBarcode(false);
+    }
+  };
+
+  const handleCreateScannedProduct = async () => {
+    try {
+      setIsCreatingProduct(true);
+      setCreateProductError(null);
+
+      const response = await fetch("/api/stock", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          categoryId: Number.parseInt(productDraft.categoryId, 10),
+          barcode: productDraft.barcode,
+          name: productDraft.name,
+          unit: productDraft.unit,
+          packageQuantity: productDraft.packageQuantity,
+          packageUnit: productDraft.packageUnit || productDraft.unit,
+          costPrice: productDraft.costPrice,
+          retailPrice: productDraft.retailPrice,
+        }),
+      });
+      const result =
+        (await response.json()) as ApiResponse<StockProductCreateResult>;
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          getResponseErrorMessage(result) || "เพิ่มสินค้าไม่สำเร็จ",
+        );
+      }
+
+      const createdProduct = result.data;
+      const productForBill: SupplierCatalogProduct = {
+        barcode: createdProduct.barcode,
+        name: createdProduct.name,
+        unit: createdProduct.unit,
+        unitPrice: createdProduct.costPrice,
+        cost: createdProduct.costPrice,
+        caseProduct: createdProduct.categoryId || 25,
+      };
+
+      applyScannedProductToItems(productForBill);
+      await Promise.all([
+        mutateCatalog().catch(() => undefined),
+        mutateProductCatalog().catch(() => undefined),
+      ]);
+
+      setNewProductBarcode(null);
+      setProductDraft((current) => ({
+        ...createEmptyProductDraft(),
+        categoryId: current.categoryId || "25",
+        unit: current.unit,
+        packageUnit: current.packageUnit || current.unit,
+      }));
+      setScanFeedback({
+        type: "success",
+        message: `เพิ่ม ${createdProduct.name} แล้ว เติมเข้ารายการสินค้าเรียบร้อย`,
+      });
+    } catch (error) {
+      setCreateProductError(
+        error instanceof Error ? error.message : "เพิ่มสินค้าไม่สำเร็จ",
+      );
+    } finally {
+      setIsCreatingProduct(false);
+    }
+  };
+
+  const handleCancelNewProduct = () => {
+    setNewProductBarcode(null);
+    setCreateProductError(null);
+    setProductDraft(createEmptyProductDraft());
   };
 
   const removeLine = (id: string) => {
@@ -939,7 +1327,9 @@ function SupplierBillCreateDialog({
               <div className="space-y-4 rounded-[8px] border bg-[#FCFCFC] p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h3 className="font-bold text-card-foreground">ข้อมูลคู่ค้า</h3>
+                    <h3 className="font-bold text-card-foreground">
+                      ข้อมูลคู่ค้า
+                    </h3>
                     <p className="mt-1 text-sm font-semibold text-muted-foreground">
                       เลือกคู่ค้าเดิมหรือเพิ่มคู่ค้าใหม่
                     </p>
@@ -985,7 +1375,7 @@ function SupplierBillCreateDialog({
                         onValueChange={setSelectedSupplierCode}
                         disabled={catalogLoading}
                       >
-                        <SelectTrigger className="h-11 w-full rounded-[8px] font-bold">
+                        <SelectTrigger className="h-11 w-full rounded-[8px] py-0 font-bold data-[size=default]:h-11">
                           <SelectValue placeholder="เลือกคู่ค้า" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1071,7 +1461,7 @@ function SupplierBillCreateDialog({
                           }))
                         }
                       >
-                        <SelectTrigger className="h-11 w-full rounded-[8px] font-bold">
+                        <SelectTrigger className="h-11 w-full rounded-[8px] py-0 font-bold data-[size=default]:h-11">
                           <SelectValue placeholder="เลือกประเภท" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1264,11 +1654,15 @@ function SupplierBillCreateDialog({
                   </div>
                   <div className="mt-3 grid gap-2 text-sm font-semibold">
                     <div className="flex justify-between gap-3">
-                      <span className="text-muted-foreground">ยอดรวมสินค้า</span>
+                      <span className="text-muted-foreground">
+                        ยอดรวมสินค้า
+                      </span>
                       <span>{formatCurrency(totals.subTotal)}</span>
                     </div>
                     <div className="flex justify-between gap-3">
-                      <span className="text-muted-foreground">ส่วนลดสินค้า</span>
+                      <span className="text-muted-foreground">
+                        ส่วนลดสินค้า
+                      </span>
                       <span>{formatCurrency(totals.productDiscount)}</span>
                     </div>
                     <div className="flex justify-between gap-3">
@@ -1283,23 +1677,287 @@ function SupplierBillCreateDialog({
             <div className="rounded-[8px] border bg-card p-4">
               <div className="mb-4 flex flex-col justify-between gap-3 min-[680px]:flex-row min-[680px]:items-center">
                 <div>
-                  <h3 className="font-bold text-card-foreground">รายการสินค้า</h3>
+                  <h3 className="font-bold text-card-foreground">
+                    รายการสินค้า
+                  </h3>
                   <p className="mt-1 text-sm font-semibold text-muted-foreground">
                     กรอกจากบิลคู่ค้า หรือเลือกสินค้าเดิมเพื่อช่วยเติมข้อมูล
                   </p>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-10 font-bold"
-                  onClick={() =>
-                    setItems((current) => [...current, createEmptyLine()])
-                  }
-                >
-                  <Plus className="h-4 w-4" />
-                  เพิ่มรายการ
-                </Button>
+                <div className="flex flex-col gap-2 min-[440px]:flex-row">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 font-bold text-primary hover:text-primary"
+                    disabled={isLookingUpBarcode}
+                    onClick={() => setIsBarcodeScannerOpen(true)}
+                  >
+                    {isLookingUpBarcode ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Camera className="h-4 w-4" />
+                    )}
+                    สแกนสินค้า
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 font-bold text-primary hover:text-primary"
+                    onClick={() =>
+                      setItems((current) => [...current, createEmptyLine()])
+                    }
+                  >
+                    <Plus className="h-4 w-4" />
+                    เพิ่มรายการ
+                  </Button>
+                </div>
               </div>
+
+              {scanFeedback ? (
+                <div
+                  className={cn(
+                    "mb-4 flex items-start gap-2 rounded-[8px] border px-4 py-3 text-sm font-bold",
+                    getScanFeedbackClassName(scanFeedback.type),
+                  )}
+                >
+                  {scanFeedback.type === "success" ? (
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                  ) : (
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  )}
+                  <span>{scanFeedback.message}</span>
+                </div>
+              ) : null}
+
+              {isNewProductEditorOpen ? (
+                <div className="mb-4 rounded-[8px] border border-blue-100 bg-blue-50/40 p-4 dark:border-blue-500/20 dark:bg-blue-500/10">
+                  <div className="mb-4 flex flex-col justify-between gap-3 min-[760px]:flex-row min-[760px]:items-start">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] border border-blue-100 bg-white text-main-blue dark:border-blue-500/20 dark:bg-background">
+                        <Package className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-card-foreground">
+                          เพิ่มสินค้าใหม่จากบาร์โค้ด
+                        </h4>
+                        <p className="mt-1 text-sm font-semibold text-muted-foreground">
+                          สินค้านี้จะถูกสร้างในสต็อกก่อน
+                          แล้วเติมกลับเข้าบิลคู่ค้า
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 rounded-[8px] bg-white font-bold shadow-none dark:bg-background"
+                      disabled={isCreatingProduct}
+                      onClick={handleCancelNewProduct}
+                    >
+                      ยกเลิก
+                    </Button>
+                  </div>
+
+                  <div className="grid gap-3 min-[760px]:grid-cols-3">
+                    <div className="space-y-2">
+                      <label
+                        htmlFor="supplier-new-product-barcode"
+                        className="block text-xs font-bold text-muted-foreground"
+                      >
+                        บาร์โค้ด
+                      </label>
+                      <Input
+                        id="supplier-new-product-barcode"
+                        value={productDraft.barcode}
+                        onChange={(event) =>
+                          updateProductDraft({ barcode: event.target.value })
+                        }
+                        className="h-11 rounded-[8px] bg-white font-bold text-main-blue dark:bg-background"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <span className="block text-xs font-bold text-muted-foreground">
+                        ประเภทสินค้า
+                      </span>
+                      <AsyncSearchableSelect<StockCatalogOption>
+                        selectedLabel={selectedProductCategory?.name}
+                        placeholder="เลือกประเภทสินค้า"
+                        searchPlaceholder="ค้นหาประเภทสินค้า..."
+                        emptyMessage="ไม่พบประเภทสินค้า"
+                        disabled={productCatalogLoading || !productCatalog}
+                        fetchOptions={fetchProductCategoryOptions}
+                        getOptionKey={(category) => String(category.id)}
+                        getOptionLabel={(category) => category.name}
+                        isOptionSelected={(category) =>
+                          String(category.id) === productDraft.categoryId
+                        }
+                        onSelect={(category) =>
+                          updateProductDraft({
+                            categoryId: String(category.id),
+                          })
+                        }
+                        triggerClassName="h-11 rounded-[8px] bg-white font-bold dark:bg-background"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label
+                        htmlFor="supplier-new-product-name"
+                        className="block text-xs font-bold text-muted-foreground"
+                      >
+                        ชื่อสินค้า
+                      </label>
+                      <Input
+                        id="supplier-new-product-name"
+                        value={productDraft.name}
+                        onChange={(event) =>
+                          updateProductDraft({ name: event.target.value })
+                        }
+                        className="h-11 rounded-[8px] bg-white font-semibold dark:bg-background"
+                        placeholder="ชื่อสินค้า"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <span className="block text-xs font-bold text-muted-foreground">
+                        หน่วย
+                      </span>
+                      <AsyncSearchableSelect<StockCatalogOption>
+                        selectedLabel={productDraft.unit}
+                        placeholder="เลือกหน่วย"
+                        searchPlaceholder="ค้นหาหน่วย..."
+                        emptyMessage="ไม่พบหน่วย"
+                        disabled={productCatalogLoading || !productCatalog}
+                        fetchOptions={fetchProductUnitOptions}
+                        getOptionKey={(unit) => String(unit.id)}
+                        getOptionLabel={(unit) => unit.name}
+                        isOptionSelected={(unit) =>
+                          unit.name === productDraft.unit
+                        }
+                        onSelect={(unit) =>
+                          updateProductDraft({
+                            unit: unit.name,
+                            packageUnit: productDraft.packageUnit || unit.name,
+                          })
+                        }
+                        triggerClassName="h-11 rounded-[8px] bg-white font-bold dark:bg-background"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label
+                        htmlFor="supplier-new-product-package-quantity"
+                        className="block text-xs font-bold text-muted-foreground"
+                      >
+                        จำนวนบรรจุ
+                      </label>
+                      <Input
+                        id="supplier-new-product-package-quantity"
+                        inputMode="numeric"
+                        value={productDraft.packageQuantity}
+                        onChange={(event) =>
+                          updateProductDraft({
+                            packageQuantity: event.target.value,
+                          })
+                        }
+                        className="h-11 rounded-[8px] bg-white text-right font-semibold dark:bg-background"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <span className="block text-xs font-bold text-muted-foreground">
+                        หน่วยบรรจุ
+                      </span>
+                      <AsyncSearchableSelect<StockCatalogOption>
+                        selectedLabel={productDraft.packageUnit}
+                        placeholder="เลือกหน่วยบรรจุ"
+                        searchPlaceholder="ค้นหาหน่วยบรรจุ..."
+                        emptyMessage="ไม่พบหน่วยบรรจุ"
+                        disabled={productCatalogLoading || !productCatalog}
+                        fetchOptions={fetchProductUnitOptions}
+                        getOptionKey={(unit) => String(unit.id)}
+                        getOptionLabel={(unit) => unit.name}
+                        isOptionSelected={(unit) =>
+                          unit.name === productDraft.packageUnit
+                        }
+                        onSelect={(unit) =>
+                          updateProductDraft({ packageUnit: unit.name })
+                        }
+                        triggerClassName="h-11 rounded-[8px] bg-white font-bold dark:bg-background"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label
+                        htmlFor="supplier-new-product-cost"
+                        className="block text-xs font-bold text-muted-foreground"
+                      >
+                        ราคาซื้อ/ทุน
+                      </label>
+                      <Input
+                        id="supplier-new-product-cost"
+                        inputMode="decimal"
+                        value={productDraft.costPrice}
+                        onChange={(event) =>
+                          updateProductDraft({
+                            costPrice: event.target.value,
+                          })
+                        }
+                        className="h-11 rounded-[8px] bg-white text-right font-semibold dark:bg-background"
+                        placeholder="0.00"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label
+                        htmlFor="supplier-new-product-retail"
+                        className="block text-xs font-bold text-muted-foreground"
+                      >
+                        ราคาขาย
+                      </label>
+                      <Input
+                        id="supplier-new-product-retail"
+                        inputMode="decimal"
+                        value={productDraft.retailPrice}
+                        onChange={(event) =>
+                          updateProductDraft({
+                            retailPrice: event.target.value,
+                          })
+                        }
+                        className="h-11 rounded-[8px] bg-white text-right font-semibold dark:bg-background"
+                        placeholder="0.00"
+                      />
+                    </div>
+
+                    <div className="flex items-end">
+                      <Button
+                        type="button"
+                        className="h-11 w-full rounded-[8px] font-bold"
+                        disabled={
+                          isCreatingProduct ||
+                          productCatalogLoading ||
+                          !productCatalog
+                        }
+                        onClick={handleCreateScannedProduct}
+                      >
+                        {isCreatingProduct ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Save className="h-4 w-4" />
+                        )}
+                        บันทึกสินค้า
+                      </Button>
+                    </div>
+                  </div>
+
+                  {createProductError ? (
+                    <div className="mt-4 flex items-start gap-2 rounded-[8px] border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-main-red dark:border-red-500/20 dark:bg-red-500/10">
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>{createProductError}</span>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className="space-y-3">
                 {items.map((item, index) => (
@@ -1384,7 +2042,7 @@ function SupplierBillCreateDialog({
                             updateLine(item.id, { unit: value })
                           }
                         >
-                          <SelectTrigger className="h-11 w-full rounded-[8px] font-bold">
+                          <SelectTrigger className="w-full rounded-[8px] font-bold h-11 data-[size=default]:h-11 mb-0">
                             <SelectValue placeholder="หน่วย" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1505,6 +2163,11 @@ function SupplierBillCreateDialog({
           </form>
         </LargeDialogBody>
       </LargeDialogContent>
+      <BarcodeCameraDialog
+        open={isBarcodeScannerOpen}
+        onOpenChange={setIsBarcodeScannerOpen}
+        onDetected={handleBarcodeDetected}
+      />
     </LargeDialog>
   );
 }

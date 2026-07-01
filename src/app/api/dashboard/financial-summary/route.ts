@@ -277,6 +277,8 @@ function buildReceivablePaymentCte() {
         ORDER BY previous.DatePost DESC
       ) previous_payment
       WHERE CONVERT(date, r.DatePost) BETWEEN @dateFrom AND @dateTo
+        AND m.DateSalePost IS NOT NULL
+        AND CONVERT(date, m.DateSalePost) < CONVERT(date, r.DatePost)
         AND ${getSafeMoneyExpression("r.SubMoney")} = 0
         AND ${getSafeMoneyExpression("r.PayMoney")} > 0
     ),
