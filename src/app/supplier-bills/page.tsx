@@ -24,7 +24,13 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { KPICard } from "@/components/dashboard/kpi-card";
@@ -292,6 +298,18 @@ interface EmployeeUserOption {
   nameUser: string;
 }
 
+interface SupplierBillSupplierSummary {
+  key: string;
+  supplierCode: string;
+  supplierName: string;
+  billCount: number;
+  itemCount: number;
+  totalAmount: number;
+  paidAmount: number;
+  unpaidAmount: number;
+  unknownAmount: number;
+}
+
 type SupplierScanFeedback = {
   type: "success" | "warning" | "error";
   message: string;
@@ -365,6 +383,60 @@ function normalizeBarcodeValue(value: string) {
 
 function getResponseErrorMessage<T>(response: ApiResponse<T>) {
   return response.success ? "" : response.error;
+}
+
+function buildSupplierBillSupplierSummaries(items: SupplierBill[]) {
+  const summaryMap = new Map<string, SupplierBillSupplierSummary>();
+
+  for (const bill of items) {
+    const key = bill.supplierCode || bill.supplierName || "ไม่ระบุคู่ค้า";
+    const current = summaryMap.get(key) ?? {
+      key,
+      supplierCode: bill.supplierCode,
+      supplierName: bill.supplierName || "ไม่ระบุคู่ค้า",
+      billCount: 0,
+      itemCount: 0,
+      totalAmount: 0,
+      paidAmount: 0,
+      unpaidAmount: 0,
+      unknownAmount: 0,
+    };
+
+    current.supplierCode ||= bill.supplierCode;
+    current.supplierName =
+      current.supplierName === "ไม่ระบุคู่ค้า" && bill.supplierName
+        ? bill.supplierName
+        : current.supplierName;
+    current.billCount += 1;
+    current.itemCount += bill.itemCount;
+    current.totalAmount = Number(
+      (current.totalAmount + bill.totalPrice).toFixed(2),
+    );
+
+    if (bill.paymentState === "paid") {
+      current.paidAmount = Number(
+        (current.paidAmount + bill.totalPrice).toFixed(2),
+      );
+    } else if (bill.paymentState === "unpaid") {
+      current.unpaidAmount = Number(
+        (current.unpaidAmount + bill.totalPrice).toFixed(2),
+      );
+    } else {
+      current.unknownAmount = Number(
+        (current.unknownAmount + bill.totalPrice).toFixed(2),
+      );
+    }
+
+    summaryMap.set(key, current);
+  }
+
+  return Array.from(summaryMap.values()).sort((left, right) => {
+    if (right.totalAmount !== left.totalAmount) {
+      return right.totalAmount - left.totalAmount;
+    }
+
+    return right.billCount - left.billCount;
+  });
 }
 
 function getScanFeedbackClassName(type: SupplierScanFeedback["type"]) {
@@ -2572,8 +2644,17 @@ export default function SupplierBillsPage() {
       ? supplierBillsData.data
       : zeroPayload;
   const { summary } = payload;
-  const displayedBills = payload.items.filter((bill) =>
-    matchesSearch(bill, searchTerm),
+  const displayedBills = useMemo(
+    () => payload.items.filter((bill) => matchesSearch(bill, searchTerm)),
+    [payload.items, searchTerm],
+  );
+  const supplierSummaries = useMemo(
+    () => buildSupplierBillSupplierSummaries(displayedBills),
+    [displayedBills],
+  );
+  const displayedTotalAmount = supplierSummaries.reduce(
+    (sum, supplier) => sum + supplier.totalAmount,
+    0,
   );
   const needsReviewCount = summary.unpaidCount + summary.unknownStatusCount;
 
@@ -2667,6 +2748,156 @@ export default function SupplierBillsPage() {
             </div>
           </CardContent>
         </Card>
+
+        {isLoading ? (
+          <div className="rounded-3xl border bg-card p-4 shadow-sm">
+            <div className="mb-4 flex items-center gap-3">
+              <Skeleton className="h-12 w-12 rounded-2xl" />
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-44 rounded-xl" />
+                <Skeleton className="h-4 w-64 rounded-xl" />
+              </div>
+            </div>
+            <div className="space-y-3 rounded-2xl border bg-white p-4 dark:bg-card">
+              {[1, 2, 3].map((row) => (
+                <Skeleton key={row} className="h-14 w-full rounded-xl" />
+              ))}
+            </div>
+          </div>
+        ) : supplierSummaries.length > 0 ? (
+          <div className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm">
+            <div className="mb-4 flex flex-col justify-between gap-4 min-[720px]:flex-row min-[720px]:items-center">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-purple-100 bg-purple-50 dark:border-purple-500/20 dark:bg-purple-500/10">
+                  <Building2 className="h-6 w-6 text-purple-600" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xl font-bold text-card-foreground">
+                    สรุปยอดตามคู่ค้า
+                  </span>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    รวมยอดจากรายการที่กำลังแสดงอยู่ตอนนี้
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className="h-8 rounded-full bg-purple-50 px-4 text-sm font-bold text-purple-700 dark:bg-purple-500/10">
+                  {formatNumber(supplierSummaries.length)} คู่ค้า
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className="h-8 rounded-full px-4 text-sm font-bold text-card-foreground shadow-none"
+                >
+                  รวม {formatCurrency(displayedTotalAmount)}
+                </Badge>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-2xl border bg-white dark:bg-card">
+              <Table>
+                <TableHeader className="bg-secondary/70">
+                  <TableRow className="border-border/60 hover:bg-transparent">
+                    <TableHead className="px-4 text-base font-bold text-card-foreground min-[500px]:text-lg">
+                      คู่ค้า
+                    </TableHead>
+                    <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[760px]:table-cell">
+                      เอกสาร
+                    </TableHead>
+                    <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[940px]:table-cell">
+                      รายการสินค้า
+                    </TableHead>
+                    <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
+                      ยอดรวม
+                    </TableHead>
+                    <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[860px]:table-cell">
+                      ค้างชำระ
+                    </TableHead>
+                    <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[1100px]:table-cell">
+                      ชำระแล้ว
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {supplierSummaries.map((supplier, index) => (
+                    <TableRow
+                      key={supplier.key}
+                      className="border-border/60 hover:bg-purple-50/30 dark:hover:bg-purple-500/5"
+                    >
+                      <TableCell className="px-4 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-purple-100 bg-purple-50 text-sm font-bold text-purple-700 select-none dark:border-purple-500/20 dark:bg-purple-500/10">
+                            {index + 1}
+                          </div>
+                          <div className="flex min-w-0 flex-col gap-1">
+                            <span className="max-w-[180px] truncate text-sm font-bold text-card-foreground min-[520px]:max-w-[320px] min-[1180px]:max-w-[520px]">
+                              {supplier.supplierName}
+                            </span>
+                            <span className="text-xs font-semibold text-muted-foreground">
+                              {supplier.supplierCode || "ไม่มีรหัสคู่ค้า"}
+                            </span>
+                          </div>
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="hidden text-right align-middle min-[760px]:table-cell">
+                        <span className="font-bold text-card-foreground">
+                          {formatNumber(supplier.billCount)} ใบ
+                        </span>
+                      </TableCell>
+
+                      <TableCell className="hidden text-right align-middle min-[940px]:table-cell">
+                        <span className="font-bold text-card-foreground">
+                          {formatNumber(supplier.itemCount)} รายการ
+                        </span>
+                      </TableCell>
+
+                      <TableCell className="text-right align-middle">
+                        <div className="flex flex-col items-end gap-1">
+                          <span
+                            className={cn(
+                              outfit.className,
+                              "text-sm font-bold text-card-foreground min-[500px]:text-base",
+                            )}
+                          >
+                            {formatCurrency(supplier.totalAmount)}
+                          </span>
+                          <span className="text-xs font-semibold text-muted-foreground min-[760px]:hidden">
+                            {formatNumber(supplier.billCount)} ใบ
+                          </span>
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="hidden text-right align-middle min-[860px]:table-cell">
+                        <span
+                          className={cn(
+                            outfit.className,
+                            supplier.unpaidAmount > 0
+                              ? "font-bold text-main-red"
+                              : "font-bold text-muted-foreground",
+                          )}
+                        >
+                          {formatCurrency(supplier.unpaidAmount)}
+                        </span>
+                      </TableCell>
+
+                      <TableCell className="hidden text-right align-middle min-[1100px]:table-cell">
+                        <span
+                          className={cn(
+                            outfit.className,
+                            "font-bold text-main-green",
+                          )}
+                        >
+                          {formatCurrency(supplier.paidAmount)}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        ) : null}
 
         <div className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm">
           <div className="mb-4 flex flex-col justify-between gap-4 min-[720px]:flex-row min-[720px]:items-center">
