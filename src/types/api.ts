@@ -166,6 +166,8 @@ export type SupplierBillPaymentState = "paid" | "unpaid" | "unknown";
 
 export interface SupplierBillLineItem {
   id: string;
+  rowNo?: string;
+  orderNo?: string;
   barcode: string;
   name: string;
   quantity: number;

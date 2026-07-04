@@ -60,10 +60,28 @@ interface SupplierBillDetailSummaryRow {
   detailTotal: number | string | null;
 }
 
+interface SupplierBillDetailIdentityRow {
+  rowNo: number | string | null;
+  orderNo: string | null;
+}
+
 interface SupplierBillUpdatePayload {
   documentNo?: unknown;
   status?: unknown;
   totalPrice?: unknown;
+  items?: unknown;
+}
+
+interface SupplierBillUpdateItem {
+  rowNo: string;
+  orderNo: string;
+  barcode: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  discount: number;
+  total: number;
 }
 
 interface SupplierBillCreateItem {
@@ -125,6 +143,14 @@ function quoteIdentifier(identifier: string) {
 
 function normalizeText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeIdentifierText(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  return normalizeText(value);
 }
 
 function normalizeMoney(value: unknown) {
@@ -221,6 +247,28 @@ function truncateText(value: string, maxLength: number) {
   return value.length > maxLength ? value.slice(0, maxLength) : value;
 }
 
+function getDetailIdentityKeys(rowNo: unknown, orderNo: unknown) {
+  const rowNoText = normalizeIdentifierText(rowNo);
+  const orderNoText = normalizeIdentifierText(orderNo);
+  const keys: string[] = [];
+
+  if (rowNoText) {
+    keys.push(`row:${rowNoText}`);
+  }
+
+  if (orderNoText) {
+    keys.push(`order:${orderNoText}`);
+  }
+
+  return keys;
+}
+
+function parseDetailRowNo(rowNo: unknown) {
+  const rowNumber = Number.parseInt(normalizeIdentifierText(rowNo), 10);
+
+  return Number.isFinite(rowNumber) ? rowNumber : null;
+}
+
 function normalizeCreateItems(items: unknown) {
   if (!Array.isArray(items)) {
     return [];
@@ -255,6 +303,61 @@ function normalizeCreateItems(items: unknown) {
       cost,
       caseProduct:
         Number.isFinite(caseProduct) && caseProduct > 0 ? caseProduct : 25,
+    });
+  }
+
+  return normalizedItems;
+}
+
+function normalizeUpdateItems(items: unknown) {
+  if (items === undefined) {
+    return null;
+  }
+
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  const normalizedItems: SupplierBillUpdateItem[] = [];
+
+  for (const item of items) {
+    if (typeof item !== "object" || item === null) {
+      continue;
+    }
+
+    const rawItem = item as Record<string, unknown>;
+    const rowNo = normalizeIdentifierText(rawItem.rowNo);
+    const orderNo = normalizeIdentifierText(rawItem.orderNo);
+    const name = normalizeText(rawItem.name);
+    const quantity = normalizeCreateQuantity(rawItem.quantity);
+    const unitPrice = normalizeCreateMoney(rawItem.unitPrice);
+    const discount = normalizeCreateMoney(rawItem.discount) ?? 0;
+
+    if (
+      (!rowNo && !orderNo) ||
+      !name ||
+      quantity === null ||
+      unitPrice === null
+    ) {
+      continue;
+    }
+
+    const lineSubtotal = Number((quantity * unitPrice).toFixed(2));
+
+    if (discount > lineSubtotal) {
+      continue;
+    }
+
+    normalizedItems.push({
+      rowNo,
+      orderNo,
+      barcode: truncateText(normalizeText(rawItem.barcode), 30),
+      name: truncateText(name, 250),
+      quantity,
+      unit: truncateText(normalizeText(rawItem.unit) || "-", 50),
+      unitPrice,
+      discount,
+      total: Number((lineSubtotal - discount).toFixed(2)),
     });
   }
 
@@ -846,14 +949,16 @@ async function getDetailSummary(
         detailTotal: 0,
         lineItems: [],
       };
-      const rowNo = normalizeText(row.rowNo);
-      const orderNo = normalizeText(row.orderNo);
+      const rowNo = normalizeIdentifierText(row.rowNo);
+      const orderNo = normalizeIdentifierText(row.orderNo);
       const total = normalizeMoney(row.detailTotal);
 
       existing.itemCount = Number(row.itemCount) || existing.itemCount;
       existing.detailTotal += total;
       existing.lineItems.push({
         id: `${documentNo}-${rowNo || orderNo || index}`,
+        rowNo,
+        orderNo,
         barcode: normalizeText(row.barcode),
         name: normalizeText(row.name) || "ไม่ระบุสินค้า",
         quantity: normalizeMoney(row.quantity),
@@ -1255,6 +1360,7 @@ export async function PATCH(request: NextRequest) {
         normalizeText(body.status),
       );
       const totalPrice = normalizeEditableMoney(body.totalPrice);
+      const updateItems = normalizeUpdateItems(body.items);
 
       if (!documentNo) {
         return errorResponse("กรุณาระบุเลขเอกสารคู่ค้า", 400);
@@ -1268,6 +1374,17 @@ export async function PATCH(request: NextRequest) {
         return errorResponse("กรุณาระบุยอดเงินให้ถูกต้อง", 400);
       }
 
+      if (
+        updateItems !== null &&
+        (!Array.isArray(body.items) || updateItems.length !== body.items.length)
+      ) {
+        return errorResponse("กรุณาระบุรายการสินค้าให้ครบถ้วนและถูกต้อง", 400);
+      }
+
+      if (updateItems !== null && updateItems.length === 0) {
+        return errorResponse("บิลคู่ค้าต้องมีรายการสินค้าอย่างน้อย 1 รายการ", 400);
+      }
+
       const sourceTable = await resolveTable(masterTableCandidates);
 
       if (!sourceTable) {
@@ -1278,34 +1395,189 @@ export async function PATCH(request: NextRequest) {
       const resultUpdate = columns.has("Result")
         ? ", Result = @totalPrice"
         : "";
+      const productDiscountUpdate =
+        updateItems !== null && columns.has("Reduceproduct")
+          ? ", Reduceproduct = @productDiscount"
+          : "";
+      const productDiscount =
+        updateItems?.reduce((sum, item) => sum + item.discount, 0) ?? 0;
+      const pool = await getPool();
+      const transaction = new sql.Transaction(pool);
 
-      const rows = await executeQuery<{ documentNo: string }>(
-        `
-          UPDATE dbo.${quoteIdentifier(sourceTable)}
-          SET
-            Status = @status,
-            TotalPrice = @totalPrice
-            ${resultUpdate}
-          OUTPUT INSERTED.NumberPrintPost as documentNo
-          WHERE NumberPrintPost = @documentNo
-        `,
-        {
-          documentNo,
+      await transaction.begin();
+
+      try {
+        const masterRequest = new sql.Request(transaction);
+        masterRequest.input("documentNo", sql.NVarChar(30), documentNo);
+        masterRequest.input("status", sql.NVarChar(30), status);
+        masterRequest.input("totalPrice", sql.Money, totalPrice);
+        masterRequest.input("productDiscount", sql.Money, productDiscount);
+
+        const masterRows = await masterRequest.query<{ documentNo: string }>(`
+            UPDATE dbo.${quoteIdentifier(sourceTable)}
+            SET
+              Status = @status,
+              TotalPrice = @totalPrice
+              ${resultUpdate}
+              ${productDiscountUpdate}
+            OUTPUT INSERTED.NumberPrintPost as documentNo
+            WHERE NumberPrintPost = @documentNo
+          `);
+
+        const updatedDocumentNo = normalizeText(
+          masterRows.recordset[0]?.documentNo,
+        );
+
+        if (!updatedDocumentNo) {
+          await transaction.rollback();
+          return errorResponse("ไม่พบเอกสารคู่ค้านี้", 404);
+        }
+
+        let removedItemCount = 0;
+
+        if (updateItems !== null && updateItems.length > 0) {
+          const detailTable = await resolveTable(detailTableCandidates);
+
+          if (!detailTable) {
+            await transaction.rollback();
+            return errorResponse("ยังไม่พบตารางรายละเอียดบิลคู่ค้า", 404);
+          }
+
+          const detailColumns = await getTableColumns(detailTable);
+          const realSalePriceUpdate = detailColumns.has("RealSalePrice")
+            ? ", RealSalePrice = @unitPrice"
+            : "";
+          const detailStatusUpdate = detailColumns.has("Status")
+            ? ", Status = @status"
+            : "";
+          const submittedItemKeys = new Set(
+            updateItems.flatMap((item) =>
+              getDetailIdentityKeys(item.rowNo, item.orderNo),
+            ),
+          );
+          const detailRowsRequest = new sql.Request(transaction);
+
+          detailRowsRequest.input("documentNo", sql.NVarChar(30), documentNo);
+
+          const existingDetailRows =
+            await detailRowsRequest.query<SupplierBillDetailIdentityRow>(`
+              SELECT
+                AddRows as rowNo,
+                AddOder as orderNo
+              FROM dbo.${quoteIdentifier(detailTable)} WITH (UPDLOCK, HOLDLOCK)
+              WHERE NumberPrintPost = @documentNo
+            `);
+
+          for (const row of existingDetailRows.recordset) {
+            const rowKeys = getDetailIdentityKeys(row.rowNo, row.orderNo);
+            const shouldKeepRow = rowKeys.some((key) =>
+              submittedItemKeys.has(key),
+            );
+
+            if (rowKeys.length === 0 || shouldKeepRow) {
+              continue;
+            }
+
+            const deleteRequest = new sql.Request(transaction);
+            deleteRequest.input("documentNo", sql.NVarChar(30), documentNo);
+            deleteRequest.input("rowNo", sql.Int, parseDetailRowNo(row.rowNo));
+            deleteRequest.input(
+              "orderNo",
+              sql.NVarChar(10),
+              normalizeIdentifierText(row.orderNo),
+            );
+
+            const deleteResult = await deleteRequest.query(`
+              DELETE FROM dbo.${quoteIdentifier(detailTable)}
+              WHERE NumberPrintPost = @documentNo
+                AND (
+                  (@rowNo IS NOT NULL AND AddRows = @rowNo)
+                  OR (@orderNo <> N'' AND AddOder = @orderNo)
+                )
+            `);
+
+            removedItemCount += deleteResult.rowsAffected[0] ?? 0;
+          }
+
+          for (const item of updateItems) {
+            const rowNo = parseDetailRowNo(item.rowNo);
+            const detailRequest = new sql.Request(transaction);
+
+            detailRequest.input("documentNo", sql.NVarChar(30), documentNo);
+            detailRequest.input("rowNo", sql.Int, rowNo);
+            detailRequest.input("orderNo", sql.NVarChar(10), item.orderNo);
+            detailRequest.input("barcode", sql.NVarChar(30), item.barcode);
+            detailRequest.input("name", sql.NVarChar(250), item.name);
+            detailRequest.input(
+              "quantity",
+              sql.NVarChar(30),
+              formatLegacyQuantityText(item.quantity),
+            );
+            detailRequest.input("unit", sql.NVarChar(50), item.unit);
+            detailRequest.input(
+              "unitPrice",
+              sql.NVarChar(30),
+              formatLegacyMoneyText(item.unitPrice),
+            );
+            detailRequest.input(
+              "discount",
+              sql.NVarChar(30),
+              formatLegacyMoneyText(item.discount),
+            );
+            detailRequest.input(
+              "lineTotal",
+              sql.NVarChar(30),
+              formatLegacyMoneyText(item.total),
+            );
+            detailRequest.input("status", sql.NVarChar(30), status);
+
+            const detailResult = await detailRequest.query(`
+              UPDATE dbo.${quoteIdentifier(detailTable)}
+              SET
+                BarCode = @barcode,
+                NameProduct = @name,
+                NumProduct = @quantity,
+                MeterProduct = @unit,
+                SalePrice = @unitPrice,
+                ReducePrice = @discount,
+                SumPrice = @lineTotal
+                ${realSalePriceUpdate}
+                ${detailStatusUpdate}
+              WHERE NumberPrintPost = @documentNo
+                AND (
+                  (@rowNo IS NOT NULL AND AddRows = @rowNo)
+                  OR (@orderNo <> N'' AND AddOder = @orderNo)
+                )
+            `);
+
+            if ((detailResult.rowsAffected[0] ?? 0) === 0) {
+              await transaction.rollback();
+              return errorResponse(
+                `ไม่พบรายการสินค้า ${item.name} ในเอกสารนี้`,
+                404,
+              );
+            }
+          }
+        }
+
+        await transaction.commit();
+
+        return successResponse({
+          documentNo: updatedDocumentNo,
           status,
           totalPrice,
-        },
-        false,
-      );
+          itemCount: updateItems?.length,
+          removedItemCount,
+        });
+      } catch (error) {
+        try {
+          await transaction.rollback();
+        } catch (rollbackError) {
+          console.warn("Supplier bill update rollback failed:", rollbackError);
+        }
 
-      if (!rows[0]) {
-        return errorResponse("ไม่พบเอกสารคู่ค้านี้", 404);
+        throw error;
       }
-
-      return successResponse({
-        documentNo: rows[0].documentNo,
-        status,
-        totalPrice,
-      });
     }, 60000);
 
     return data;

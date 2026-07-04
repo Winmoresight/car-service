@@ -66,6 +66,7 @@ import type {
   StockProductCatalogPayload,
   StockProductCreateResult,
   SupplierBill,
+  SupplierBillLineItem,
   SupplierBillPaymentState,
   SupplierBillsCatalogPayload,
   SupplierBillsPayload,
@@ -250,6 +251,8 @@ function getEditableBillAmount(bill: SupplierBill) {
 
 interface SupplierBillDraftLine {
   id: string;
+  rowNo: string;
+  orderNo: string;
   barcode: string;
   name: string;
   quantity: string;
@@ -304,6 +307,8 @@ function getTodayInputDate() {
 function createEmptyLine(): SupplierBillDraftLine {
   return {
     id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    rowNo: "",
+    orderNo: "",
     barcode: "",
     name: "",
     quantity: "1",
@@ -395,6 +400,25 @@ function applyProductToDraftLine(
 
 function createLineFromProduct(product: SupplierCatalogProduct) {
   return applyProductToDraftLine(createEmptyLine(), product);
+}
+
+function createEditableLineFromBillItem(
+  item: SupplierBillLineItem,
+  index: number,
+): SupplierBillDraftLine {
+  return {
+    id: item.id || `supplier-edit-line-${index}`,
+    rowNo: item.rowNo ?? "",
+    orderNo: item.orderNo ?? "",
+    barcode: item.barcode,
+    name: item.name,
+    quantity: getMoneyInputValue(item.quantity) || "1",
+    unit: item.unit,
+    unitPrice: getMoneyInputValue(item.unitPrice),
+    discount: getMoneyInputValue(item.discount),
+    cost: "",
+    caseProduct: 25,
+  };
 }
 
 function getIncrementedQuantityInput(value: string) {
@@ -541,6 +565,7 @@ function SupplierBillEditDialog({
 }: SupplierBillEditDialogProps) {
   const [status, setStatus] = useState("");
   const [amount, setAmount] = useState("");
+  const [lineItems, setLineItems] = useState<SupplierBillDraftLine[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -552,6 +577,7 @@ function SupplierBillEditDialog({
 
     setStatus(normalizeDialogStatus(bill.status || bill.paymentLabel || ""));
     setAmount(String(getEditableBillAmount(bill)));
+    setLineItems(bill.lineItems.map(createEditableLineFromBillItem));
     setErrorMessage(null);
     setSuccessMessage(null);
   }, [bill, open]);
@@ -559,6 +585,7 @@ function SupplierBillEditDialog({
   const resetDialog = () => {
     setStatus("");
     setAmount("");
+    setLineItems([]);
     setIsSaving(false);
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -572,6 +599,23 @@ function SupplierBillEditDialog({
     onOpenChange(nextOpen);
   };
 
+  const updateLineItem = (
+    id: string,
+    updates: Partial<SupplierBillDraftLine>,
+  ) => {
+    setLineItems((currentItems) =>
+      currentItems.map((item) =>
+        item.id === id ? { ...item, ...updates } : item,
+      ),
+    );
+  };
+
+  const removeLineItem = (id: string) => {
+    setLineItems((currentItems) =>
+      currentItems.filter((item) => item.id !== id),
+    );
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -579,7 +623,17 @@ function SupplierBillEditDialog({
       return;
     }
 
-    const parsedAmount = parseMoneyInput(amount);
+    const lineItemsTotal = Number(
+      lineItems
+        .reduce((sum, item) => sum + getDraftLineTotal(item), 0)
+        .toFixed(2),
+    );
+    const calculatedAmount =
+      lineItems.length > 0
+        ? Number(Math.max(lineItemsTotal - bill.discount, 0).toFixed(2))
+        : null;
+    const parsedAmount = calculatedAmount ?? parseMoneyInput(amount);
+    const updateItems = [];
 
     if (!isSupplierStatusOption(status)) {
       setErrorMessage("กรุณาเลือกสถานะชำระเงินแล้วหรือค้างชำระ");
@@ -589,6 +643,48 @@ function SupplierBillEditDialog({
     if (parsedAmount === null) {
       setErrorMessage("กรุณาระบุยอดเงินให้ถูกต้อง");
       return;
+    }
+
+    if (bill.lineItems.length > 0 && lineItems.length === 0) {
+      setErrorMessage("บิลคู่ค้าต้องมีรายการสินค้าอย่างน้อย 1 รายการ");
+      return;
+    }
+
+    for (const item of lineItems) {
+      const quantity = parsePositiveNumberInput(item.quantity);
+      const unitPrice = parseMoneyInput(item.unitPrice);
+      const discount = parseMoneyInput(item.discount) ?? 0;
+
+      if (!item.name.trim()) {
+        setErrorMessage("กรุณาระบุชื่อสินค้าให้ครบทุกบรรทัด");
+        return;
+      }
+
+      if (!item.rowNo && !item.orderNo) {
+        setErrorMessage("ข้อมูลแถวรายการสินค้าไม่ครบ กรุณาโหลดหน้านี้ใหม่");
+        return;
+      }
+
+      if (quantity === null || unitPrice === null || discount < 0) {
+        setErrorMessage("กรุณาระบุจำนวน ราคา และส่วนลดให้ถูกต้อง");
+        return;
+      }
+
+      if (discount > quantity * unitPrice) {
+        setErrorMessage("ส่วนลดรายการสินค้าต้องไม่เกินยอดของรายการ");
+        return;
+      }
+
+      updateItems.push({
+        rowNo: item.rowNo,
+        orderNo: item.orderNo,
+        barcode: item.barcode,
+        name: item.name,
+        quantity,
+        unit: item.unit,
+        unitPrice,
+        discount,
+      });
     }
 
     try {
@@ -605,6 +701,7 @@ function SupplierBillEditDialog({
           documentNo: bill.documentNo,
           status,
           totalPrice: parsedAmount,
+          items: bill.lineItems.length > 0 ? updateItems : undefined,
         }),
       });
       const result = await response.json();
@@ -627,10 +724,32 @@ function SupplierBillEditDialog({
 
   const dateParts = bill ? formatDateParts(bill.date) : { date: "-", time: "" };
   const currentAmount = bill ? getEditableBillAmount(bill) : 0;
+  const lineItemsTotal = Number(
+    lineItems
+      .reduce((sum, item) => sum + getDraftLineTotal(item), 0)
+      .toFixed(2),
+  );
+  const calculatedAmount =
+    bill && lineItems.length > 0
+      ? Number(Math.max(lineItemsTotal - bill.discount, 0).toFixed(2))
+      : null;
+  const amountInputValue =
+    calculatedAmount !== null ? String(calculatedAmount) : amount;
+  const productDiscount = Number(
+    lineItems
+      .reduce((sum, item) => sum + (parseMoneyInput(item.discount) ?? 0), 0)
+      .toFixed(2),
+  );
+  const discountTotal =
+    lineItems.length > 0 && bill
+      ? Number((bill.discount + productDiscount).toFixed(2))
+      : bill
+        ? bill.discount + bill.productDiscount
+        : 0;
 
   return (
     <LargeDialog open={open} onOpenChange={handleOpenChange}>
-      <LargeDialogContent size="lg">
+      <LargeDialogContent size="2xl">
         <LargeDialogHeader className="gap-2 px-5 py-5 md:px-6">
           <LargeDialogTitle className="text-primary text-xl md:text-2xl">
             แก้ไขบิลคู่ค้า
@@ -727,14 +846,24 @@ function SupplierBillEditDialog({
                     <Input
                       id="supplier-bill-amount"
                       inputMode="decimal"
-                      value={amount}
-                      onChange={(event) => setAmount(event.target.value)}
-                      className="h-12 rounded-[8px] pr-3 pl-9 text-lg font-bold"
+                      value={amountInputValue}
+                      onChange={(event) => {
+                        if (calculatedAmount === null) {
+                          setAmount(event.target.value);
+                        }
+                      }}
+                      readOnly={calculatedAmount !== null}
+                      className={cn(
+                        "h-12 rounded-[8px] pr-3 pl-9 text-lg font-bold",
+                        calculatedAmount !== null && "bg-muted/30 shadow-none",
+                      )}
                       placeholder="0.00"
                     />
                   </div>
                   <span className="block text-xs font-semibold text-muted-foreground">
-                    ยอดเดิม {formatCurrency(currentAmount)}
+                    {calculatedAmount !== null
+                      ? "คำนวณจากรายการสินค้า"
+                      : `ยอดเดิม ${formatCurrency(currentAmount)}`}
                   </span>
                 </div>
               </div>
@@ -743,13 +872,13 @@ function SupplierBillEditDialog({
                 <div className="flex items-center justify-between gap-3 min-[620px]:block">
                   <span className="text-muted-foreground">รายการสินค้า</span>
                   <p className="font-bold text-card-foreground min-[620px]:mt-1">
-                    {formatNumber(bill.itemCount)} รายการ
+                    {formatNumber(lineItems.length || bill.itemCount)} รายการ
                   </p>
                 </div>
                 <div className="flex items-center justify-between gap-3 min-[620px]:block">
                   <span className="text-muted-foreground">ส่วนลด</span>
                   <p className="font-bold text-card-foreground min-[620px]:mt-1">
-                    {formatCurrency(bill.discount + bill.productDiscount)}
+                    {formatCurrency(discountTotal)}
                   </p>
                 </div>
                 <div className="flex items-center justify-between gap-3 min-[620px]:block">
@@ -771,54 +900,198 @@ function SupplierBillEditDialog({
                   </span>
                 </div>
 
-                {bill.lineItems.length > 0 ? (
-                  <div className="max-h-[280px] divide-y overflow-y-auto">
-                    {bill.lineItems.map((item, index) => (
-                      <div
-                        key={item.id || `${bill.id}-${index}`}
-                        className="grid gap-3 px-3 py-3 min-[640px]:grid-cols-[minmax(0,1fr)_120px_130px] min-[640px]:items-center"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-bold text-card-foreground">
-                            {item.name || "ไม่ระบุสินค้า"}
-                          </p>
-                          <p className="mt-1 truncate text-xs font-semibold text-muted-foreground">
-                            {item.barcode || "ไม่มีบาร์โค้ด"}
-                          </p>
-                        </div>
+                {lineItems.length > 0 ? (
+                  <div className="space-y-3 bg-muted/20 p-3">
+                    {lineItems.map((item, index) => {
+                      const itemTotal = getDraftLineTotal(item);
 
-                        <div className="flex items-center justify-between gap-3 text-sm font-semibold min-[640px]:block min-[640px]:text-right">
-                          <span className="text-muted-foreground min-[640px]:hidden">
-                            จำนวน
-                          </span>
-                          <span className="text-card-foreground">
-                            {formatNumber(item.quantity)}
-                            {item.unit ? ` ${item.unit}` : ""}
-                          </span>
-                        </div>
+                      return (
+                        <div
+                          key={item.id || `${bill.id}-${index}`}
+                          className="overflow-hidden rounded-[8px] border bg-background shadow-sm"
+                        >
+                          <div className="flex flex-col gap-2 border-b bg-[#FCFCFC] px-4 py-3 dark:bg-muted/20 min-[680px]:flex-row min-[680px]:items-center min-[680px]:justify-between">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <Badge
+                                variant="outline"
+                                className="h-7 rounded-full bg-white px-2.5 text-xs font-bold shadow-none dark:bg-card"
+                              >
+                                รายการที่ {index + 1}
+                              </Badge>
+                              <span className="truncate text-sm font-bold text-card-foreground">
+                                {item.name || "ไม่ระบุสินค้า"}
+                              </span>
+                            </div>
+                            <div className="flex flex-col gap-2 min-[680px]:flex-row min-[680px]:items-center">
+                              <div className="flex items-center justify-between gap-3 rounded-[8px] border bg-white px-3 py-2 text-sm font-bold dark:bg-card min-[680px]:min-w-[170px]">
+                                <span className="text-xs text-muted-foreground">
+                                  ยอดรายการ
+                                </span>
+                                <span
+                                  className={cn(
+                                    outfit.className,
+                                    "text-primary",
+                                  )}
+                                >
+                                  {formatCurrency(itemTotal)}
+                                </span>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="h-9 border-red-100 px-3 font-bold text-main-red shadow-none hover:border-main-red/30 hover:bg-red-50 hover:!text-main-red disabled:text-muted-foreground"
+                                disabled={lineItems.length <= 1 || isSaving}
+                                onClick={() => removeLineItem(item.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                ลบ
+                              </Button>
+                            </div>
+                          </div>
 
-                        <div className="flex items-center justify-between gap-3 min-[640px]:block min-[640px]:text-right">
-                          <span className="text-sm font-semibold text-muted-foreground min-[640px]:hidden">
-                            รวม
-                          </span>
-                          <div>
-                            <p
-                              className={cn(
-                                outfit.className,
-                                "text-sm font-bold text-card-foreground",
-                              )}
-                            >
-                              {formatCurrency(item.total)}
-                            </p>
-                            {item.discount > 0 ? (
-                              <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
-                                ส่วนลด {formatCurrency(item.discount)}
-                              </p>
-                            ) : null}
+                          <div className="grid gap-4 p-4">
+                            <div className="grid gap-3 min-[760px]:grid-cols-[minmax(0,1.3fr)_minmax(150px,0.7fr)]">
+                              <div className="space-y-1.5">
+                                <label
+                                  htmlFor={`supplier-edit-name-${item.id}`}
+                                  className="block text-xs font-bold text-muted-foreground"
+                                >
+                                  รายการสินค้า
+                                </label>
+                                <Input
+                                  id={`supplier-edit-name-${item.id}`}
+                                  value={item.name}
+                                  onChange={(event) =>
+                                    updateLineItem(item.id, {
+                                      name: event.target.value,
+                                    })
+                                  }
+                                  className="h-10 rounded-[8px] font-semibold"
+                                />
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <label
+                                  htmlFor={`supplier-edit-barcode-${item.id}`}
+                                  className="block text-xs font-bold text-muted-foreground"
+                                >
+                                  บาร์โค้ด
+                                </label>
+                                <Input
+                                  id={`supplier-edit-barcode-${item.id}`}
+                                  value={item.barcode}
+                                  onChange={(event) =>
+                                    updateLineItem(item.id, {
+                                      barcode: event.target.value,
+                                    })
+                                  }
+                                  className="h-10 rounded-[8px] font-semibold"
+                                  placeholder="-"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid gap-3 min-[760px]:grid-cols-[minmax(80px,0.7fr)_minmax(100px,0.7fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(130px,1fr)]">
+                              <div className="space-y-1.5">
+                                <label
+                                  htmlFor={`supplier-edit-quantity-${item.id}`}
+                                  className="block text-xs font-bold text-muted-foreground"
+                                >
+                                  จำนวน
+                                </label>
+                                <Input
+                                  id={`supplier-edit-quantity-${item.id}`}
+                                  inputMode="decimal"
+                                  value={item.quantity}
+                                  onChange={(event) =>
+                                    updateLineItem(item.id, {
+                                      quantity: event.target.value,
+                                    })
+                                  }
+                                  className="h-10 rounded-[8px] text-right font-semibold"
+                                />
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <label
+                                  htmlFor={`supplier-edit-unit-${item.id}`}
+                                  className="block text-xs font-bold text-muted-foreground"
+                                >
+                                  หน่วย
+                                </label>
+                                <Input
+                                  id={`supplier-edit-unit-${item.id}`}
+                                  value={item.unit}
+                                  onChange={(event) =>
+                                    updateLineItem(item.id, {
+                                      unit: event.target.value,
+                                    })
+                                  }
+                                  className="h-10 rounded-[8px] font-semibold"
+                                  placeholder="-"
+                                />
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <label
+                                  htmlFor={`supplier-edit-unit-price-${item.id}`}
+                                  className="block text-xs font-bold text-muted-foreground"
+                                >
+                                  ราคา/หน่วย
+                                </label>
+                                <Input
+                                  id={`supplier-edit-unit-price-${item.id}`}
+                                  inputMode="decimal"
+                                  value={item.unitPrice}
+                                  onChange={(event) =>
+                                    updateLineItem(item.id, {
+                                      unitPrice: event.target.value,
+                                    })
+                                  }
+                                  className="h-10 rounded-[8px] text-right font-semibold"
+                                />
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <label
+                                  htmlFor={`supplier-edit-discount-${item.id}`}
+                                  className="block text-xs font-bold text-muted-foreground"
+                                >
+                                  ส่วนลด
+                                </label>
+                                <Input
+                                  id={`supplier-edit-discount-${item.id}`}
+                                  inputMode="decimal"
+                                  value={item.discount}
+                                  onChange={(event) =>
+                                    updateLineItem(item.id, {
+                                      discount: event.target.value,
+                                    })
+                                  }
+                                  className="h-10 rounded-[8px] text-right font-semibold"
+                                  placeholder="0.00"
+                                />
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <span className="block text-xs font-bold text-muted-foreground">
+                                  รวม
+                                </span>
+                                <Input
+                                  value={formatCurrency(itemTotal)}
+                                  readOnly
+                                  tabIndex={-1}
+                                  className={cn(
+                                    outfit.className,
+                                    "h-10 rounded-[8px] bg-muted/30 text-right font-bold text-primary shadow-none",
+                                  )}
+                                />
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="px-4 py-6 text-center text-sm font-semibold text-muted-foreground">
