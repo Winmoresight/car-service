@@ -9,6 +9,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { outfit } from "@/components/fonts/fonts";
+import { LogoutButton } from "@/components/layout/logout-button";
 import {
   mainNavigation,
   taxAndReportNavigation,
@@ -112,26 +113,9 @@ export function Sidebar() {
           ) : null}
         </nav>
 
-        {/* Footer / User Profile */}
-        {/*<div className="px-4 mt-auto">*/}
-        {/*  <Separator className="mb-6" />*/}
-        {/*  <div className="flex items-center gap-3 px-2 mb-2">*/}
-        {/*    <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center border border-border overflow-hidden">*/}
-        {/*      <UserCog className="h-6 w-6 text-muted-foreground" />*/}
-        {/*    </div>*/}
-        {/*    <div className="flex flex-col">*/}
-        {/*      <span className="text-sm font-bold text-primary leading-tight">*/}
-        {/*        Win moresight*/}
-        {/*      </span>*/}
-        {/*      <span className="text-xs text-muted-foreground font-medium">*/}
-        {/*        Administrator*/}
-        {/*      </span>*/}
-        {/*    </div>*/}
-        {/*  </div>*/}
-        {/*  <button className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-primary-foreground bg-primary rounded-xl hover:opacity-90 transition-opacity shadow-sm">*/}
-        {/*    ออกจากระบบ*/}
-        {/*  </button>*/}
-        {/*</div>*/}
+        <div className="mt-auto px-4 pt-6">
+          <LogoutButton className="w-full" />
+        </div>
       </div>
     </div>
   );

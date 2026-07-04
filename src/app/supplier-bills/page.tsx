@@ -176,7 +176,12 @@ function matchesSearch(bill: SupplierBill, searchTerm: string) {
     bill.status,
     bill.paymentLabel,
     bill.createdBy,
-  ].some((value) => value.toLowerCase().includes(normalizedSearch));
+    bill.note,
+  ].some((value) =>
+    String(value || "")
+      .toLowerCase()
+      .includes(normalizedSearch),
+  );
 }
 
 function parseMoneyInput(value: string) {
@@ -565,6 +570,7 @@ function SupplierBillEditDialog({
 }: SupplierBillEditDialogProps) {
   const [status, setStatus] = useState("");
   const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
   const [lineItems, setLineItems] = useState<SupplierBillDraftLine[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -577,6 +583,7 @@ function SupplierBillEditDialog({
 
     setStatus(normalizeDialogStatus(bill.status || bill.paymentLabel || ""));
     setAmount(String(getEditableBillAmount(bill)));
+    setNote(bill.note || "");
     setLineItems(bill.lineItems.map(createEditableLineFromBillItem));
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -585,6 +592,7 @@ function SupplierBillEditDialog({
   const resetDialog = () => {
     setStatus("");
     setAmount("");
+    setNote("");
     setLineItems([]);
     setIsSaving(false);
     setErrorMessage(null);
@@ -701,6 +709,7 @@ function SupplierBillEditDialog({
           documentNo: bill.documentNo,
           status,
           totalPrice: parsedAmount,
+          note,
           items: bill.lineItems.length > 0 ? updateItems : undefined,
         }),
       });
@@ -887,6 +896,22 @@ function SupplierBillEditDialog({
                     {bill.createdBy || "-"}
                   </p>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <label
+                  htmlFor="supplier-edit-note"
+                  className="block text-sm font-bold text-card-foreground"
+                >
+                  หมายเหตุ
+                </label>
+                <textarea
+                  id="supplier-edit-note"
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  className="min-h-24 w-full resize-y rounded-[8px] border bg-background px-3 py-2 text-sm font-semibold outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  placeholder="พิมพ์หมายเหตุของบิลนี้"
+                />
               </div>
 
               <div className="overflow-hidden rounded-[8px] border bg-white dark:bg-card">
@@ -1166,6 +1191,7 @@ function SupplierBillCreateDialog({
   );
   const [createdBy, setCreatedBy] = useState("");
   const [specialDiscount, setSpecialDiscount] = useState("");
+  const [note, setNote] = useState("");
   const [items, setItems] = useState<SupplierBillDraftLine[]>([
     createEmptyLine(),
   ]);
@@ -1299,6 +1325,7 @@ function SupplierBillCreateDialog({
     setStatus(defaultSupplierBillStatus);
     setCreatedBy("");
     setSpecialDiscount("");
+    setNote("");
     setItems([createEmptyLine()]);
     setIsBarcodeScannerOpen(false);
     setIsLookingUpBarcode(false);
@@ -1625,6 +1652,7 @@ function SupplierBillCreateDialog({
           status,
           createdBy: createdBy.trim(),
           specialDiscount: parseMoneyInput(specialDiscount) ?? 0,
+          note,
           items: payloadItems,
         }),
       });
@@ -1985,6 +2013,22 @@ function SupplierBillCreateDialog({
                       }
                       className="h-11 rounded-[8px] font-semibold"
                       placeholder="0.00"
+                    />
+                  </div>
+
+                  <div className="space-y-2 min-[560px]:col-span-2">
+                    <label
+                      htmlFor="supplier-bill-note"
+                      className="block text-sm font-bold text-card-foreground"
+                    >
+                      หมายเหตุ
+                    </label>
+                    <textarea
+                      id="supplier-bill-note"
+                      value={note}
+                      onChange={(event) => setNote(event.target.value)}
+                      className="min-h-24 w-full resize-y rounded-[8px] border bg-background px-3 py-2 text-sm font-semibold outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                      placeholder="พิมพ์หมายเหตุเล็ก ๆ น้อย ๆ ของบิลนี้"
                     />
                   </div>
                 </div>
@@ -2753,6 +2797,11 @@ export default function SupplierBillsPage() {
                             <span className="text-xs font-semibold text-muted-foreground">
                               {bill.supplierCode || "ไม่มีรหัสคู่ค้า"}
                             </span>
+                            {bill.note ? (
+                              <span className="max-w-[160px] truncate text-xs font-semibold text-main-orange min-[520px]:max-w-[260px] min-[1180px]:max-w-[420px]">
+                                หมายเหตุ: {bill.note}
+                              </span>
+                            ) : null}
                           </div>
                         </TableCell>
 

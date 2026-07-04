@@ -9,6 +9,7 @@ import { Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { LogoutButton } from "@/components/layout/logout-button";
 import {
   mainNavigation,
   mobilePrimaryNavigation,
@@ -152,6 +153,10 @@ export function MobileNav() {
                   </div>
                 </section>
               ))}
+          </div>
+
+          <div className="mt-5 border-t pt-4">
+            <LogoutButton className="w-full" />
           </div>
         </div>
       ) : null}

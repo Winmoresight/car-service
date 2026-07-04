@@ -190,6 +190,7 @@ export interface SupplierBill {
   status: string;
   checkIn: string;
   createdBy: string;
+  note?: string;
   itemCount: number;
   detailTotal: number;
   lineItems: SupplierBillLineItem[];

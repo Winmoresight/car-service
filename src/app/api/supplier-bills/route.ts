@@ -30,6 +30,8 @@ const detailTableCandidates = [
   "DetailPrintOderBuyProduct",
 ] as const;
 
+const supplierBillNoteColumnCandidates = ["Note", "Remark"] as const;
+
 const editableSupplierStatuses = new Set(["ชำระเงินแล้ว", "ค้างชำระ"]);
 
 interface SupplierBillRow {
@@ -44,6 +46,7 @@ interface SupplierBillRow {
   status: string | null;
   createdBy: string | null;
   checkIn: string | null;
+  note: string | null;
 }
 
 interface SupplierBillDetailSummaryRow {
@@ -69,6 +72,7 @@ interface SupplierBillUpdatePayload {
   documentNo?: unknown;
   status?: unknown;
   totalPrice?: unknown;
+  note?: unknown;
   items?: unknown;
 }
 
@@ -109,6 +113,7 @@ interface SupplierBillCreatePayload {
   status?: unknown;
   createdBy?: unknown;
   specialDiscount?: unknown;
+  note?: unknown;
   items?: unknown;
 }
 
@@ -139,6 +144,10 @@ const zeroSummary: SupplierBillsSummary = {
 
 function quoteIdentifier(identifier: string) {
   return `[${identifier.replaceAll("]", "]]")}]`;
+}
+
+function quoteStringLiteral(value: string) {
+  return `N'${value.replaceAll("'", "''")}'`;
 }
 
 function normalizeText(value: unknown) {
@@ -245,6 +254,44 @@ function parseLegacyNumber(value: unknown) {
 
 function truncateText(value: string, maxLength: number) {
   return value.length > maxLength ? value.slice(0, maxLength) : value;
+}
+
+function normalizeNote(value: unknown) {
+  return truncateText(normalizeText(value), 4000);
+}
+
+function getSupplierBillNoteColumn(columns: Set<string>) {
+  return (
+    supplierBillNoteColumnCandidates.find((columnName) =>
+      columns.has(columnName),
+    ) ?? null
+  );
+}
+
+async function ensureSupplierBillNoteColumn(tableName: string) {
+  const columns = await getTableColumns(tableName);
+  const existingColumn = getSupplierBillNoteColumn(columns);
+
+  if (existingColumn) {
+    return existingColumn;
+  }
+
+  const tableLiteral = quoteStringLiteral(`dbo.${tableName}`);
+
+  await executeQuery(
+    `
+      IF COL_LENGTH(${tableLiteral}, N'Note') IS NULL
+         AND COL_LENGTH(${tableLiteral}, N'Remark') IS NULL
+      BEGIN
+        ALTER TABLE dbo.${quoteIdentifier(tableName)}
+        ADD Note nvarchar(max) NULL
+      END
+    `,
+    undefined,
+    false,
+  );
+
+  return "Note";
 }
 
 function getDetailIdentityKeys(rowNo: unknown, orderNo: unknown) {
@@ -1026,6 +1073,10 @@ async function createSupplierBill(params: {
   createdBy: string;
 }) {
   const { payload, items, totals, billDate, status, createdBy } = params;
+  const noteColumn = await ensureSupplierBillNoteColumn(
+    "MasterPrintOderBuyProduct",
+  );
+  const note = normalizeNote(payload.note);
   const pool = await getPool();
   const transaction = new sql.Transaction(pool);
 
@@ -1047,6 +1098,7 @@ async function createSupplierBill(params: {
     masterRequest.input("status", sql.NVarChar(30), status);
     masterRequest.input("createdBy", sql.NVarChar(250), createdBy);
     masterRequest.input("checkIn", sql.NVarChar(1), "Y");
+    masterRequest.input("note", sql.NVarChar(sql.MAX), note);
 
     await masterRequest.query(`
       INSERT INTO dbo.MasterPrintOderBuyProduct (
@@ -1060,7 +1112,8 @@ async function createSupplierBill(params: {
         TotalPrice,
         Status,
         NameUser,
-        CheckIn
+        CheckIn,
+        ${quoteIdentifier(noteColumn)}
       )
       VALUES (
         @datePost,
@@ -1073,7 +1126,8 @@ async function createSupplierBill(params: {
         @totalPrice,
         @status,
         @createdBy,
-        @checkIn
+        @checkIn,
+        @note
       )
     `);
 
@@ -1192,6 +1246,7 @@ async function createSupplierBill(params: {
       supplierName: supplier.name,
       supplierCreated: supplier.created,
       totalPrice: totals.totalPrice,
+      note,
       itemCount: items.length,
       stockReceivedItemCount,
       stockReceivedQuantity,
@@ -1228,6 +1283,15 @@ export async function GET(request: NextRequest) {
         };
       }
 
+      const sourceColumns = await getTableColumns(sourceTable);
+      const noteColumn = getSupplierBillNoteColumn(sourceColumns);
+      const noteSelect = noteColumn
+        ? `ISNULL(${quoteIdentifier(noteColumn)}, '') as note`
+        : "N'' as note";
+      const noteSearchClause = noteColumn
+        ? `OR ${quoteIdentifier(noteColumn)} LIKE N'%' + @q + N'%'`
+        : "";
+
       const rows = await executeQuery<SupplierBillRow>(
         `
           SELECT TOP (@limit)
@@ -1241,7 +1305,8 @@ export async function GET(request: NextRequest) {
             ISNULL(TotalPrice, 0) as totalPrice,
             ISNULL(Status, '') as status,
             ISNULL(NameUser, '') as createdBy,
-            ISNULL(CheckIn, '') as checkIn
+            ISNULL(CheckIn, '') as checkIn,
+            ${noteSelect}
           FROM dbo.${quoteIdentifier(sourceTable)}
           WHERE
             @q = N''
@@ -1249,6 +1314,7 @@ export async function GET(request: NextRequest) {
             OR CodeCompany LIKE N'%' + @q + N'%'
             OR NameCompany LIKE N'%' + @q + N'%'
             OR Status LIKE N'%' + @q + N'%'
+            ${noteSearchClause}
           ORDER BY DatePost DESC, NumberPrintPost DESC
         `,
         { limit, q },
@@ -1279,6 +1345,7 @@ export async function GET(request: NextRequest) {
           status,
           checkIn,
           createdBy: normalizeText(row.createdBy),
+          note: normalizeText(row.note),
           itemCount: detail?.itemCount ?? 0,
           detailTotal: detail?.detailTotal ?? 0,
           lineItems: detail?.lineItems ?? [],
@@ -1361,6 +1428,8 @@ export async function PATCH(request: NextRequest) {
       );
       const totalPrice = normalizeEditableMoney(body.totalPrice);
       const updateItems = normalizeUpdateItems(body.items);
+      const note = normalizeNote(body.note);
+      const shouldUpdateNote = body.note !== undefined;
 
       if (!documentNo) {
         return errorResponse("กรุณาระบุเลขเอกสารคู่ค้า", 400);
@@ -1392,8 +1461,14 @@ export async function PATCH(request: NextRequest) {
       }
 
       const columns = await getTableColumns(sourceTable);
+      const noteColumn = shouldUpdateNote
+        ? await ensureSupplierBillNoteColumn(sourceTable)
+        : null;
       const resultUpdate = columns.has("Result")
         ? ", Result = @totalPrice"
+        : "";
+      const noteUpdate = noteColumn
+        ? `, ${quoteIdentifier(noteColumn)} = @note`
         : "";
       const productDiscountUpdate =
         updateItems !== null && columns.has("Reduceproduct")
@@ -1412,6 +1487,7 @@ export async function PATCH(request: NextRequest) {
         masterRequest.input("status", sql.NVarChar(30), status);
         masterRequest.input("totalPrice", sql.Money, totalPrice);
         masterRequest.input("productDiscount", sql.Money, productDiscount);
+        masterRequest.input("note", sql.NVarChar(sql.MAX), note);
 
         const masterRows = await masterRequest.query<{ documentNo: string }>(`
             UPDATE dbo.${quoteIdentifier(sourceTable)}
@@ -1419,6 +1495,7 @@ export async function PATCH(request: NextRequest) {
               Status = @status,
               TotalPrice = @totalPrice
               ${resultUpdate}
+              ${noteUpdate}
               ${productDiscountUpdate}
             OUTPUT INSERTED.NumberPrintPost as documentNo
             WHERE NumberPrintPost = @documentNo
@@ -1566,6 +1643,7 @@ export async function PATCH(request: NextRequest) {
           documentNo: updatedDocumentNo,
           status,
           totalPrice,
+          note,
           itemCount: updateItems?.length,
           removedItemCount,
         });
