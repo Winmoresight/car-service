@@ -36,9 +36,9 @@ interface OptionalDailyMoneySummary {
   transfer: number;
 }
 
-interface StockInSummary {
-  stock_in_count: number;
-  stock_in_quantity: number;
+interface SupplierBillSummary extends OptionalDailyMoneySummary {
+  item_count: number;
+  quantity: number;
 }
 
 interface DailySaleMoneyRow {
@@ -78,14 +78,28 @@ const zeroOptionalDailyMoney: OptionalDailyMoneySummary = {
   transfer: 0,
 };
 
-const zeroStockIn: StockInSummary = {
-  stock_in_count: 0,
-  stock_in_quantity: 0,
-};
-
 const zeroMoneyBreakdown: DashboardMoneyBreakdown = {
   cash: [],
   transfer: [],
+};
+
+const supplierBillMasterTableCandidates = [
+  "MasterPrintOrderBuyProduct",
+  "MasterPrintOderBuyProduct",
+] as const;
+
+const supplierBillDetailTableCandidates = [
+  "DetailPrintOrderBuyProduct",
+  "DetailPrintOderBuyProduct",
+] as const;
+
+const zeroSupplierBill: SupplierBillSummary = {
+  count: 0,
+  total: 0,
+  cash: 0,
+  transfer: 0,
+  item_count: 0,
+  quantity: 0,
 };
 
 function quoteIdentifier(identifier: string) {
@@ -170,6 +184,30 @@ async function getTableColumns(tableName: string) {
   );
 
   return new Set(rows.map((row) => row.COLUMN_NAME));
+}
+
+async function resolveTable(candidates: readonly string[]) {
+  const rows = await executeQuery<{ tableName: string }>(
+    `
+      SELECT TABLE_NAME as tableName
+      FROM INFORMATION_SCHEMA.TABLES
+      WHERE TABLE_SCHEMA = 'dbo'
+        AND (TABLE_NAME = @firstTable OR TABLE_NAME = @secondTable)
+      ORDER BY
+        CASE
+          WHEN TABLE_NAME = @firstTable THEN 0
+          WHEN TABLE_NAME = @secondTable THEN 1
+          ELSE 2
+        END
+    `,
+    {
+      firstTable: candidates[0],
+      secondTable: candidates[1],
+    },
+    false,
+  );
+
+  return rows[0]?.tableName ?? null;
 }
 
 async function getOtherPaymentSummary(
@@ -307,74 +345,104 @@ async function getReceivableSummary(
   }
 }
 
-async function getOptionalDailyMoneySummary({
-  tableName,
+async function getSupplierBillSummary({
   dateCondition,
   params,
-  dateCandidates,
-  totalCandidates,
-  cashCandidates,
-  transferCandidates,
 }: {
-  tableName: string | string[];
   dateCondition: string;
   params?: Record<string, unknown>;
-  dateCandidates: string[];
-  totalCandidates: string[];
-  cashCandidates: string[];
-  transferCandidates: string[];
-}): Promise<OptionalDailyMoneySummary> {
-  const tableNames = Array.isArray(tableName) ? tableName : [tableName];
-
+}): Promise<SupplierBillSummary> {
   try {
-    let selectedTableName = "";
-    let columns = new Set<string>();
+    const sourceTable = await resolveTable(supplierBillMasterTableCandidates);
 
-    for (const candidateTableName of tableNames) {
-      columns = await getTableColumns(candidateTableName);
-
-      if (columns.size > 0) {
-        selectedTableName = candidateTableName;
-        break;
-      }
+    if (!sourceTable) {
+      return zeroSupplierBill;
     }
 
-    if (!selectedTableName) {
-      return zeroOptionalDailyMoney;
-    }
-
-    const dateColumn = getColumn(columns, dateCandidates);
+    const columns = await getTableColumns(sourceTable);
+    const dateColumn = getColumn(columns, ["DatePost"]);
 
     if (!dateColumn) {
-      return zeroOptionalDailyMoney;
+      return zeroSupplierBill;
     }
 
-    const cashExpression = getMoneyExpression(columns, cashCandidates);
-    const transferExpression = getMoneyExpression(columns, transferCandidates);
     const totalExpression = getMoneyExpression(
       columns,
-      totalCandidates,
-      `(${cashExpression} + ${transferExpression})`,
+      ["TotalPrice", "Result"],
+      "0",
+    );
+    const displayDateExpression = `DATEADD(hour, 7, ${quoteIdentifier(dateColumn)})`;
+    const detailTable = await resolveTable(supplierBillDetailTableCandidates);
+    const detailColumns = detailTable
+      ? await getTableColumns(detailTable)
+      : new Set<string>();
+    const detailNumberColumn = getColumn(detailColumns, ["NumberPrintPost"]);
+    const quantityExpression = getMoneyExpression(
+      detailColumns,
+      ["NumProduct"],
+      "0",
     );
 
-    const [summary] = await executeQuery<OptionalDailyMoneySummary>(
+    if (!detailTable || !detailNumberColumn) {
+      const [summary] = await executeQuery<SupplierBillSummary>(
+        `
+          SELECT
+            COUNT(*) as count,
+            ISNULL(SUM(${totalExpression}), 0) as total,
+            0 as cash,
+            0 as transfer,
+            0 as item_count,
+            0 as quantity
+          FROM dbo.${quoteIdentifier(sourceTable)}
+          WHERE CONVERT(date, ${displayDateExpression}) = ${dateCondition}
+        `,
+        params,
+        false,
+      );
+
+      return summary ?? zeroSupplierBill;
+    }
+
+    const [summary] = await executeQuery<SupplierBillSummary>(
       `
+        WITH selected_bills AS (
+          SELECT
+            ${quoteIdentifier("NumberPrintPost")} as document_no,
+            ${totalExpression} as total
+          FROM dbo.${quoteIdentifier(sourceTable)}
+          WHERE CONVERT(date, ${displayDateExpression}) = ${dateCondition}
+        ),
+        detail_summary AS (
+          SELECT
+            ${quoteIdentifier(detailNumberColumn)} as document_no,
+            COUNT(*) as item_count,
+            ISNULL(SUM(${quantityExpression}), 0) as quantity
+          FROM dbo.${quoteIdentifier(detailTable)}
+          WHERE ${quoteIdentifier(detailNumberColumn)} IN (
+            SELECT document_no
+            FROM selected_bills
+          )
+          GROUP BY ${quoteIdentifier(detailNumberColumn)}
+        )
         SELECT
           COUNT(*) as count,
-          ISNULL(SUM(${totalExpression}), 0) as total,
-          ISNULL(SUM(${cashExpression}), 0) as cash,
-          ISNULL(SUM(${transferExpression}), 0) as transfer
-        FROM dbo.${quoteIdentifier(selectedTableName)}
-        WHERE CONVERT(date, ${quoteIdentifier(dateColumn)}) = ${dateCondition}
+          ISNULL(SUM(selected_bills.total), 0) as total,
+          0 as cash,
+          0 as transfer,
+          ISNULL(SUM(detail_summary.item_count), 0) as item_count,
+          ISNULL(SUM(detail_summary.quantity), 0) as quantity
+        FROM selected_bills
+        LEFT JOIN detail_summary
+          ON detail_summary.document_no = selected_bills.document_no
       `,
       params,
       false,
     );
 
-    return summary ?? zeroOptionalDailyMoney;
+    return summary ?? zeroSupplierBill;
   } catch (error) {
-    console.warn(`Optional ${tableNames.join(", ")} summary failed:`, error);
-    return zeroOptionalDailyMoney;
+    console.warn("Optional supplier bill summary failed:", error);
+    return zeroSupplierBill;
   }
 }
 
@@ -516,32 +584,6 @@ async function getMoneyBreakdown(
   }
 }
 
-async function getStockInSummary(
-  dateCondition: string,
-  params?: Record<string, unknown>,
-): Promise<StockInSummary> {
-  try {
-    const debitExpression = getSafeMoneyExpression("Debit");
-    const [summary] = await executeQuery<StockInSummary>(
-      `
-        SELECT
-          COUNT(*) as stock_in_count,
-          ISNULL(SUM(${debitExpression}), 0) as stock_in_quantity
-        FROM dbo.INOUTStockProduct
-        WHERE CONVERT(date, DateSave) = ${dateCondition}
-          AND ${debitExpression} > 0
-      `,
-      params,
-      false,
-    );
-
-    return summary ?? zeroStockIn;
-  } catch (error) {
-    console.warn("Optional stock in summary failed:", error);
-    return zeroStockIn;
-  }
-}
-
 export async function GET(request: NextRequest) {
   try {
     // อ่าน query parameter สำหรับวันที่
@@ -600,44 +642,15 @@ export async function GET(request: NextRequest) {
         receivable,
         receivableCollected,
         supplierBills,
-        stockIn,
         moneyBreakdown,
       ] = await Promise.all([
         getOtherPaymentSummary(dateExpression, dateParams),
         getReceivableSummary(dateExpression, dateParams),
         getReceivablePaymentSummary(dateExpression, dateParams),
-        getOptionalDailyMoneySummary({
-          tableName: [
-            "MasterPrintOrderBuyProduct",
-            "MasterPrintOderBuyProduct",
-          ],
+        getSupplierBillSummary({
           dateCondition: dateExpression,
           params: dateParams,
-          dateCandidates: [
-            "DatePost",
-            "DatePrint",
-            "DateOrder",
-            "DateOder",
-            "DateSave",
-          ],
-          totalCandidates: [
-            "TotalPrice",
-            "TotalPayment",
-            "TotalMoney",
-            "SubTotal",
-            "SumPrice",
-            "Amount",
-            "Price",
-          ],
-          cashCandidates: ["Cash", "MoneyCash", "PayCash", "TotalCash"],
-          transferCandidates: [
-            "Transfer",
-            "MoneyTransfer",
-            "PayTransfer",
-            "TotalTransfer",
-          ],
         }),
-        getStockInSummary(dateExpression, dateParams),
         getMoneyBreakdown(dateExpression, dateParams),
       ]);
 
@@ -676,8 +689,8 @@ export async function GET(request: NextRequest) {
         transferBreakdownItems: moneyBreakdown.transfer,
         supplierBillTotal: supplierBills.total,
         supplierBillCount: supplierBills.count,
-        stockInCount: stockIn.stock_in_count,
-        stockInQuantity: stockIn.stock_in_quantity,
+        stockInCount: supplierBills.item_count,
+        stockInQuantity: supplierBills.quantity,
         monthSales: monthResult.total_sales,
         monthProfit: monthResult.total_profit,
         monthBills: monthResult.bill_count,
