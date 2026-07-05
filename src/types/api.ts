@@ -242,6 +242,7 @@ export interface SupplierCatalogOption {
 }
 
 export interface SupplierCatalogProduct {
+  productCode?: string;
   barcode: string;
   name: string;
   unit: string;
@@ -281,6 +282,16 @@ export interface StockProductCreateResult {
   stock: number;
   costPrice: number;
   retailPrice: number;
+}
+
+export interface ProductBarcodeLinkResult {
+  productCode: string;
+  productName: string;
+  oldBarcode: string;
+  newBarcode: string;
+  canonicalBarcode: string;
+  updated: boolean;
+  aliases: string[];
 }
 
 export interface BarcodeScanMovement {

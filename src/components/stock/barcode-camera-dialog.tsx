@@ -22,6 +22,8 @@ interface BarcodeCameraDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onDetected: (barcode: string) => void;
+  title?: string;
+  description?: string;
 }
 
 function normalizeBarcode(value: string) {
@@ -46,6 +48,8 @@ export function BarcodeCameraDialog({
   open,
   onOpenChange,
   onDetected,
+  title = "สแกนบาร์โค้ดสินค้า",
+  description = "ระบบจะนำบาร์โค้ดที่อ่านได้ไปใส่ในฟอร์มเพิ่มสินค้า",
 }: BarcodeCameraDialogProps) {
   const [status, setStatus] = useState<
     "idle" | "opening" | "scanning" | "error"
@@ -219,11 +223,9 @@ export function BarcodeCameraDialog({
               <Camera className="h-5 w-5" />
             </div>
             <div>
-              <DialogTitle className="text-xl font-bold">
-                สแกนบาร์โค้ดสินค้า
-              </DialogTitle>
+              <DialogTitle className="text-xl font-bold">{title}</DialogTitle>
               <DialogDescription className="mt-1">
-                ระบบจะนำบาร์โค้ดที่อ่านได้ไปใส่ในฟอร์มเพิ่มสินค้า
+                {description}
               </DialogDescription>
             </div>
           </div>

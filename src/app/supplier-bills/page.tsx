@@ -6,6 +6,7 @@
 
 import {
   AlertCircle,
+  Barcode,
   Building2,
   Camera,
   CheckCircle2,
@@ -66,9 +67,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type {
   ApiResponse,
+  ProductBarcodeLinkResult,
   StockCatalogOption,
   StockProductCatalogPayload,
   StockProductCreateResult,
@@ -350,6 +357,7 @@ interface SupplierBillDraftLine {
   id: string;
   rowNo: string;
   orderNo: string;
+  productCode: string;
   barcode: string;
   name: string;
   quantity: string;
@@ -418,6 +426,7 @@ function createEmptyLine(): SupplierBillDraftLine {
     id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     rowNo: "",
     orderNo: "",
+    productCode: "",
     barcode: "",
     name: "",
     quantity: "1",
@@ -542,6 +551,7 @@ function getLineProductUpdates(
   product: SupplierCatalogProduct,
 ) {
   return {
+    productCode: product.productCode || line.productCode,
     barcode: product.barcode,
     name: product.name,
     unit: product.unit || line.unit,
@@ -573,6 +583,7 @@ function createEditableLineFromBillItem(
     id: item.id || `supplier-edit-line-${index}`,
     rowNo: item.rowNo ?? "",
     orderNo: item.orderNo ?? "",
+    productCode: "",
     barcode: item.barcode,
     name: item.name,
     quantity: getMoneyInputValue(item.quantity) || "1",
@@ -671,13 +682,41 @@ async function fetchSupplierProductByBarcode(barcode: string) {
     throw new Error(getResponseErrorMessage(result) || "ค้นหาสินค้าไม่สำเร็จ");
   }
 
-  return (
+  const catalogProduct =
     result.data.products.find(
       (product) =>
         normalizeBarcodeValue(product.barcode).toLowerCase() ===
         normalizedBarcode.toLowerCase(),
-    ) ?? null
-  );
+    ) ?? null;
+
+  if (catalogProduct) {
+    return catalogProduct;
+  }
+
+  const lookupParams = new URLSearchParams({ barcode: normalizedBarcode });
+  const lookupResponse = await fetch(`/api/products/lookup?${lookupParams}`);
+  const lookupResult = (await lookupResponse.json()) as ApiResponse<{
+    barcode: string;
+    productCode: string;
+    name: string;
+    unit: string;
+    costPrice: number;
+    retailPrice: number;
+  }>;
+
+  if (!lookupResponse.ok || !lookupResult.success) {
+    return null;
+  }
+
+  return {
+    productCode: lookupResult.data.productCode,
+    barcode: lookupResult.data.barcode,
+    name: lookupResult.data.name,
+    unit: lookupResult.data.unit,
+    unitPrice: lookupResult.data.costPrice,
+    cost: lookupResult.data.costPrice,
+    caseProduct: 25,
+  } satisfies SupplierCatalogProduct;
 }
 
 function filterStockCatalogOptions(
@@ -1438,6 +1477,9 @@ function SupplierBillCreateDialog({
     createEmptyLine(),
   ]);
   const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
+  const [barcodeReplacementLineId, setBarcodeReplacementLineId] = useState<
+    string | null
+  >(null);
   const [isLookingUpBarcode, setIsLookingUpBarcode] = useState(false);
   const [newProductBarcode, setNewProductBarcode] = useState<string | null>(
     null,
@@ -1495,6 +1537,9 @@ function SupplierBillCreateDialog({
   const selectedProductCategory = productCatalog?.categories.find(
     (category) => String(category.id) === productDraft.categoryId,
   );
+  const barcodeReplacementLine = barcodeReplacementLineId
+    ? items.find((item) => item.id === barcodeReplacementLineId)
+    : null;
   const totals = getDraftTotals(items, specialDiscount);
   const vatBreakdown = calculateSupplierBillVat(totals.totalPrice, vatMode);
   const fetchSupplierOptions = useCallback(
@@ -1557,6 +1602,7 @@ function SupplierBillCreateDialog({
   useEffect(() => {
     if (!open) {
       setIsBarcodeScannerOpen(false);
+      setBarcodeReplacementLineId(null);
       setIsLookingUpBarcode(false);
       return;
     }
@@ -1572,6 +1618,7 @@ function SupplierBillCreateDialog({
     setNote("");
     setItems([createEmptyLine()]);
     setIsBarcodeScannerOpen(false);
+    setBarcodeReplacementLineId(null);
     setIsLookingUpBarcode(false);
     setNewProductBarcode(null);
     setProductDraft(createEmptyProductDraft());
@@ -1633,6 +1680,27 @@ function SupplierBillCreateDialog({
     setProductDraft((current) => ({ ...current, ...updates }));
   };
 
+  const handleBarcodeScannerOpenChange = (nextOpen: boolean) => {
+    setIsBarcodeScannerOpen(nextOpen);
+
+    if (!nextOpen) {
+      setBarcodeReplacementLineId(null);
+    }
+  };
+
+  const openAddProductScanner = () => {
+    setBarcodeReplacementLineId(null);
+    setIsBarcodeScannerOpen(true);
+  };
+
+  const openBarcodeReplacementScanner = (lineId: string) => {
+    setNewProductBarcode(null);
+    setCreateProductError(null);
+    setScanFeedback(null);
+    setBarcodeReplacementLineId(lineId);
+    setIsBarcodeScannerOpen(true);
+  };
+
   const applyScannedProductToItems = (product: SupplierCatalogProduct) => {
     const normalizedProductBarcode = normalizeBarcodeValue(
       product.barcode,
@@ -1672,6 +1740,87 @@ function SupplierBillCreateDialog({
     });
   };
 
+  const handleBarcodeReplacementDetected = async (barcode: string) => {
+    const targetLine = barcodeReplacementLineId
+      ? items.find((item) => item.id === barcodeReplacementLineId)
+      : null;
+
+    if (!targetLine) {
+      setScanFeedback({
+        type: "error",
+        message: "ไม่พบรายการสินค้าที่ต้องการเปลี่ยนรหัส",
+      });
+      return;
+    }
+
+    if (!targetLine.productCode && !targetLine.barcode) {
+      setScanFeedback({
+        type: "warning",
+        message: "เลือกสินค้าเดิมในแถวนี้ก่อน แล้วค่อยสแกนรหัสจริง",
+      });
+      return;
+    }
+
+    if (
+      targetLine.barcode &&
+      normalizeBarcodeValue(targetLine.barcode).toLowerCase() ===
+        barcode.toLowerCase()
+    ) {
+      setScanFeedback({
+        type: "warning",
+        message: "รหัสที่สแกนตรงกับรหัสของรายการนี้อยู่แล้ว",
+      });
+      return;
+    }
+
+    try {
+      setIsLookingUpBarcode(true);
+      setCreateProductError(null);
+      setScanFeedback(null);
+      setNewProductBarcode(null);
+
+      const response = await fetch("/api/products/barcodes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          productCode: targetLine.productCode,
+          oldBarcode: targetLine.barcode,
+          newBarcode: barcode,
+          source: "supplier-bill",
+        }),
+      });
+      const result =
+        (await response.json()) as ApiResponse<ProductBarcodeLinkResult>;
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          getResponseErrorMessage(result) || "เปลี่ยนบาร์โค้ดสินค้าไม่สำเร็จ",
+        );
+      }
+
+      updateLine(targetLine.id, {
+        productCode: result.data.productCode,
+        barcode: result.data.newBarcode,
+        name: targetLine.name || result.data.productName,
+      });
+      await mutateCatalog().catch(() => undefined);
+      setScanFeedback({
+        type: "success",
+        message: `อัปเดตรหัสของ ${targetLine.name || result.data.productName} เป็น ${result.data.newBarcode} แล้ว รหัสเดิมยังสแกนย้อนหลังได้`,
+      });
+    } catch (error) {
+      setScanFeedback({
+        type: "error",
+        message:
+          error instanceof Error ? error.message : "เปลี่ยนบาร์โค้ดสินค้าไม่สำเร็จ",
+      });
+    } finally {
+      setIsLookingUpBarcode(false);
+    }
+  };
+
   const handleBarcodeDetected = async (rawBarcode: string) => {
     const barcode = normalizeBarcodeValue(rawBarcode);
 
@@ -1680,6 +1829,11 @@ function SupplierBillCreateDialog({
         type: "error",
         message: "กรุณาระบุบาร์โค้ด",
       });
+      return;
+    }
+
+    if (barcodeReplacementLineId) {
+      await handleBarcodeReplacementDetected(barcode);
       return;
     }
 
@@ -1753,6 +1907,7 @@ function SupplierBillCreateDialog({
 
       const createdProduct = result.data;
       const productForBill: SupplierCatalogProduct = {
+        productCode: createdProduct.productCode,
         barcode: createdProduct.barcode,
         name: createdProduct.name,
         unit: createdProduct.unit,
@@ -2368,7 +2523,7 @@ function SupplierBillCreateDialog({
                     variant="outline"
                     className="h-10 font-bold text-primary hover:text-primary"
                     disabled={isLookingUpBarcode}
-                    onClick={() => setIsBarcodeScannerOpen(true)}
+                    onClick={openAddProductScanner}
                   >
                     {isLookingUpBarcode ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -2647,26 +2802,52 @@ function SupplierBillCreateDialog({
                         <span className="block text-xs font-bold text-muted-foreground">
                           สินค้าเดิม
                         </span>
-                        <AsyncSearchableSelect<SupplierCatalogProduct>
-                          selectedLabel={item.barcode || item.name}
-                          placeholder="ค้นหาเดิม"
-                          searchPlaceholder="ค้นหาสินค้าหรือบาร์โค้ด..."
-                          emptyMessage="ไม่พบสินค้าเดิม"
-                          fetchOptions={fetchSupplierProductOptions}
-                          getOptionKey={(product) => product.barcode}
-                          getOptionLabel={(product) => product.name}
-                          getOptionDescription={(product) =>
-                            [product.barcode, product.unit]
-                              .filter(Boolean)
-                              .join(" · ")
-                          }
-                          isOptionSelected={(product) =>
-                            !!item.barcode && product.barcode === item.barcode
-                          }
-                          onSelect={(product) =>
-                            applyProductToLine(item, product)
-                          }
-                        />
+                        <div className="flex items-center gap-2">
+                          <div className="min-w-0 flex-1">
+                            <AsyncSearchableSelect<SupplierCatalogProduct>
+                              selectedLabel={item.barcode || item.name}
+                              placeholder="ค้นหาเดิม"
+                              searchPlaceholder="ค้นหาสินค้าหรือบาร์โค้ด..."
+                              emptyMessage="ไม่พบสินค้าเดิม"
+                              fetchOptions={fetchSupplierProductOptions}
+                              getOptionKey={(product) => product.barcode}
+                              getOptionLabel={(product) => product.name}
+                              getOptionDescription={(product) =>
+                                [product.barcode, product.unit]
+                                  .filter(Boolean)
+                                  .join(" · ")
+                              }
+                              isOptionSelected={(product) =>
+                                !!item.barcode &&
+                                product.barcode === item.barcode
+                              }
+                              onSelect={(product) =>
+                                applyProductToLine(item, product)
+                              }
+                            />
+                          </div>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-11 w-11 shrink-0 rounded-[8px] text-main-blue shadow-none hover:text-main-blue"
+                                disabled={
+                                  isLookingUpBarcode ||
+                                  (!item.productCode && !item.barcode)
+                                }
+                                onClick={() =>
+                                  openBarcodeReplacementScanner(item.id)
+                                }
+                              >
+                                <Barcode className="h-4 w-4" />
+                                <span className="sr-only">สแกนรหัสจริง</span>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>สแกนรหัสจริงของสินค้า</TooltipContent>
+                          </Tooltip>
+                        </div>
                       </div>
 
                       <div className="min-w-0 space-y-2">
@@ -2839,8 +3020,16 @@ function SupplierBillCreateDialog({
       </LargeDialogContent>
       <BarcodeCameraDialog
         open={isBarcodeScannerOpen}
-        onOpenChange={setIsBarcodeScannerOpen}
+        onOpenChange={handleBarcodeScannerOpenChange}
         onDetected={handleBarcodeDetected}
+        title={
+          barcodeReplacementLine ? "สแกนบาร์โค้ดจริงของสินค้า" : "สแกนบาร์โค้ดสินค้า"
+        }
+        description={
+          barcodeReplacementLine
+            ? `ระบบจะเปลี่ยนรหัสของ ${barcodeReplacementLine.name || barcodeReplacementLine.barcode} และเก็บรหัสเดิมไว้ให้สแกนย้อนหลัง`
+            : "ระบบจะค้นหาสินค้าจากบาร์โค้ดแล้วเติมเข้าบิลคู่ค้า"
+        }
       />
     </LargeDialog>
   );

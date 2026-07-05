@@ -112,6 +112,7 @@ export async function GET(request: NextRequest) {
             false,
           ),
           executeQuery<{
+            productCode: string | null;
             barcode: string | null;
             name: string | null;
             unit: string | null;
@@ -121,6 +122,7 @@ export async function GET(request: NextRequest) {
           }>(
             `
             SELECT TOP (@productLimit)
+              ISNULL(m.CodeProduct, '') as productCode,
               ISNULL(d.BarCode, '') as barcode,
               ISNULL(m.NameProduct, '') as name,
               ISNULL(d.MeterProduct, '') as unit,
@@ -166,6 +168,7 @@ export async function GET(request: NextRequest) {
           ),
           products: products
             .map<SupplierCatalogProduct>((product) => ({
+              productCode: normalizeText(product.productCode),
               barcode: normalizeText(product.barcode),
               name: normalizeText(product.name),
               unit: normalizeText(product.unit),

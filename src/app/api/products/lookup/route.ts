@@ -3,11 +3,14 @@ import { executeQuery } from "@/lib/db";
 import type { ApiResponse, BarcodeScanResult } from "@/types/api";
 
 type LookupQueryStage =
+  | "barcode_aliases"
   | "stock_timeline"
   | "sales_summary"
   | "master_match"
   | "sales_fallback"
   | "movement_history";
+
+const productBarcodeAliasTableName = "WebProductBarcodeAliases";
 
 interface LookupErrorDetails {
   stage: LookupQueryStage | "validation" | "demo" | "unknown";
@@ -68,6 +71,105 @@ async function runLookupQuery<T>(
 
 function normalizeBarcode(value: string | null) {
   return (value || "").trim().replace(/\s+/g, "");
+}
+
+function quoteIdentifier(identifier: string) {
+  return `[${identifier.replaceAll("]", "]]")}]`;
+}
+
+function uniqueBarcodes(values: string[]) {
+  const seenBarcodes = new Set<string>();
+  const barcodes: string[] = [];
+
+  for (const value of values) {
+    const barcode = normalizeBarcode(value);
+    const barcodeKey = barcode.toLowerCase();
+
+    if (!barcode || seenBarcodes.has(barcodeKey)) {
+      continue;
+    }
+
+    seenBarcodes.add(barcodeKey);
+    barcodes.push(barcode);
+  }
+
+  return barcodes;
+}
+
+function buildBarcodeLookupParams(barcodes: string[]) {
+  return {
+    params: Object.fromEntries(
+      barcodes.map((barcode, index) => [`barcode${index}`, barcode]),
+    ),
+    placeholders: barcodes.map((_, index) => `@barcode${index}`).join(", "),
+  };
+}
+
+async function resolveBarcodeLookupScope(barcode: string) {
+  const tableRows = await runLookupQuery<{ total: number }>(
+    "barcode_aliases",
+    `
+      SELECT CASE
+        WHEN OBJECT_ID(N'dbo.${productBarcodeAliasTableName}', N'U') IS NULL
+          THEN 0
+        ELSE 1
+      END as total
+    `,
+    {},
+  );
+  const tableExists = Number(tableRows[0]?.total || 0) > 0;
+
+  if (!tableExists) {
+    return {
+      canonicalBarcode: barcode,
+      lookupBarcodes: [barcode],
+    };
+  }
+
+  const aliasRows = await runLookupQuery<{
+    aliasBarcode: string | null;
+    canonicalBarcode: string | null;
+  }>(
+    "barcode_aliases",
+    `
+      SELECT TOP 1
+        AliasBarcode as aliasBarcode,
+        CanonicalBarcode as canonicalBarcode
+      FROM dbo.${quoteIdentifier(productBarcodeAliasTableName)}
+      WHERE AliasBarcode = @barcode
+        OR CanonicalBarcode = @barcode
+      ORDER BY
+        CASE WHEN CanonicalBarcode = @barcode THEN 0 ELSE 1 END,
+        UpdatedAt DESC
+    `,
+    { barcode },
+  );
+  const canonicalBarcode = normalizeBarcode(
+    aliasRows[0]?.canonicalBarcode || barcode,
+  );
+  const relatedAliasRows = await runLookupQuery<{
+    aliasBarcode: string | null;
+  }>(
+    "barcode_aliases",
+    `
+      SELECT AliasBarcode as aliasBarcode
+      FROM dbo.${quoteIdentifier(productBarcodeAliasTableName)}
+      WHERE CanonicalBarcode = @canonicalBarcode
+    `,
+    { canonicalBarcode },
+  );
+  const aliasBarcodes = relatedAliasRows.map((row) =>
+    normalizeBarcode(row.aliasBarcode),
+  );
+
+  return {
+    canonicalBarcode,
+    lookupBarcodes: uniqueBarcodes([
+      canonicalBarcode,
+      barcode,
+      ...aliasBarcodes,
+    ]),
+  };
 }
 
 function toIsoString(value: Date | string | null | undefined) {
@@ -182,6 +284,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(response);
     }
 
+    const lookupScope = await resolveBarcodeLookupScope(barcode);
+    const barcodeLookup = buildBarcodeLookupParams(lookupScope.lookupBarcodes);
+    const lookupParams = {
+      ...barcodeLookup.params,
+      canonicalBarcode: lookupScope.canonicalBarcode,
+    };
+
     const [lookupRows, movementRows] = await Promise.all([
       runLookupQuery<{
         barcode: string;
@@ -212,23 +321,21 @@ export async function GET(request: NextRequest) {
               Times,
               NumberPrint,
               ROW_NUMBER() OVER (
-                PARTITION BY BarCode
                 ORDER BY DateSave DESC, Times DESC, NumberPrint DESC
               ) as rn
             FROM dbo.INOUTStockProduct
-            WHERE BarCode = @barcode
+            WHERE BarCode IN (${barcodeLookup.placeholders})
           ),
           StockSummary AS (
             SELECT
-              BarCode,
+              @canonicalBarcode as BarCode,
               MAX(CASE WHEN rn = 1 THEN Stock END) as currentStock,
               MAX(DateSave) as lastMovementAt
             FROM StockTimeline
-            GROUP BY BarCode
           ),
           SalesSummary AS (
             SELECT
-              BarCode,
+              @canonicalBarcode as BarCode,
               COUNT(*) as salesCount,
               ISNULL(SUM(NumProduct), 0) as totalSoldQuantity,
               ISNULL(SUM(SumPrice), 0) as totalSales,
@@ -243,8 +350,7 @@ export async function GET(request: NextRequest) {
                 0
               ) as averageCostPrice
             FROM dbo.DetailSalePost
-            WHERE BarCode = @barcode
-            GROUP BY BarCode
+            WHERE BarCode IN (${barcodeLookup.placeholders})
           ),
           MasterMatch AS (
             SELECT TOP 1
@@ -268,13 +374,16 @@ export async function GET(request: NextRequest) {
             FROM dbo.MasterProductDetail d
             LEFT JOIN dbo.MasterProduct m ON m.CodeProduct = d.CodeProduct
             LEFT JOIN dbo.CaseProduct cp ON cp.Code = m.CaseProduct
-            LEFT JOIN StockSummary ss ON ss.BarCode = d.BarCode
-            LEFT JOIN SalesSummary sales ON sales.BarCode = d.BarCode
-            WHERE d.BarCode = @barcode
+            LEFT JOIN StockSummary ss ON ss.BarCode = @canonicalBarcode
+            LEFT JOIN SalesSummary sales ON sales.BarCode = @canonicalBarcode
+            WHERE d.BarCode IN (${barcodeLookup.placeholders})
+            ORDER BY
+              CASE WHEN d.BarCode = @canonicalBarcode THEN 0 ELSE 1 END,
+              d.BarCode
           ),
           SalesFallback AS (
             SELECT TOP 1
-              s.BarCode as barcode,
+              @canonicalBarcode as barcode,
               '' as productCode,
               COALESCE(NULLIF(s.NameProduct, ''), 'ไม่ระบุชื่อสินค้า') as name,
               '' as categoryName,
@@ -298,9 +407,10 @@ export async function GET(request: NextRequest) {
               MAX(s.DateSalePost) as lastSaleAt,
               'sales-history' as source
             FROM dbo.DetailSalePost s
-            LEFT JOIN StockSummary ss ON ss.BarCode = s.BarCode
-            WHERE s.BarCode = @barcode
-            GROUP BY s.BarCode, s.NameProduct, ss.currentStock, ss.lastMovementAt
+            LEFT JOIN StockSummary ss ON ss.BarCode = @canonicalBarcode
+            WHERE s.BarCode IN (${barcodeLookup.placeholders})
+            GROUP BY s.NameProduct, ss.currentStock, ss.lastMovementAt
+            ORDER BY COUNT(*) DESC
           )
           SELECT TOP 1
             barcode,
@@ -327,7 +437,7 @@ export async function GET(request: NextRequest) {
           ) matches
           ORDER BY CASE WHEN source = 'master' THEN 0 ELSE 1 END
         `,
-        { barcode },
+        lookupParams,
       ),
       runLookupQuery<{
         date: Date;
@@ -351,10 +461,10 @@ export async function GET(request: NextRequest) {
             Stock as stock,
             ISNULL(NameCompany, '') as company
           FROM dbo.INOUTStockProduct
-          WHERE BarCode = @barcode
+          WHERE BarCode IN (${barcodeLookup.placeholders})
           ORDER BY DateSave DESC, Times DESC, NumberPrint DESC
         `,
-        { barcode },
+        lookupParams,
       ),
     ]);
 

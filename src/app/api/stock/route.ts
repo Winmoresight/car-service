@@ -46,6 +46,7 @@ class StockValidationError extends Error {
   status = 400;
 }
 
+const productBarcodeAliasTableName = "WebProductBarcodeAliases";
 const allowedLimits = [20, 50, 100, 200];
 
 function getLimit(value: string | null) {
@@ -312,6 +313,19 @@ async function getProductCode(transaction: sql.Transaction) {
   throw new Error("ไม่สามารถสร้างรหัสสินค้าใหม่ได้");
 }
 
+async function productBarcodeAliasTableExists(transaction: sql.Transaction) {
+  const tableRequest = new sql.Request(transaction);
+  const tableRows = await tableRequest.query<{ total: number }>(`
+    SELECT CASE
+      WHEN OBJECT_ID(N'dbo.${productBarcodeAliasTableName}', N'U') IS NULL
+        THEN 0
+      ELSE 1
+    END as total
+  `);
+
+  return (Number(tableRows.recordset[0]?.total) || 0) > 0;
+}
+
 async function getBarcode(
   transaction: sql.Transaction,
   categoryId: number,
@@ -330,6 +344,23 @@ async function getBarcode(
 
     if ((Number(existingBarcodeRows.recordset[0]?.total) || 0) > 0) {
       throw new StockValidationError("บาร์โค้ดนี้มีสินค้าอยู่ในระบบแล้ว");
+    }
+
+    if (await productBarcodeAliasTableExists(transaction)) {
+      const aliasBarcodeCheck = new sql.Request(transaction);
+      aliasBarcodeCheck.input("barcode", sql.NVarChar(30), requestedBarcode);
+      const existingAliasRows = await aliasBarcodeCheck.query<{
+        total: number;
+      }>(`
+        SELECT COUNT(1) as total
+        FROM dbo.WebProductBarcodeAliases WITH (UPDLOCK, HOLDLOCK)
+        WHERE AliasBarcode = @barcode
+          OR CanonicalBarcode = @barcode
+      `);
+
+      if ((Number(existingAliasRows.recordset[0]?.total) || 0) > 0) {
+        throw new StockValidationError("บาร์โค้ดนี้มีสินค้าอยู่ในระบบแล้ว");
+      }
     }
 
     return requestedBarcode;
