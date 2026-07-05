@@ -1,5 +1,6 @@
 import {
   Banknote,
+  FileCheck2,
   FilePlus2,
   FileText,
   History,
@@ -97,6 +98,11 @@ export const mainNavigation = [
     name: "ประวัติแก้ไขบิล",
     href: "/bills/edit-history",
     icon: History,
+  },
+  {
+    name: "อนุมัติยกเลิกบิล",
+    href: "/bills/deleted",
+    icon: FileCheck2,
   },
 ] as const satisfies readonly NavigationItem[];
 
