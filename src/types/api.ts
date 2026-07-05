@@ -163,6 +163,7 @@ export interface LossProduct {
 
 // Supplier bills / purchase records
 export type SupplierBillPaymentState = "paid" | "unpaid" | "unknown";
+export type SupplierBillVatMode = "none" | "included" | "excluded";
 
 export interface SupplierBillLineItem {
   id: string;
@@ -187,6 +188,11 @@ export interface SupplierBill {
   productDiscount: number;
   resultAmount: number;
   totalPrice: number;
+  vatMode: SupplierBillVatMode;
+  vatRate: number;
+  vatBaseAmount: number;
+  vatAmount: number;
+  vatTotalAmount: number;
   status: string;
   checkIn: string;
   createdBy: string;
@@ -208,6 +214,9 @@ export interface SupplierBillsSummary {
   unpaidAmount: number;
   unknownStatusCount: number;
   detailItemCount: number;
+  vatBillCount: number;
+  vatBaseAmount: number;
+  vatAmount: number;
 }
 
 export interface SupplierBillsPayload {

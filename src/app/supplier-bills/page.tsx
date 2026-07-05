@@ -15,6 +15,7 @@ import {
   FilePlus2,
   Loader2,
   Package,
+  Percent,
   Plus,
   ReceiptText,
   Save,
@@ -76,6 +77,7 @@ import type {
   SupplierBillPaymentState,
   SupplierBillsCatalogPayload,
   SupplierBillsPayload,
+  SupplierBillVatMode,
   SupplierCatalogOption,
   SupplierCatalogProduct,
   SupplierCatalogSupplier,
@@ -84,6 +86,16 @@ import type {
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 const supplierStatusOptions = ["ชำระเงินแล้ว", "ค้างชำระ"] as const;
+const supplierBillVatOptions = [
+  { value: "none", label: "ไม่มี VAT" },
+  { value: "included", label: "รวม VAT 7%" },
+  { value: "excluded", label: "บวก VAT 7%" },
+] as const satisfies readonly {
+  value: SupplierBillVatMode;
+  label: string;
+}[];
+const defaultSupplierBillVatMode: SupplierBillVatMode = "none";
+const defaultSupplierBillVatRate = 7;
 
 type SupplierEditableStatus = (typeof supplierStatusOptions)[number];
 
@@ -101,15 +113,18 @@ const zeroPayload: SupplierBillsPayload = {
     unpaidAmount: 0,
     unknownStatusCount: 0,
     detailItemCount: 0,
+    vatBillCount: 0,
+    vatBaseAmount: 0,
+    vatAmount: 0,
   },
 };
 
-function formatCurrency(value: number) {
+function formatCurrency(value: number, fractionDigits = 0) {
   return new Intl.NumberFormat("th-TH", {
     style: "currency",
     currency: "THB",
-    maximumFractionDigits: 0,
-    minimumFractionDigits: 0,
+    maximumFractionDigits: fractionDigits,
+    minimumFractionDigits: fractionDigits,
   }).format(value || 0);
 }
 
@@ -181,6 +196,7 @@ function matchesSearch(bill: SupplierBill, searchTerm: string) {
     bill.supplierName,
     bill.status,
     bill.paymentLabel,
+    getVatModeLabel(bill.vatMode),
     bill.createdBy,
     bill.note,
   ].some((value) =>
@@ -226,6 +242,76 @@ function normalizeDialogStatus(value: string) {
   return isSupplierStatusOption(normalizedStatus)
     ? normalizedStatus
     : "ค้างชำระ";
+}
+
+function getVatModeLabel(mode: SupplierBillVatMode) {
+  return (
+    supplierBillVatOptions.find((option) => option.value === mode)?.label ??
+    "ไม่มี VAT"
+  );
+}
+
+function getVatModeClassName(mode: SupplierBillVatMode, isSelected: boolean) {
+  if (mode === "none") {
+    return isSelected
+      ? "border-slate-200 bg-slate-100 text-slate-700 ring-1 ring-slate-400/20 hover:bg-slate-100 hover:!text-slate-700"
+      : "border-border bg-background text-muted-foreground hover:border-slate-300 hover:bg-slate-50 hover:!text-slate-700";
+  }
+
+  if (mode === "included") {
+    return isSelected
+      ? "border-blue-100 bg-blue-50 text-main-blue ring-1 ring-main-blue/20 hover:bg-blue-50 hover:!text-main-blue dark:border-blue-500/20 dark:bg-blue-500/10"
+      : "border-border bg-background text-muted-foreground hover:border-main-blue/30 hover:bg-blue-50 hover:!text-main-blue";
+  }
+
+  return isSelected
+    ? "border-orange-100 bg-orange-50 text-main-orange ring-1 ring-main-orange/20 hover:bg-orange-50 hover:!text-main-orange dark:border-orange-500/20 dark:bg-orange-500/10"
+    : "border-border bg-background text-muted-foreground hover:border-main-orange/30 hover:bg-orange-50 hover:!text-main-orange";
+}
+
+function calculateSupplierBillVat(
+  vatInputAmount: number,
+  vatMode: SupplierBillVatMode,
+  vatRate = defaultSupplierBillVatRate,
+) {
+  const safeInputAmount = Number(Math.max(vatInputAmount, 0).toFixed(2));
+
+  if (vatMode === "none") {
+    return {
+      vatBaseAmount: safeInputAmount,
+      vatAmount: 0,
+      totalPrice: safeInputAmount,
+    };
+  }
+
+  if (vatMode === "included") {
+    const vatBaseAmount = Number(
+      (safeInputAmount / (1 + vatRate / 100)).toFixed(2),
+    );
+    const vatAmount = Number((safeInputAmount - vatBaseAmount).toFixed(2));
+
+    return {
+      vatBaseAmount,
+      vatAmount,
+      totalPrice: safeInputAmount,
+    };
+  }
+
+  const vatAmount = Number((safeInputAmount * (vatRate / 100)).toFixed(2));
+
+  return {
+    vatBaseAmount: safeInputAmount,
+    vatAmount,
+    totalPrice: Number((safeInputAmount + vatAmount).toFixed(2)),
+  };
+}
+
+function getVatInputLabel(vatMode: SupplierBillVatMode) {
+  if (vatMode === "excluded") {
+    return "ยอดก่อน VAT";
+  }
+
+  return "ยอดเงิน";
 }
 
 function getStatusOptionClassName(option: string, isSelected: boolean) {
@@ -642,6 +728,9 @@ function SupplierBillEditDialog({
 }: SupplierBillEditDialogProps) {
   const [status, setStatus] = useState("");
   const [amount, setAmount] = useState("");
+  const [vatMode, setVatMode] = useState<SupplierBillVatMode>(
+    defaultSupplierBillVatMode,
+  );
   const [note, setNote] = useState("");
   const [lineItems, setLineItems] = useState<SupplierBillDraftLine[]>([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -655,6 +744,7 @@ function SupplierBillEditDialog({
 
     setStatus(normalizeDialogStatus(bill.status || bill.paymentLabel || ""));
     setAmount(String(getEditableBillAmount(bill)));
+    setVatMode(bill.vatMode || defaultSupplierBillVatMode);
     setNote(bill.note || "");
     setLineItems(bill.lineItems.map(createEditableLineFromBillItem));
     setErrorMessage(null);
@@ -664,6 +754,7 @@ function SupplierBillEditDialog({
   const resetDialog = () => {
     setStatus("");
     setAmount("");
+    setVatMode(defaultSupplierBillVatMode);
     setNote("");
     setLineItems([]);
     setIsSaving(false);
@@ -712,7 +803,11 @@ function SupplierBillEditDialog({
       lineItems.length > 0
         ? Number(Math.max(lineItemsTotal - bill.discount, 0).toFixed(2))
         : null;
-    const parsedAmount = calculatedAmount ?? parseMoneyInput(amount);
+    const vatInputAmount = calculatedAmount ?? parseMoneyInput(amount);
+    const vatTotals =
+      vatInputAmount === null
+        ? null
+        : calculateSupplierBillVat(vatInputAmount, vatMode);
     const updateItems = [];
 
     if (!isSupplierStatusOption(status)) {
@@ -720,7 +815,7 @@ function SupplierBillEditDialog({
       return;
     }
 
-    if (parsedAmount === null) {
+    if (vatTotals === null || vatInputAmount === null) {
       setErrorMessage("กรุณาระบุยอดเงินให้ถูกต้อง");
       return;
     }
@@ -780,7 +875,10 @@ function SupplierBillEditDialog({
         body: JSON.stringify({
           documentNo: bill.documentNo,
           status,
-          totalPrice: parsedAmount,
+          totalPrice: vatTotals.totalPrice,
+          vatInputAmount,
+          vatMode,
+          vatRate: defaultSupplierBillVatRate,
           note,
           items: bill.lineItems.length > 0 ? updateItems : undefined,
         }),
@@ -816,6 +914,11 @@ function SupplierBillEditDialog({
       : null;
   const amountInputValue =
     calculatedAmount !== null ? String(calculatedAmount) : amount;
+  const editVatInputAmount = calculatedAmount ?? parseMoneyInput(amount) ?? 0;
+  const editVatBreakdown = calculateSupplierBillVat(
+    editVatInputAmount,
+    vatMode,
+  );
   const productDiscount = Number(
     lineItems
       .reduce((sum, item) => sum + (parseMoneyInput(item.discount) ?? 0), 0)
@@ -858,6 +961,14 @@ function SupplierBillEditDialog({
                       >
                         {bill.paymentLabel}
                       </Badge>
+                      {bill.vatMode !== "none" ? (
+                        <Badge
+                          variant="outline"
+                          className="h-7 rounded-full border-blue-100 bg-blue-50 px-3 text-xs font-bold text-main-blue shadow-none dark:border-blue-500/20 dark:bg-blue-500/10"
+                        >
+                          {getVatModeLabel(bill.vatMode)}
+                        </Badge>
+                      ) : null}
                       <span className="text-sm font-semibold text-muted-foreground">
                         {dateParts.date}
                         {dateParts.time ? ` · ${dateParts.time}` : ""}
@@ -918,7 +1029,7 @@ function SupplierBillEditDialog({
                     htmlFor="supplier-bill-amount"
                     className="block text-sm font-bold text-card-foreground"
                   >
-                    ยอดเงิน
+                    {getVatInputLabel(vatMode)}
                   </label>
                   <div className="relative">
                     <span className="absolute top-1/2 left-3 -translate-y-1/2 text-lg font-bold text-muted-foreground">
@@ -946,6 +1057,62 @@ function SupplierBillEditDialog({
                       ? "คำนวณจากรายการสินค้า"
                       : `ยอดเดิม ${formatCurrency(currentAmount)}`}
                   </span>
+                </div>
+              </div>
+
+              <div className="space-y-3 rounded-[8px] border bg-muted/20 p-3">
+                <div className="flex flex-col justify-between gap-2 min-[560px]:flex-row min-[560px]:items-center">
+                  <span className="text-sm font-bold text-card-foreground">
+                    ภาษีคู่ค้า
+                  </span>
+                  {vatMode !== "none" ? (
+                    <Badge
+                      variant="outline"
+                      className="h-7 rounded-full border-blue-100 bg-blue-50 px-3 text-xs font-bold text-main-blue shadow-none dark:border-blue-500/20 dark:bg-blue-500/10"
+                    >
+                      VAT {defaultSupplierBillVatRate}%
+                    </Badge>
+                  ) : null}
+                </div>
+                <div className="grid gap-2 min-[620px]:grid-cols-3">
+                  {supplierBillVatOptions.map((option) => {
+                    const isSelected = vatMode === option.value;
+
+                    return (
+                      <Button
+                        key={option.value}
+                        type="button"
+                        variant="outline"
+                        className={cn(
+                          "h-10 border font-bold shadow-none",
+                          getVatModeClassName(option.value, isSelected),
+                        )}
+                        onClick={() => setVatMode(option.value)}
+                      >
+                        {option.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <div className="grid gap-2 text-sm font-semibold min-[620px]:grid-cols-3">
+                  <div className="flex justify-between gap-3 rounded-[8px] border bg-white px-3 py-2 dark:bg-card min-[620px]:block">
+                    <span className="text-muted-foreground">ก่อน VAT</span>
+                    <p className="font-bold text-card-foreground min-[620px]:mt-1">
+                      {formatCurrency(editVatBreakdown.vatBaseAmount, 2)}
+                    </p>
+                  </div>
+                  <div className="flex justify-between gap-3 rounded-[8px] border bg-white px-3 py-2 dark:bg-card min-[620px]:block">
+                    <span className="text-muted-foreground">VAT</span>
+                    <p className="font-bold text-main-blue min-[620px]:mt-1">
+                      {formatCurrency(editVatBreakdown.vatAmount, 2)}
+                    </p>
+                  </div>
+                  <div className="flex justify-between gap-3 rounded-[8px] border bg-white px-3 py-2 dark:bg-card min-[620px]:block">
+                    <span className="text-muted-foreground">สุทธิ</span>
+                    <p className="font-bold text-primary min-[620px]:mt-1">
+                      {formatCurrency(editVatBreakdown.totalPrice, 2)}
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -1263,6 +1430,9 @@ function SupplierBillCreateDialog({
   );
   const [createdBy, setCreatedBy] = useState("");
   const [specialDiscount, setSpecialDiscount] = useState("");
+  const [vatMode, setVatMode] = useState<SupplierBillVatMode>(
+    defaultSupplierBillVatMode,
+  );
   const [note, setNote] = useState("");
   const [items, setItems] = useState<SupplierBillDraftLine[]>([
     createEmptyLine(),
@@ -1326,6 +1496,7 @@ function SupplierBillCreateDialog({
     (category) => String(category.id) === productDraft.categoryId,
   );
   const totals = getDraftTotals(items, specialDiscount);
+  const vatBreakdown = calculateSupplierBillVat(totals.totalPrice, vatMode);
   const fetchSupplierOptions = useCallback(
     async (search: string, signal: AbortSignal) => {
       if (signal.aborted) {
@@ -1397,6 +1568,7 @@ function SupplierBillCreateDialog({
     setStatus(defaultSupplierBillStatus);
     setCreatedBy("");
     setSpecialDiscount("");
+    setVatMode(defaultSupplierBillVatMode);
     setNote("");
     setItems([createEmptyLine()]);
     setIsBarcodeScannerOpen(false);
@@ -1724,6 +1896,8 @@ function SupplierBillCreateDialog({
           status,
           createdBy: createdBy.trim(),
           specialDiscount: parseMoneyInput(specialDiscount) ?? 0,
+          vatMode,
+          vatRate: defaultSupplierBillVatRate,
           note,
           items: payloadItems,
         }),
@@ -1758,10 +1932,10 @@ function SupplierBillCreateDialog({
           </LargeDialogDescription>
         </LargeDialogHeader>
 
-        <LargeDialogBody className="px-5 py-5 md:px-6">
-          <form className="space-y-5" onSubmit={handleSubmit}>
-            <div className="grid gap-4 min-[920px]:grid-cols-[1.05fr_0.95fr]">
-              <div className="space-y-4 rounded-[8px] border bg-[#FCFCFC] p-4">
+        <LargeDialogBody className="px-5 py-4 md:px-6">
+          <form className="space-y-4" onSubmit={handleSubmit}>
+            <div className="grid items-start gap-4 min-[920px]:grid-cols-[1.05fr_0.95fr]">
+              <div className="space-y-3 rounded-[8px] border bg-[#FCFCFC] p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h3 className="font-bold text-card-foreground">ข้อมูลคู่ค้า</h3>
@@ -1995,9 +2169,25 @@ function SupplierBillCreateDialog({
                     </div>
                   </div>
                 )}
+
+                <div className="space-y-2">
+                  <label
+                    htmlFor="supplier-bill-note"
+                    className="block text-sm font-bold text-card-foreground"
+                  >
+                    หมายเหตุ
+                  </label>
+                  <textarea
+                    id="supplier-bill-note"
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                    className="min-h-16 w-full resize-y rounded-[8px] border bg-background px-3 py-2 text-sm font-semibold outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    placeholder="พิมพ์หมายเหตุเล็ก ๆ น้อย ๆ ของบิลนี้"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-4 rounded-[8px] border bg-[#FCFCFC] p-4">
+              <div className="space-y-3 rounded-[8px] border bg-[#FCFCFC] p-4">
                 <div>
                   <h3 className="font-bold text-card-foreground">ข้อมูลบิล</h3>
                   <p className="mt-1 text-sm font-semibold text-muted-foreground">
@@ -2089,32 +2279,52 @@ function SupplierBillCreateDialog({
                   </div>
 
                   <div className="space-y-2 min-[560px]:col-span-2">
-                    <label
-                      htmlFor="supplier-bill-note"
-                      className="block text-sm font-bold text-card-foreground"
-                    >
-                      หมายเหตุ
-                    </label>
-                    <textarea
-                      id="supplier-bill-note"
-                      value={note}
-                      onChange={(event) => setNote(event.target.value)}
-                      className="min-h-24 w-full resize-y rounded-[8px] border bg-background px-3 py-2 text-sm font-semibold outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                      placeholder="พิมพ์หมายเหตุเล็ก ๆ น้อย ๆ ของบิลนี้"
-                    />
+                    <div className="flex flex-col justify-between gap-2 min-[560px]:flex-row min-[560px]:items-center">
+                      <span className="block text-sm font-bold text-card-foreground">
+                        ภาษีคู่ค้า
+                      </span>
+                      {vatMode !== "none" ? (
+                        <Badge
+                          variant="outline"
+                          className="h-7 rounded-full border-blue-100 bg-blue-50 px-3 text-xs font-bold text-main-blue shadow-none dark:border-blue-500/20 dark:bg-blue-500/10"
+                        >
+                          VAT {defaultSupplierBillVatRate}%
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <div className="grid gap-2 min-[620px]:grid-cols-3">
+                      {supplierBillVatOptions.map((option) => {
+                        const isSelected = vatMode === option.value;
+
+                        return (
+                          <Button
+                            key={option.value}
+                            type="button"
+                            variant="outline"
+                            className={cn(
+                              "h-10 border font-bold shadow-none",
+                              getVatModeClassName(option.value, isSelected),
+                            )}
+                            onClick={() => setVatMode(option.value)}
+                          >
+                            {option.label}
+                          </Button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
-                <div className="rounded-[8px] border bg-white p-4">
+                <div className="rounded-[8px] border bg-white p-3">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm font-bold text-muted-foreground">
                       ยอดรวมสุทธิ
                     </span>
                     <span className="text-2xl font-bold text-primary">
-                      {formatCurrency(totals.totalPrice)}
+                      {formatCurrency(vatBreakdown.totalPrice, 2)}
                     </span>
                   </div>
-                  <div className="mt-3 grid gap-2 text-sm font-semibold">
+                  <div className="mt-3 grid gap-x-4 gap-y-2 text-sm font-semibold min-[560px]:grid-cols-2">
                     <div className="flex justify-between gap-3">
                       <span className="text-muted-foreground">ยอดรวมสินค้า</span>
                       <span>{formatCurrency(totals.subTotal)}</span>
@@ -2126,6 +2336,18 @@ function SupplierBillCreateDialog({
                     <div className="flex justify-between gap-3">
                       <span className="text-muted-foreground">ส่วนลดพิเศษ</span>
                       <span>{formatCurrency(totals.specialDiscount)}</span>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <span className="text-muted-foreground">ก่อน VAT</span>
+                      <span>
+                        {formatCurrency(vatBreakdown.vatBaseAmount, 2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <span className="text-muted-foreground">VAT</span>
+                      <span className="font-bold text-main-blue">
+                        {formatCurrency(vatBreakdown.vatAmount, 2)}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -2690,7 +2912,7 @@ export default function SupplierBillsPage() {
             </Button>
           </div>
 
-          <div className="grid gap-4 min-[600px]:grid-cols-2 min-[1100px]:grid-cols-4">
+          <div className="grid gap-4 min-[600px]:grid-cols-2 min-[1100px]:grid-cols-5">
             <KPICard
               title="เอกสารทั้งหมด"
               value={summary.billCount}
@@ -2703,6 +2925,14 @@ export default function SupplierBillsPage() {
               value={summary.totalAmount}
               icon={ClipboardList}
               variant="orange"
+              format="currency"
+            />
+            <KPICard
+              title="VAT คู่ค้า"
+              value={summary.vatAmount}
+              subtitle={`${formatNumber(summary.vatBillCount)} ใบมี VAT`}
+              icon={Percent}
+              variant="blue"
               format="currency"
             />
             <KPICard
@@ -3065,6 +3295,11 @@ export default function SupplierBillsPage() {
                             <span className="text-xs font-semibold text-muted-foreground min-[780px]:hidden">
                               {formatNumber(bill.itemCount)} รายการ
                             </span>
+                            {bill.vatAmount > 0 ? (
+                              <span className="text-xs font-bold text-main-blue">
+                                VAT {formatCurrency(bill.vatAmount, 2)}
+                              </span>
+                            ) : null}
                           </div>
                         </TableCell>
 

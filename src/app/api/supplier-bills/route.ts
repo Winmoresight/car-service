@@ -18,6 +18,7 @@ import type {
   SupplierBillPaymentState,
   SupplierBillsPayload,
   SupplierBillsSummary,
+  SupplierBillVatMode,
 } from "@/types/api";
 
 const masterTableCandidates = [
@@ -33,6 +34,13 @@ const detailTableCandidates = [
 const supplierBillNoteColumnCandidates = ["Note", "Remark"] as const;
 
 const editableSupplierStatuses = new Set(["ชำระเงินแล้ว", "ค้างชำระ"]);
+const supplierBillVatModes = new Set<SupplierBillVatMode>([
+  "none",
+  "included",
+  "excluded",
+]);
+const supplierBillVatTableName = "WebSupplierBillVat";
+const defaultSupplierBillVatRate = 7;
 
 interface SupplierBillRow {
   date: Date | null;
@@ -72,6 +80,9 @@ interface SupplierBillUpdatePayload {
   documentNo?: unknown;
   status?: unknown;
   totalPrice?: unknown;
+  vatInputAmount?: unknown;
+  vatMode?: unknown;
+  vatRate?: unknown;
   note?: unknown;
   items?: unknown;
 }
@@ -113,6 +124,8 @@ interface SupplierBillCreatePayload {
   status?: unknown;
   createdBy?: unknown;
   specialDiscount?: unknown;
+  vatMode?: unknown;
+  vatRate?: unknown;
   note?: unknown;
   items?: unknown;
 }
@@ -121,7 +134,30 @@ interface SupplierBillTotals {
   subTotal: number;
   productDiscount: number;
   specialDiscount: number;
+  vatInputAmount: number;
+  vatMode: SupplierBillVatMode;
+  vatRate: number;
+  vatBaseAmount: number;
+  vatAmount: number;
+  vatTotalAmount: number;
   totalPrice: number;
+}
+
+interface SupplierBillVatRow {
+  documentNo: string | null;
+  vatMode: string | null;
+  vatRate: number | string | null;
+  vatBaseAmount: number | string | null;
+  vatAmount: number | string | null;
+  vatTotalAmount: number | string | null;
+}
+
+interface SupplierBillVatInfo {
+  vatMode: SupplierBillVatMode;
+  vatRate: number;
+  vatBaseAmount: number;
+  vatAmount: number;
+  vatTotalAmount: number;
 }
 
 interface SupplierResolution {
@@ -140,6 +176,9 @@ const zeroSummary: SupplierBillsSummary = {
   unpaidAmount: 0,
   unknownStatusCount: 0,
   detailItemCount: 0,
+  vatBillCount: 0,
+  vatBaseAmount: 0,
+  vatAmount: 0,
 };
 
 function quoteIdentifier(identifier: string) {
@@ -206,6 +245,83 @@ function normalizeCreateStatus(value: unknown) {
   const status = getPaymentLabel(normalizeText(value), normalizeText(value));
 
   return editableSupplierStatuses.has(status) ? status : "ค้างชำระ";
+}
+
+function normalizeVatMode(value: unknown): SupplierBillVatMode {
+  const mode = normalizeText(value);
+
+  return supplierBillVatModes.has(mode as SupplierBillVatMode)
+    ? (mode as SupplierBillVatMode)
+    : "none";
+}
+
+function normalizeVatRate(value: unknown, mode: SupplierBillVatMode) {
+  if (mode === "none") {
+    return 0;
+  }
+
+  const rate = Number(value);
+
+  if (!Number.isFinite(rate) || rate <= 0 || rate > 100) {
+    return defaultSupplierBillVatRate;
+  }
+
+  return Number(rate.toFixed(2));
+}
+
+function calculateVatAmounts(
+  vatInputAmount: number,
+  vatMode: SupplierBillVatMode,
+  vatRate: number,
+): SupplierBillVatInfo {
+  const safeInputAmount = Number(Math.max(vatInputAmount, 0).toFixed(2));
+
+  if (vatMode === "none" || vatRate <= 0) {
+    return {
+      vatMode: "none",
+      vatRate: 0,
+      vatBaseAmount: safeInputAmount,
+      vatAmount: 0,
+      vatTotalAmount: safeInputAmount,
+    };
+  }
+
+  if (vatMode === "included") {
+    const vatBaseAmount = Number(
+      (safeInputAmount / (1 + vatRate / 100)).toFixed(2),
+    );
+    const vatAmount = Number((safeInputAmount - vatBaseAmount).toFixed(2));
+
+    return {
+      vatMode,
+      vatRate,
+      vatBaseAmount,
+      vatAmount,
+      vatTotalAmount: safeInputAmount,
+    };
+  }
+
+  const vatAmount = Number((safeInputAmount * (vatRate / 100)).toFixed(2));
+
+  return {
+    vatMode,
+    vatRate,
+    vatBaseAmount: safeInputAmount,
+    vatAmount,
+    vatTotalAmount: Number((safeInputAmount + vatAmount).toFixed(2)),
+  };
+}
+
+function getDefaultVatInfo(totalPrice: unknown): SupplierBillVatInfo {
+  const safeTotalPrice = normalizeMoney(totalPrice);
+
+  return {
+    vatMode: "none",
+    vatRate: 0,
+    vatBaseAmount: safeTotalPrice,
+    vatAmount: 0,
+    vatTotalAmount: safeTotalPrice,
+  };
 }
 
 function parseBillDate(value: unknown) {
@@ -414,6 +530,8 @@ function normalizeUpdateItems(items: unknown) {
 function calculateCreateTotals(
   items: SupplierBillCreateItem[],
   specialDiscountValue: unknown,
+  vatModeValue: unknown,
+  vatRateValue: unknown,
 ): SupplierBillTotals | null {
   const subTotal = Number(
     items
@@ -430,11 +548,20 @@ function calculateCreateTotals(
     return null;
   }
 
+  const vatMode = normalizeVatMode(vatModeValue);
+  const vatRate = normalizeVatRate(vatRateValue, vatMode);
+  const vatInputAmount = Number(
+    (afterProductDiscount - specialDiscount).toFixed(2),
+  );
+  const vatInfo = calculateVatAmounts(vatInputAmount, vatMode, vatRate);
+
   return {
     subTotal,
     productDiscount,
     specialDiscount,
-    totalPrice: Number((afterProductDiscount - specialDiscount).toFixed(2)),
+    vatInputAmount,
+    ...vatInfo,
+    totalPrice: vatInfo.vatTotalAmount,
   };
 }
 
@@ -673,6 +800,163 @@ async function getTableColumns(tableName: string) {
   );
 
   return new Set(rows.map((row) => row.columnName));
+}
+
+async function tableExists(tableName: string) {
+  const rows = await executeQuery<{ count: number }>(
+    `
+      SELECT COUNT(*) as count
+      FROM INFORMATION_SCHEMA.TABLES
+      WHERE TABLE_SCHEMA = 'dbo'
+        AND TABLE_NAME = @tableName
+    `,
+    { tableName },
+    false,
+  );
+
+  return Number(rows[0]?.count || 0) > 0;
+}
+
+async function ensureSupplierBillVatTable() {
+  await executeQuery(
+    `
+      IF OBJECT_ID(N'dbo.${supplierBillVatTableName}', N'U') IS NULL
+      BEGIN
+        CREATE TABLE dbo.${quoteIdentifier(supplierBillVatTableName)} (
+          DocumentNo nvarchar(30) NOT NULL,
+          VatMode nvarchar(20) NOT NULL
+            CONSTRAINT DF_${supplierBillVatTableName}_VatMode DEFAULT N'none',
+          VatRate decimal(5, 2) NOT NULL
+            CONSTRAINT DF_${supplierBillVatTableName}_VatRate DEFAULT 0,
+          VatBaseAmount money NOT NULL
+            CONSTRAINT DF_${supplierBillVatTableName}_VatBaseAmount DEFAULT 0,
+          VatAmount money NOT NULL
+            CONSTRAINT DF_${supplierBillVatTableName}_VatAmount DEFAULT 0,
+          VatTotalAmount money NOT NULL
+            CONSTRAINT DF_${supplierBillVatTableName}_VatTotalAmount DEFAULT 0,
+          CreatedAt datetime NOT NULL
+            CONSTRAINT DF_${supplierBillVatTableName}_CreatedAt DEFAULT GETDATE(),
+          UpdatedAt datetime NOT NULL
+            CONSTRAINT DF_${supplierBillVatTableName}_UpdatedAt DEFAULT GETDATE(),
+          CONSTRAINT PK_${supplierBillVatTableName}
+            PRIMARY KEY (DocumentNo)
+        )
+      END
+    `,
+    undefined,
+    false,
+  );
+}
+
+async function getSupplierBillVatMap(documentNumbers: string[]) {
+  const uniqueDocumentNumbers = Array.from(
+    new Set(documentNumbers.map((value) => value.trim()).filter(Boolean)),
+  );
+  const vatMap = new Map<string, SupplierBillVatInfo>();
+
+  if (
+    uniqueDocumentNumbers.length === 0 ||
+    !(await tableExists(supplierBillVatTableName))
+  ) {
+    return vatMap;
+  }
+
+  const params = Object.fromEntries(
+    uniqueDocumentNumbers.map((documentNo, index) => [
+      `documentNo${index}`,
+      documentNo,
+    ]),
+  );
+  const documentPlaceholders = uniqueDocumentNumbers
+    .map((_, index) => `@documentNo${index}`)
+    .join(", ");
+  const rows = await executeQuery<SupplierBillVatRow>(
+    `
+      SELECT
+        DocumentNo as documentNo,
+        VatMode as vatMode,
+        VatRate as vatRate,
+        VatBaseAmount as vatBaseAmount,
+        VatAmount as vatAmount,
+        VatTotalAmount as vatTotalAmount
+      FROM dbo.${quoteIdentifier(supplierBillVatTableName)}
+      WHERE DocumentNo IN (${documentPlaceholders})
+    `,
+    params,
+    false,
+  );
+
+  for (const row of rows) {
+    const documentNo = normalizeText(row.documentNo);
+
+    if (!documentNo) {
+      continue;
+    }
+
+    const vatMode = normalizeVatMode(row.vatMode);
+    const vatRate = normalizeVatRate(row.vatRate, vatMode);
+    vatMap.set(documentNo, {
+      vatMode,
+      vatRate,
+      vatBaseAmount: normalizeMoney(row.vatBaseAmount),
+      vatAmount: normalizeMoney(row.vatAmount),
+      vatTotalAmount: normalizeMoney(row.vatTotalAmount),
+    });
+  }
+
+  return vatMap;
+}
+
+async function saveSupplierBillVat(
+  transaction: sql.Transaction,
+  documentNo: string,
+  vatInfo: SupplierBillVatInfo,
+) {
+  const vatRequest = new sql.Request(transaction);
+  vatRequest.input("documentNo", sql.NVarChar(30), documentNo);
+  vatRequest.input("vatMode", sql.NVarChar(20), vatInfo.vatMode);
+  vatRequest.input("vatRate", sql.Decimal(5, 2), vatInfo.vatRate);
+  vatRequest.input("vatBaseAmount", sql.Money, vatInfo.vatBaseAmount);
+  vatRequest.input("vatAmount", sql.Money, vatInfo.vatAmount);
+  vatRequest.input("vatTotalAmount", sql.Money, vatInfo.vatTotalAmount);
+
+  await vatRequest.query(`
+    IF EXISTS (
+      SELECT 1
+      FROM dbo.${quoteIdentifier(supplierBillVatTableName)}
+      WHERE DocumentNo = @documentNo
+    )
+    BEGIN
+      UPDATE dbo.${quoteIdentifier(supplierBillVatTableName)}
+      SET
+        VatMode = @vatMode,
+        VatRate = @vatRate,
+        VatBaseAmount = @vatBaseAmount,
+        VatAmount = @vatAmount,
+        VatTotalAmount = @vatTotalAmount,
+        UpdatedAt = GETDATE()
+      WHERE DocumentNo = @documentNo
+    END
+    ELSE
+    BEGIN
+      INSERT INTO dbo.${quoteIdentifier(supplierBillVatTableName)} (
+        DocumentNo,
+        VatMode,
+        VatRate,
+        VatBaseAmount,
+        VatAmount,
+        VatTotalAmount
+      )
+      VALUES (
+        @documentNo,
+        @vatMode,
+        @vatRate,
+        @vatBaseAmount,
+        @vatAmount,
+        @vatTotalAmount
+      )
+    END
+  `);
 }
 
 async function resolveTable(candidates: readonly string[]) {
@@ -1045,6 +1329,12 @@ function buildSummary(items: SupplierBill[]): SupplierBillsSummary {
       summary.billCount += 1;
       summary.totalAmount += item.totalPrice;
       summary.detailItemCount += item.itemCount;
+      summary.vatBaseAmount += item.vatBaseAmount;
+      summary.vatAmount += item.vatAmount;
+
+      if (item.vatMode !== "none" && item.vatAmount > 0) {
+        summary.vatBillCount += 1;
+      }
 
       if (item.paymentState === "paid") {
         summary.paidCount += 1;
@@ -1076,6 +1366,7 @@ async function createSupplierBill(params: {
   const noteColumn = await ensureSupplierBillNoteColumn(
     "MasterPrintOderBuyProduct",
   );
+  await ensureSupplierBillVatTable();
   const note = normalizeNote(payload.note);
   const pool = await getPool();
   const transaction = new sql.Transaction(pool);
@@ -1238,6 +1529,7 @@ async function createSupplierBill(params: {
       }
     }
 
+    await saveSupplierBillVat(transaction, documentNo, totals);
     await transaction.commit();
 
     return {
@@ -1246,6 +1538,10 @@ async function createSupplierBill(params: {
       supplierName: supplier.name,
       supplierCreated: supplier.created,
       totalPrice: totals.totalPrice,
+      vatMode: totals.vatMode,
+      vatRate: totals.vatRate,
+      vatBaseAmount: totals.vatBaseAmount,
+      vatAmount: totals.vatAmount,
       note,
       itemCount: items.length,
       stockReceivedItemCount,
@@ -1324,6 +1620,9 @@ export async function GET(request: NextRequest) {
         detailTable,
         rows.map((row) => normalizeText(row.documentNo)),
       );
+      const vatMap = await getSupplierBillVatMap(
+        rows.map((row) => normalizeText(row.documentNo)),
+      );
 
       const items: SupplierBill[] = rows.map((row, index) => {
         const documentNo = normalizeText(row.documentNo);
@@ -1331,6 +1630,8 @@ export async function GET(request: NextRequest) {
         const checkIn = normalizeText(row.checkIn);
         const detail = detailSummary.get(documentNo);
         const payment = getPaymentState(status, checkIn);
+        const totalPrice = normalizeMoney(row.totalPrice);
+        const vatInfo = vatMap.get(documentNo) ?? getDefaultVatInfo(totalPrice);
 
         return {
           id: documentNo || `${normalizeText(row.supplierCode)}-${index}`,
@@ -1341,7 +1642,8 @@ export async function GET(request: NextRequest) {
           discount: normalizeMoney(row.discount),
           productDiscount: normalizeMoney(row.productDiscount),
           resultAmount: normalizeMoney(row.resultAmount),
-          totalPrice: normalizeMoney(row.totalPrice),
+          totalPrice,
+          ...vatInfo,
           status,
           checkIn,
           createdBy: normalizeText(row.createdBy),
@@ -1383,7 +1685,12 @@ export async function POST(request: NextRequest) {
         return errorResponse("ส่วนลดรายการสินค้าต้องไม่เกินยอดของรายการ", 400);
       }
 
-      const totals = calculateCreateTotals(items, payload.specialDiscount);
+      const totals = calculateCreateTotals(
+        items,
+        payload.specialDiscount,
+        payload.vatMode,
+        payload.vatRate,
+      );
 
       if (!totals) {
         return errorResponse("ส่วนลดรวมต้องไม่เกินยอดรวมสินค้า", 400);
@@ -1426,7 +1733,15 @@ export async function PATCH(request: NextRequest) {
         normalizeText(body.status),
         normalizeText(body.status),
       );
-      const totalPrice = normalizeEditableMoney(body.totalPrice);
+      const vatMode = normalizeVatMode(body.vatMode);
+      const vatRate = normalizeVatRate(body.vatRate, vatMode);
+      const vatInputAmount = normalizeEditableMoney(
+        body.vatInputAmount ?? body.totalPrice,
+      );
+      const vatInfo =
+        vatInputAmount === null
+          ? null
+          : calculateVatAmounts(vatInputAmount, vatMode, vatRate);
       const updateItems = normalizeUpdateItems(body.items);
       const note = normalizeNote(body.note);
       const shouldUpdateNote = body.note !== undefined;
@@ -1439,9 +1754,11 @@ export async function PATCH(request: NextRequest) {
         return errorResponse("กรุณาเลือกสถานะชำระเงินแล้วหรือค้างชำระ", 400);
       }
 
-      if (totalPrice === null) {
+      if (vatInfo === null) {
         return errorResponse("กรุณาระบุยอดเงินให้ถูกต้อง", 400);
       }
+
+      const totalPrice = vatInfo.vatTotalAmount;
 
       if (
         updateItems !== null &&
@@ -1460,6 +1777,7 @@ export async function PATCH(request: NextRequest) {
         return errorResponse("ยังไม่พบตารางบิลคู่ค้าในฐานข้อมูลเดิม", 404);
       }
 
+      await ensureSupplierBillVatTable();
       const columns = await getTableColumns(sourceTable);
       const noteColumn = shouldUpdateNote
         ? await ensureSupplierBillNoteColumn(sourceTable)
@@ -1637,12 +1955,17 @@ export async function PATCH(request: NextRequest) {
           }
         }
 
+        await saveSupplierBillVat(transaction, updatedDocumentNo, vatInfo);
         await transaction.commit();
 
         return successResponse({
           documentNo: updatedDocumentNo,
           status,
           totalPrice,
+          vatMode: vatInfo.vatMode,
+          vatRate: vatInfo.vatRate,
+          vatBaseAmount: vatInfo.vatBaseAmount,
+          vatAmount: vatInfo.vatAmount,
           note,
           itemCount: updateItems?.length,
           removedItemCount,
