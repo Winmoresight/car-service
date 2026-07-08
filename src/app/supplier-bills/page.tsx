@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import {
   type FormEvent,
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -3232,85 +3233,137 @@ export default function SupplierBillsPage() {
                     <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[860px]:table-cell">
                       ค้างชำระ
                     </TableHead>
-                    <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[1100px]:table-cell">
+                    <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[860px]:table-cell">
                       ชำระแล้ว
                     </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {supplierSummaries.map((supplier, index) => (
-                    <TableRow
-                      key={supplier.key}
-                      className="border-border/60 hover:bg-purple-50/30 dark:hover:bg-purple-500/5"
-                    >
-                      <TableCell className="px-4 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-purple-100 bg-purple-50 text-sm font-bold text-purple-700 select-none dark:border-purple-500/20 dark:bg-purple-500/10">
-                            {index + 1}
+                    <Fragment key={supplier.key}>
+                      <TableRow className="border-b-0 border-border/60 hover:bg-purple-50/30 min-[860px]:border-b dark:hover:bg-purple-500/5">
+                        <TableCell className="px-4 pt-4 pb-2 min-[860px]:py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-purple-100 bg-purple-50 text-sm font-bold text-purple-700 select-none dark:border-purple-500/20 dark:bg-purple-500/10">
+                              {index + 1}
+                            </div>
+                            <div className="flex min-w-0 flex-col gap-1">
+                              <span className="max-w-[180px] truncate text-sm font-bold text-card-foreground min-[520px]:max-w-[320px] min-[1180px]:max-w-[520px]">
+                                {supplier.supplierName}
+                              </span>
+                              <span className="text-xs font-semibold text-muted-foreground">
+                                {supplier.supplierCode || "ไม่มีรหัสคู่ค้า"}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex min-w-0 flex-col gap-1">
-                            <span className="max-w-[180px] truncate text-sm font-bold text-card-foreground min-[520px]:max-w-[320px] min-[1180px]:max-w-[520px]">
-                              {supplier.supplierName}
+                        </TableCell>
+
+                        <TableCell className="hidden text-right align-middle min-[760px]:table-cell">
+                          <span className="font-bold text-card-foreground">
+                            {formatNumber(supplier.billCount)} ใบ
+                          </span>
+                        </TableCell>
+
+                        <TableCell className="hidden text-right align-middle min-[940px]:table-cell">
+                          <span className="font-bold text-card-foreground">
+                            {formatNumber(supplier.itemCount)} รายการ
+                          </span>
+                        </TableCell>
+
+                        <TableCell className="px-4 pt-4 pb-2 text-right align-middle min-[860px]:p-2">
+                          <div className="flex flex-col items-end gap-1">
+                            <span
+                              className={cn(
+                                outfit.className,
+                                "text-sm font-bold text-card-foreground min-[500px]:text-base",
+                              )}
+                            >
+                              {formatCurrency(supplier.totalAmount)}
                             </span>
-                            <span className="text-xs font-semibold text-muted-foreground">
-                              {supplier.supplierCode || "ไม่มีรหัสคู่ค้า"}
+                            <span className="text-xs font-semibold text-muted-foreground min-[760px]:hidden">
+                              {formatNumber(supplier.billCount)} ใบ
                             </span>
                           </div>
-                        </div>
-                      </TableCell>
+                        </TableCell>
 
-                      <TableCell className="hidden text-right align-middle min-[760px]:table-cell">
-                        <span className="font-bold text-card-foreground">
-                          {formatNumber(supplier.billCount)} ใบ
-                        </span>
-                      </TableCell>
-
-                      <TableCell className="hidden text-right align-middle min-[940px]:table-cell">
-                        <span className="font-bold text-card-foreground">
-                          {formatNumber(supplier.itemCount)} รายการ
-                        </span>
-                      </TableCell>
-
-                      <TableCell className="text-right align-middle">
-                        <div className="flex flex-col items-end gap-1">
+                        <TableCell className="hidden text-right align-middle min-[860px]:table-cell">
                           <span
                             className={cn(
                               outfit.className,
-                              "text-sm font-bold text-card-foreground min-[500px]:text-base",
+                              supplier.unpaidAmount > 0
+                                ? "font-bold text-main-red"
+                                : "font-bold text-muted-foreground",
                             )}
                           >
-                            {formatCurrency(supplier.totalAmount)}
+                            {formatCurrency(supplier.unpaidAmount)}
                           </span>
-                          <span className="text-xs font-semibold text-muted-foreground min-[760px]:hidden">
-                            {formatNumber(supplier.billCount)} ใบ
+                        </TableCell>
+
+                        <TableCell className="hidden text-right align-middle min-[860px]:table-cell">
+                          <span
+                            className={cn(
+                              outfit.className,
+                              "font-bold text-main-green",
+                            )}
+                          >
+                            {formatCurrency(supplier.paidAmount)}
                           </span>
-                        </div>
-                      </TableCell>
+                        </TableCell>
+                      </TableRow>
 
-                      <TableCell className="hidden text-right align-middle min-[860px]:table-cell">
-                        <span
-                          className={cn(
-                            outfit.className,
-                            supplier.unpaidAmount > 0
-                              ? "font-bold text-main-red"
-                              : "font-bold text-muted-foreground",
-                          )}
-                        >
-                          {formatCurrency(supplier.unpaidAmount)}
-                        </span>
-                      </TableCell>
-
-                      <TableCell className="hidden text-right align-middle min-[1100px]:table-cell">
-                        <span
-                          className={cn(
-                            outfit.className,
-                            "font-bold text-main-green",
-                          )}
-                        >
-                          {formatCurrency(supplier.paidAmount)}
-                        </span>
-                      </TableCell>
-                    </TableRow>
+                      <TableRow className="border-border/60 hover:bg-transparent min-[860px]:hidden">
+                        <TableCell colSpan={6} className="px-4 pt-0 pb-4">
+                          <div className="ml-[52px] grid grid-cols-2 gap-2">
+                            <div
+                              className={cn(
+                                "min-w-0 rounded-xl border px-3 py-2",
+                                supplier.unpaidAmount > 0
+                                  ? "border-red-100 bg-red-50/80 dark:border-red-500/20 dark:bg-red-500/10"
+                                  : "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/40",
+                              )}
+                            >
+                              <span className="block truncate text-[11px] font-semibold text-muted-foreground">
+                                ค้างชำระ
+                              </span>
+                              <span
+                                className={cn(
+                                  outfit.className,
+                                  "mt-0.5 block truncate text-sm font-bold",
+                                  supplier.unpaidAmount > 0
+                                    ? "text-main-red"
+                                    : "text-muted-foreground",
+                                )}
+                              >
+                                {formatCurrency(supplier.unpaidAmount)}
+                              </span>
+                            </div>
+                            <div
+                              className={cn(
+                                "min-w-0 rounded-xl border px-3 py-2",
+                                supplier.paidAmount > 0
+                                  ? "border-emerald-100 bg-emerald-50/80 dark:border-emerald-500/20 dark:bg-emerald-500/10"
+                                  : "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/40",
+                              )}
+                            >
+                              <span className="block truncate text-[11px] font-semibold text-muted-foreground">
+                                ชำระแล้ว
+                              </span>
+                              <span
+                                className={cn(
+                                  outfit.className,
+                                  "mt-0.5 block truncate text-sm font-bold",
+                                  supplier.paidAmount > 0
+                                    ? "text-main-green"
+                                    : "text-muted-foreground",
+                                )}
+                              >
+                                {formatCurrency(supplier.paidAmount)}
+                              </span>
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    </Fragment>
                   ))}
                 </TableBody>
               </Table>
