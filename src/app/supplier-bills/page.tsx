@@ -4,6 +4,7 @@
  * Supplier Bills Page - รายการบิลคู่ค้า / ซื้อเข้า
  */
 
+import { format } from "date-fns";
 import {
   AlertCircle,
   Barcode,
@@ -34,6 +35,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import type { DateRange } from "react-day-picker";
 import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { KPICard } from "@/components/dashboard/kpi-card";
@@ -43,6 +45,7 @@ import AsyncSearchableSelect from "@/components/ui/async-searchable-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Input } from "@/components/ui/input";
 import {
   LargeDialog,
@@ -3038,18 +3041,30 @@ function SupplierBillCreateDialog({
 
 export default function SupplierBillsPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [selectedBill, setSelectedBill] = useState<SupplierBill | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const supplierBillsApiUrl = useMemo(() => {
+    const params = new URLSearchParams({ limit: "1000" });
+
+    if (dateRange?.from) {
+      params.set("startDate", format(dateRange.from, "yyyy-MM-dd"));
+    }
+
+    if (dateRange?.to) {
+      params.set("endDate", format(dateRange.to, "yyyy-MM-dd"));
+    }
+
+    return `/api/supplier-bills?${params.toString()}`;
+  }, [dateRange?.from, dateRange?.to]);
   const {
     data: supplierBillsData,
     error,
     isLoading,
     mutate,
-  } = useSWR<ApiResponse<SupplierBillsPayload>>(
-    "/api/supplier-bills?limit=1000",
-    fetcher,
-    { refreshInterval: 60000 },
-  );
+  } = useSWR<ApiResponse<SupplierBillsPayload>>(supplierBillsApiUrl, fetcher, {
+    refreshInterval: 60000,
+  });
 
   const payload =
     supplierBillsData?.success && supplierBillsData.data
@@ -3069,6 +3084,13 @@ export default function SupplierBillsPage() {
     0,
   );
   const needsReviewCount = summary.unpaidCount + summary.unknownStatusCount;
+  const hasActiveFilters = Boolean(
+    searchTerm || dateRange?.from || dateRange?.to,
+  );
+  const handleClearFilters = () => {
+    setSearchTerm("");
+    setDateRange(undefined);
+  };
 
   return (
     <div className="p-6 pb-16">
@@ -3155,17 +3177,41 @@ export default function SupplierBillsPage() {
                 />
               </div>
 
-              {searchTerm ? (
+              <DateRangePicker
+                dateRange={dateRange}
+                onDateRangeChange={setDateRange}
+                placeholder="เลือกช่วงวันที่"
+                className="[&_button]:h-11 [&_button]:w-full [&_button]:rounded-2xl [&_button]:font-medium min-[760px]:[&_button]:w-[300px]"
+              />
+
+              {hasActiveFilters ? (
                 <Button
                   variant="outline"
                   className="h-11 gap-2 rounded-2xl font-bold"
-                  onClick={() => setSearchTerm("")}
+                  onClick={handleClearFilters}
                 >
                   <X className="h-4 w-4" />
-                  ล้างคำค้นหา
+                  ล้างตัวกรอง
                 </Button>
               ) : null}
             </div>
+
+            {hasActiveFilters ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm font-medium text-muted-foreground">
+                <span>ตัวกรองที่เปิดใช้งาน:</span>
+                {searchTerm ? (
+                  <Badge variant="secondary" className="font-bold">
+                    ค้นหา: {searchTerm}
+                  </Badge>
+                ) : null}
+                {dateRange?.from ? (
+                  <Badge variant="secondary" className="font-bold">
+                    วันที่: {format(dateRange.from, "d MMM yyyy")}
+                    {dateRange.to && ` - ${format(dateRange.to, "d MMM yyyy")}`}
+                  </Badge>
+                ) : null}
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 
@@ -3426,7 +3472,7 @@ export default function SupplierBillsPage() {
                 ไม่พบรายการบิลคู่ค้า
               </h3>
               <p className="mt-1 text-sm font-medium text-muted-foreground">
-                ลองเปลี่ยนคำค้นหาหรือตรวจสอบข้อมูลจากฐานเดิมอีกครั้ง
+                ลองเปลี่ยนคำค้นหา ช่วงวันที่ หรือตรวจสอบข้อมูลจากฐานเดิมอีกครั้ง
               </p>
             </div>
           ) : (

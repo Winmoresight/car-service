@@ -1567,6 +1567,12 @@ export async function GET(request: NextRequest) {
         ? Math.min(Math.max(rawLimit, 1), 1000)
         : 500;
       const q = normalizeText(searchParams.get("q"));
+      const startDate = normalizeText(
+        searchParams.get("startDate") || searchParams.get("dateFrom"),
+      );
+      const endDate = normalizeText(
+        searchParams.get("endDate") || searchParams.get("dateTo"),
+      );
       const sourceTable = await resolveTable(masterTableCandidates);
       const detailTable = await resolveTable(detailTableCandidates);
 
@@ -1587,6 +1593,32 @@ export async function GET(request: NextRequest) {
       const noteSearchClause = noteColumn
         ? `OR ${quoteIdentifier(noteColumn)} LIKE N'%' + @q + N'%'`
         : "";
+      const dateConditions: string[] = [];
+      const queryParams: Record<string, string | number> = { limit, q };
+
+      if (startDate) {
+        dateConditions.push("CONVERT(date, DatePost) >= @startDate");
+        queryParams.startDate = startDate;
+      }
+
+      if (endDate) {
+        dateConditions.push("CONVERT(date, DatePost) <= @endDate");
+        queryParams.endDate = endDate;
+      }
+
+      const whereClause = [
+        `
+          (
+            @q = N''
+            OR NumberPrintPost LIKE N'%' + @q + N'%'
+            OR CodeCompany LIKE N'%' + @q + N'%'
+            OR NameCompany LIKE N'%' + @q + N'%'
+            OR Status LIKE N'%' + @q + N'%'
+            ${noteSearchClause}
+          )
+        `,
+        ...dateConditions,
+      ].join("\n            AND ");
 
       const rows = await executeQuery<SupplierBillRow>(
         `
@@ -1604,16 +1636,10 @@ export async function GET(request: NextRequest) {
             ISNULL(CheckIn, '') as checkIn,
             ${noteSelect}
           FROM dbo.${quoteIdentifier(sourceTable)}
-          WHERE
-            @q = N''
-            OR NumberPrintPost LIKE N'%' + @q + N'%'
-            OR CodeCompany LIKE N'%' + @q + N'%'
-            OR NameCompany LIKE N'%' + @q + N'%'
-            OR Status LIKE N'%' + @q + N'%'
-            ${noteSearchClause}
+          WHERE ${whereClause}
           ORDER BY DatePost DESC, NumberPrintPost DESC
         `,
-        { limit, q },
+        queryParams,
         false,
       );
       const detailSummary = await getDetailSummary(
