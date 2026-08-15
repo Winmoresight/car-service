@@ -358,6 +358,22 @@ function formatLegacyTime(date: Date) {
   ].join(":");
 }
 
+function formatLegacySqlDate(date: Date) {
+  return [
+    String(date.getFullYear()).padStart(4, "0"),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function formatLegacySqlDateTime(date: Date) {
+  return `${formatLegacySqlDate(date)}T${formatLegacyTime(date)}`;
+}
+
+function formatLegacySqlDateStart(date: Date) {
+  return `${formatLegacySqlDate(date)}T00:00:00`;
+}
+
 function formatStockValue(value: number) {
   return Number(value.toFixed(2)).toString();
 }
@@ -642,7 +658,13 @@ async function receiveSupplierStock(
   `);
 
   const stockRequest = new sql.Request(transaction);
-  stockRequest.input("dateSave", sql.DateTime, stockDate);
+  // Bind legacy local timestamps as ISO text so the driver cannot shift them
+  // to UTC before SQL Server stores them.
+  stockRequest.input(
+    "dateSave",
+    sql.VarChar(19),
+    formatLegacySqlDateTime(stockDate),
+  );
   stockRequest.input("times", sql.NVarChar(10), formatLegacyTime(stockDate));
   stockRequest.input("documentNo", sql.NVarChar(30), params.documentNo);
   stockRequest.input("barcode", sql.NVarChar(30), barcode);
@@ -678,7 +700,7 @@ async function receiveSupplierStock(
       NameCompany
     )
     VALUES (
-      @dateSave,
+      CONVERT(datetime, @dateSave, 126),
       @times,
       @documentNo,
       @barcode,
@@ -1378,7 +1400,11 @@ async function createSupplierBill(params: {
     const documentNo = await createSupplierBillNo(transaction, billDate);
     const masterRequest = new sql.Request(transaction);
 
-    masterRequest.input("datePost", sql.DateTime, billDate);
+    masterRequest.input(
+      "datePost",
+      sql.VarChar(19),
+      formatLegacySqlDateStart(billDate),
+    );
     masterRequest.input("documentNo", sql.NVarChar(30), documentNo);
     masterRequest.input("supplierCode", sql.NVarChar(30), supplier.code);
     masterRequest.input("supplierName", sql.NVarChar(sql.MAX), supplier.name);
@@ -1407,7 +1433,7 @@ async function createSupplierBill(params: {
         ${quoteIdentifier(noteColumn)}
       )
       VALUES (
-        @datePost,
+        CONVERT(datetime, @datePost, 126),
         @documentNo,
         @supplierCode,
         @supplierName,
@@ -1430,7 +1456,11 @@ async function createSupplierBill(params: {
       const lineTotal = getLineTotal(item);
       const detailRequest = new sql.Request(transaction);
 
-      detailRequest.input("datePost", sql.DateTime, billDate);
+      detailRequest.input(
+        "datePost",
+        sql.VarChar(19),
+        formatLegacySqlDateStart(billDate),
+      );
       detailRequest.input("documentNo", sql.NVarChar(30), documentNo);
       detailRequest.input("rowNo", sql.Int, index + 1);
       detailRequest.input("orderNo", sql.NVarChar(10), String(index + 1));
@@ -1493,7 +1523,7 @@ async function createSupplierBill(params: {
           CheckIn
         )
         VALUES (
-          @datePost,
+          CONVERT(datetime, @datePost, 126),
           @documentNo,
           @rowNo,
           @orderNo,
