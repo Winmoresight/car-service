@@ -119,7 +119,7 @@ export const mobilePrimaryNavigation = [
     name: "รับจ่าย",
   },
   {
-    ...mainNavigation[7],
-    name: "รับลูกหนี้",
+    ...mainNavigation[11],
+    name: "คู่ค้า",
   },
 ] as const;

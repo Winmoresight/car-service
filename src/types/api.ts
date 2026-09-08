@@ -148,6 +148,19 @@ export interface TopProduct {
   profitMargin: number; // %
 }
 
+export interface CategorySalesShareItem {
+  name: string;
+  quantity: number;
+  amount: number;
+  percentage: number;
+}
+
+export interface CategorySalesShare {
+  categories: CategorySalesShareItem[];
+  totalAmount: number;
+  totalQuantity: number;
+}
+
 // Loss Product (รายการขาดทุน)
 export interface LossProduct {
   name: string;

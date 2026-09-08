@@ -14,18 +14,26 @@ import {
   LayoutDashboard,
   type LucideIcon,
   Package,
+  Percent,
   Receipt,
   TrendingDown,
   Wallet,
 } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
+import {
+  CategorySalesShareCard,
+  type CategorySharePeriod,
+} from "@/components/dashboard/category-sales-share";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
 import { FinancialSummaryDialog } from "@/components/dashboard/financial-summary-dialog";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { LossAlertTable } from "@/components/dashboard/loss-alert-table";
-import { SalesChart } from "@/components/dashboard/sales-chart";
+import {
+  SalesChart,
+  type SalesChartPeriod,
+} from "@/components/dashboard/sales-chart";
 import { TopProductsTable } from "@/components/dashboard/top-products-table";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -40,6 +48,7 @@ import {
 import { cn } from "@/lib/utils";
 import type {
   ApiResponse,
+  CategorySalesShare,
   DailySales,
   DashboardKPI,
   DashboardMoneyBreakdownItem,
@@ -298,6 +307,11 @@ export default function DashboardPage() {
     "cash" | "transfer" | null
   >(null);
   const [isFinancialSummaryOpen, setIsFinancialSummaryOpen] = useState(false);
+  const [salesChartPeriod, setSalesChartPeriod] =
+    useState<SalesChartPeriod>("day");
+  const [categorySharePeriod, setCategorySharePeriod] =
+    useState<CategorySharePeriod>("day");
+  const [categoryShareDate, setCategoryShareDate] = useState(new Date());
 
   // สร้าง URL สำหรับ API พร้อม query parameter
   const dashboardUrl = selectedDate
@@ -311,10 +325,17 @@ export default function DashboardPage() {
     { refreshInterval: 30000 },
   );
 
-  // Fetch daily sales (30 days)
+  // Fetch sales trend using the selected chart period
   const { data: salesData, error: salesError } = useSWR<
     ApiResponse<DailySales[]>
-  >("/api/sales/daily?days=30", fetcher, { refreshInterval: 60000 });
+  >(
+    `/api/sales/daily?period=${salesChartPeriod}&date=${format(selectedDate ?? new Date(), "yyyy-MM-dd")}`,
+    fetcher,
+    {
+      keepPreviousData: true,
+      refreshInterval: 60000,
+    },
+  );
 
   // Fetch top products
   const { data: topProductsData, error: topProductsError } = useSWR<
@@ -328,6 +349,19 @@ export default function DashboardPage() {
     ApiResponse<LossProduct[]>
   >("/api/products/loss?limit=5", fetcher, { refreshInterval: 60000 });
 
+  const {
+    data: categoryShareData,
+    error: categoryShareError,
+    isLoading: isCategoryShareLoading,
+  } = useSWR<ApiResponse<CategorySalesShare>>(
+    `/api/products/category-share?period=${categorySharePeriod}&date=${format(categoryShareDate, "yyyy-MM-dd")}`,
+    fetcher,
+    {
+      keepPreviousData: true,
+      refreshInterval: 60000,
+    },
+  );
+
   const kpi = kpiData?.success && kpiData.data ? kpiData.data : undefined;
   const dailySales = salesData?.success && salesData.data ? salesData.data : [];
   const topProducts =
@@ -338,6 +372,10 @@ export default function DashboardPage() {
     lossProductsData?.success && lossProductsData.data
       ? lossProductsData.data
       : [];
+  const categoryShare =
+    categoryShareData?.success && categoryShareData.data
+      ? categoryShareData.data
+      : undefined;
 
   const isLoading =
     !kpiData || !salesData || !topProductsData || !lossProductsData;
@@ -476,7 +514,7 @@ export default function DashboardPage() {
             />
           </div>
 
-          <div className="mt-4 grid gap-4 min-[600px]:grid-cols-2 min-[1280px]:grid-cols-4">
+          <div className="mt-4 grid gap-4 min-[600px]:grid-cols-2 min-[1280px]:grid-cols-5">
             <KPICard
               title="ลูกหนี้จ่ายวันนี้"
               value={kpi?.receivableCollected || 0}
@@ -512,6 +550,14 @@ export default function DashboardPage() {
               variant="orange"
               format="currency"
               href="/supplier-bills"
+            />
+            <KPICard
+              title="Gross Margin"
+              value={kpi?.profitMargin || 0}
+              subtitle={`อัตรากำไรขั้นต้น${dateLabel}`}
+              icon={Percent}
+              variant={(kpi?.profitMargin || 0) < 0 ? "red" : "emerald"}
+              format="percent"
             />
           </div>
         </div>
@@ -549,7 +595,24 @@ export default function DashboardPage() {
         </div>
 
         {/* Sales Chart */}
-        <SalesChart data={dailySales} />
+        <SalesChart
+          data={dailySales}
+          period={salesChartPeriod}
+          selectedDate={selectedDate ?? new Date()}
+          onPeriodChange={setSalesChartPeriod}
+        />
+
+        <CategorySalesShareCard
+          data={categoryShare}
+          isLoading={isCategoryShareLoading}
+          hasError={
+            Boolean(categoryShareError) || categoryShareData?.success === false
+          }
+          period={categorySharePeriod}
+          selectedDate={categoryShareDate}
+          onPeriodChange={setCategorySharePeriod}
+          onDateChange={setCategoryShareDate}
+        />
 
         {/* Top Products and Loss Alert */}
         <div className="grid gap-6 lg:grid-cols-2">

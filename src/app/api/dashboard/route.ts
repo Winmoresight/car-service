@@ -654,10 +654,10 @@ export async function GET(request: NextRequest) {
         getMoneyBreakdown(dateExpression, dateParams),
       ]);
 
-      // คำนวณอัตรากำไรขั้นต้น
+      // คำนวณอัตรากำไรขั้นต้นของวันที่เลือกให้ตรงกับ KPI รายวัน
       const profitMargin =
-        monthResult.total_sales > 0
-          ? (monthResult.total_profit / monthResult.total_sales) * 100
+        todayResult.total_sales > 0
+          ? (todayResult.total_profit / todayResult.total_sales) * 100
           : 0;
 
       const cashDrawerExpected = todayResult.total_cash;

@@ -1,10 +1,11 @@
 "use client";
 
 /**
- * Receivable Payments Page - รายการรับชำระลูกหนี้รายวัน
+ * Receivable Payments Page - รายการรับชำระลูกหนี้ตามช่วงเวลา
  */
 
 import { format } from "date-fns";
+import { th } from "date-fns/locale";
 import {
   Banknote,
   CalendarClock,
@@ -15,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import type { DateRange } from "react-day-picker";
 import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { KPICard } from "@/components/dashboard/kpi-card";
@@ -22,7 +24,7 @@ import { outfit } from "@/components/fonts/fonts";
 import { SaleDetailDialog } from "@/components/sales/sale-detail-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DatePicker } from "@/components/ui/date-picker";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -72,9 +74,7 @@ interface ReceivablePaymentSummary {
 }
 
 export default function ReceivablePaymentsPage() {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
-    new Date(),
-  );
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(0);
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
@@ -84,10 +84,15 @@ export default function ReceivablePaymentsPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const selectedDateParam = parseDateParam(params.get("date"));
+    const startDateParam = parseDateParam(params.get("startDate"));
+    const endDateParam = parseDateParam(params.get("endDate"));
     const initialSearch = (params.get("search") || "").trim();
 
-    if (selectedDateParam) {
-      setSelectedDate(selectedDateParam);
+    const initialFrom = startDateParam ?? selectedDateParam ?? endDateParam;
+    const initialTo = endDateParam ?? selectedDateParam ?? startDateParam;
+
+    if (initialFrom) {
+      setDateRange({ from: initialFrom, to: initialTo });
     }
 
     if (initialSearch) {
@@ -101,8 +106,12 @@ export default function ReceivablePaymentsPage() {
       offset: (page * limit).toString(),
     });
 
-    if (selectedDate) {
-      params.append("date", format(selectedDate, "yyyy-MM-dd"));
+    if (dateRange?.from) {
+      params.set("startDate", format(dateRange.from, "yyyy-MM-dd"));
+    }
+
+    if (dateRange?.to) {
+      params.set("endDate", format(dateRange.to, "yyyy-MM-dd"));
     }
 
     if (searchTerm) {
@@ -168,8 +177,8 @@ export default function ReceivablePaymentsPage() {
     });
   };
 
-  const handleDateChange = (date: Date | undefined) => {
-    setSelectedDate(date);
+  const handleDateRangeChange = (range: DateRange | undefined) => {
+    setDateRange(range);
     setPage(0);
   };
 
@@ -179,7 +188,7 @@ export default function ReceivablePaymentsPage() {
   };
 
   const handleClearFilters = () => {
-    setSelectedDate(new Date());
+    setDateRange(undefined);
     setSearchTerm("");
     setPage(0);
   };
@@ -218,11 +227,25 @@ export default function ReceivablePaymentsPage() {
     );
   };
 
-  const dateLabel = selectedDate ? format(selectedDate, "d MMM yyyy") : "วันนี้";
-  const isSelectedDateToday =
-    !selectedDate ||
-    format(selectedDate, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
-  const hasActiveFilters = Boolean(searchTerm) || !isSelectedDateToday;
+  const dateLabel = (() => {
+    if (!dateRange?.from) {
+      return "ทั้งหมด";
+    }
+
+    if (!dateRange.to) {
+      return `ตั้งแต่ ${format(dateRange.from, "d MMMM yyyy", { locale: th })}`;
+    }
+
+    if (
+      format(dateRange.from, "yyyy-MM-dd") ===
+      format(dateRange.to, "yyyy-MM-dd")
+    ) {
+      return format(dateRange.from, "d MMMM yyyy", { locale: th });
+    }
+
+    return `${format(dateRange.from, "d MMM", { locale: th })} - ${format(dateRange.to, "d MMM yyyy", { locale: th })}`;
+  })();
+  const hasActiveFilters = Boolean(searchTerm) || Boolean(dateRange?.from);
 
   return (
     <div className="p-6 pb-16">
@@ -280,7 +303,7 @@ export default function ReceivablePaymentsPage() {
         </div>
 
         <div className="rounded-2xl border bg-card p-4 shadow-sm">
-          <div className="flex flex-col gap-4 md:flex-row">
+          <div className="flex flex-col gap-4 md:flex-row md:flex-wrap">
             <div className="relative flex-1">
               <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -291,11 +314,11 @@ export default function ReceivablePaymentsPage() {
               />
             </div>
 
-            <DatePicker
-              date={selectedDate}
-              onDateChange={handleDateChange}
-              placeholder="เลือกวันที่รับชำระ"
-              className="w-full md:w-[240px]"
+            <DateRangePicker
+              dateRange={dateRange}
+              onDateRangeChange={handleDateRangeChange}
+              placeholder="เลือกช่วงวันที่"
+              className="w-full md:w-[300px]"
             />
 
             {hasActiveFilters && (
@@ -306,7 +329,7 @@ export default function ReceivablePaymentsPage() {
                 className="gap-2"
               >
                 <X className="h-4 w-4" />
-                วันนี้
+                ล้างตัวกรอง
               </Button>
             )}
           </div>

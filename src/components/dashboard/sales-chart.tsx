@@ -2,13 +2,14 @@
 
 /**
  * Sales Chart Component
- * กราฟแสดงยอดขายรายวัน
+ * กราฟแสดงแนวโน้มยอดขายรายวัน รายสัปดาห์ และรายเดือน
  */
 
-import { format } from "date-fns";
+import { addDays, format, startOfWeek } from "date-fns";
 import { th } from "date-fns/locale";
 import { TrendingUp } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -24,10 +25,13 @@ import {
 } from "@/components/ui/chart";
 import type { DailySales } from "@/types/api";
 
+export type SalesChartPeriod = "day" | "week" | "month";
+
 interface SalesChartProps {
   data: DailySales[];
-  title?: string;
-  description?: string;
+  period: SalesChartPeriod;
+  selectedDate: Date;
+  onPeriodChange: (period: SalesChartPeriod) => void;
 }
 
 const chartConfig = {
@@ -43,17 +47,35 @@ const chartConfig = {
 
 export function SalesChart({
   data,
-  title = "ยอดขายรายวัน",
-  description = "30 วันล่าสุด",
+  period,
+  selectedDate,
+  onPeriodChange,
 }: SalesChartProps) {
-  // Format data for chart
-  const chartData = data.map((item) => ({
-    date: format(new Date(item.date), "d MMM", { locale: th }),
-    sales: item.sales,
-    profit: item.profit,
-  }));
+  const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
+  const weekEnd = addDays(weekStart, 5);
+  const title =
+    period === "week"
+      ? "ยอดขายรายสัปดาห์"
+      : period === "month"
+        ? "ยอดขายรายเดือน"
+        : "ยอดขายรายวัน";
+  const description =
+    period === "week"
+      ? `${format(weekStart, "d MMM", { locale: th })} - ${format(weekEnd, "d MMM yyyy", { locale: th })} · จันทร์–เสาร์`
+      : period === "month"
+        ? `${format(selectedDate, "MMMM yyyy", { locale: th })} · ไม่รวมวันอาทิตย์`
+        : `30 วันล่าสุดถึง ${format(selectedDate, "d MMM yyyy", { locale: th })} · ไม่รวมวันอาทิตย์`;
+  const chartData = data.map((item) => {
+    const date = new Date(`${item.date}T00:00:00`);
 
-  const today = format(new Date(), "d MMMM yyyy", { locale: th });
+    return {
+      date: format(date, "d MMM", { locale: th }),
+      sales: item.sales,
+      profit: item.profit,
+    };
+  });
+
+  const selectedDateLabel = format(selectedDate, "d MMMM yyyy", { locale: th });
 
   return (
     <Card className="rounded-3xl border bg-card py-4 shadow-sm">
@@ -75,11 +97,33 @@ export function SalesChart({
             )}
           </div>
         </div>
-        <div className="flex w-fit items-center gap-2 rounded-full border border-border bg-secondary px-4 py-2">
-          <div className="h-2 w-2 rounded-full bg-main-blue" />
-          <span className="text-xs font-bold text-muted-foreground">
-            {today}
-          </span>
+        <div className="flex flex-col items-start gap-2 min-[520px]:flex-row min-[520px]:items-center">
+          <div className="flex items-center rounded-lg border bg-secondary p-1">
+            {(
+              [
+                ["day", "รายวัน"],
+                ["week", "รายสัปดาห์"],
+                ["month", "รายเดือน"],
+              ] as const
+            ).map(([value, label]) => (
+              <Button
+                key={value}
+                type="button"
+                size="sm"
+                variant={period === value ? "default" : "ghost"}
+                onClick={() => onPeriodChange(value)}
+                className="h-8 px-3 text-xs"
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+          <div className="flex w-fit items-center gap-2 rounded-full border border-border bg-secondary px-4 py-2">
+            <div className="h-2 w-2 rounded-full bg-main-blue" />
+            <span className="text-xs font-bold text-muted-foreground">
+              {selectedDateLabel}
+            </span>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="px-4 pt-0">

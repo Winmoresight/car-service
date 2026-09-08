@@ -1,17 +1,77 @@
 /**
- * Daily Sales API
- * GET /api/sales/daily - ดึงข้อมูลยอดขายรายวัน (30 วันล่าสุด)
+ * Sales Trend API
+ * GET /api/sales/daily - ดึงข้อมูลยอดขายรายวัน รายสัปดาห์ หรือรายเดือน
  */
 
 import { type NextRequest, NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
 import type { ApiResponse, DailySales } from "@/types/api";
 
+type SalesPeriod = "day" | "week" | "month";
+
+function normalizeDateParam(value: string | null) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return "";
+  }
+
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+
+  return date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+    ? value
+    : "";
+}
+
+function getPeriodConfig(
+  period: SalesPeriod,
+  selectedDateExpression: string,
+  requestedDays: number,
+) {
+  const weekStart = `DATEADD(day, -(DATEDIFF(day, 0, ${selectedDateExpression}) % 7), ${selectedDateExpression})`;
+  const monthStart = `DATEADD(month, DATEDIFF(month, 0, ${selectedDateExpression}), 0)`;
+
+  if (period === "week") {
+    return {
+      startDateExpression: weekStart,
+      endDateExpression: `DATEADD(day, 7, ${weekStart})`,
+    };
+  }
+
+  if (period === "month") {
+    return {
+      startDateExpression: monthStart,
+      endDateExpression: `DATEADD(month, 1, ${monthStart})`,
+    };
+  }
+
+  const days = Math.min(Math.max(requestedDays, 1), 90);
+
+  return {
+    startDateExpression: `DATEADD(day, -${days - 1}, ${selectedDateExpression})`,
+    endDateExpression: `DATEADD(day, 1, ${selectedDateExpression})`,
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
-    // ดึง query parameter สำหรับจำนวนวัน (default = 30)
     const searchParams = request.nextUrl.searchParams;
-    const days = Number.parseInt(searchParams.get("days") || "30", 10);
+    const requestedPeriod = searchParams.get("period");
+    const period: SalesPeriod =
+      requestedPeriod === "week" || requestedPeriod === "month"
+        ? requestedPeriod
+        : "day";
+    const selectedDate = normalizeDateParam(searchParams.get("date"));
+    const selectedDateExpression = selectedDate
+      ? "CONVERT(date, @selectedDate)"
+      : "CONVERT(date, GETDATE())";
+    const requestedDays = Number.parseInt(searchParams.get("days") || "30", 10);
+    const { startDateExpression, endDateExpression } = getPeriodConfig(
+      period,
+      selectedDateExpression,
+      Number.isFinite(requestedDays) ? requestedDays : 30,
+    );
 
     const query = `
       SELECT 
@@ -22,7 +82,9 @@ export async function GET(request: NextRequest) {
         ISNULL(SUM(Cash), 0) as total_cash,
         ISNULL(SUM(Transfer), 0) as total_transfer
       FROM dbo.MasterSalePost
-      WHERE DateSalePost >= DATEADD(day, -@days, GETDATE())
+      WHERE DateSalePost >= ${startDateExpression}
+        AND DateSalePost < ${endDateExpression}
+        AND DATEDIFF(day, '19000107', CONVERT(date, DateSalePost)) % 7 <> 0
       GROUP BY CONVERT(date, DateSalePost)
       ORDER BY sale_date ASC
     `;
@@ -34,7 +96,7 @@ export async function GET(request: NextRequest) {
       total_profit: number;
       total_cash: number;
       total_transfer: number;
-    }>(query, { days });
+    }>(query, selectedDate ? { selectedDate } : undefined);
 
     // แปลงเป็น format ที่ต้องการ
     const dailySales: DailySales[] = results.map((row) => ({

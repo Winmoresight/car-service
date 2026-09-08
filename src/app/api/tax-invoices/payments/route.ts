@@ -1,6 +1,6 @@
 /**
  * Receivable Payments API
- * GET /api/tax-invoices/payments - รายการลูกหนี้ที่รับชำระในแต่ละวัน
+ * GET /api/tax-invoices/payments - รายการลูกหนี้ที่รับชำระตามช่วงเวลา
  */
 
 import { type NextRequest, NextResponse } from "next/server";
@@ -34,8 +34,39 @@ interface ReceivablePaymentSummary {
   transfer: number;
 }
 
-function getDateCondition(date: string) {
-  return date ? "@selectedDate" : "CONVERT(date, GETDATE())";
+function normalizeDateParam(value: string | null) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return "";
+  }
+
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+
+  return date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+    ? value
+    : "";
+}
+
+function getDateCondition(
+  dateExpression: string,
+  startDate: string,
+  endDate: string,
+) {
+  if (startDate && endDate) {
+    return `CONVERT(date, ${dateExpression}) BETWEEN @startDate AND @endDate`;
+  }
+
+  if (startDate) {
+    return `CONVERT(date, ${dateExpression}) >= @startDate`;
+  }
+
+  if (endDate) {
+    return `CONVERT(date, ${dateExpression}) <= @endDate`;
+  }
+
+  return "1 = 1";
 }
 
 export async function GET(request: NextRequest) {
@@ -44,12 +75,14 @@ export async function GET(request: NextRequest) {
     const limit = Number.parseInt(searchParams.get("limit") || "30", 10);
     const offset = Number.parseInt(searchParams.get("offset") || "0", 10);
     const search = searchParams.get("search") || "";
-    const selectedDate = searchParams.get("date") || "";
-    const dateCondition = getDateCondition(selectedDate);
+    const legacyDate = normalizeDateParam(searchParams.get("date"));
+    const startDate =
+      normalizeDateParam(searchParams.get("startDate")) || legacyDate;
+    const endDate =
+      normalizeDateParam(searchParams.get("endDate")) || legacyDate;
     const sourceConfig = await getReceivablePaymentSourceConfig();
-    const baseCte = buildReceivablePaymentCte(
-      sourceConfig,
-      (dateExpression) => `CONVERT(date, ${dateExpression}) = ${dateCondition}`,
+    const baseCte = buildReceivablePaymentCte(sourceConfig, (dateExpression) =>
+      getDateCondition(dateExpression, startDate, endDate),
     );
     const filters: string[] = ["amount > 0"];
 
@@ -65,12 +98,19 @@ export async function GET(request: NextRequest) {
     }
 
     const whereClause = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
-    const params = {
+    const params: Record<string, unknown> = {
       limit,
       offset,
-      selectedDate: selectedDate || undefined,
       search: `%${search}%`,
     };
+
+    if (startDate) {
+      params.startDate = startDate;
+    }
+
+    if (endDate) {
+      params.endDate = endDate;
+    }
 
     const rows = await executeQuery<{
       id: string;

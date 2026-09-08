@@ -37,6 +37,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  LargeDialog,
+  LargeDialogBody,
+  LargeDialogContent,
+  LargeDialogDescription,
+  LargeDialogHeader,
+  LargeDialogTitle,
+} from "@/components/ui/large-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -86,6 +94,14 @@ interface ReceivableSummary {
   receivableCount: number;
 }
 
+interface ReceivablePayload {
+  taxInvoices: ReceivableBill[];
+  summary: ReceivableSummary;
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 type PaymentMethod = "cash" | "transfer";
 
 interface CloseReceivableDialogState {
@@ -107,7 +123,10 @@ export default function TaxInvoicesPage() {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [isPaidDialogOpen, setIsPaidDialogOpen] = useState(false);
+  const [paidPage, setPaidPage] = useState(0);
   const limit = 20;
+  const paidLimit = 20;
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -151,16 +170,42 @@ export default function TaxInvoicesPage() {
 
   // Fetch tax invoices data
   const { data, error, isLoading, mutate } = useSWR<
-    ApiResponse<{
-      taxInvoices: ReceivableBill[];
-      summary: ReceivableSummary;
-      total: number;
-      limit: number;
-      offset: number;
-    }>
+    ApiResponse<ReceivablePayload>
   >(buildApiUrl(), fetcher, {
     refreshInterval: 60000,
   });
+
+  const buildPaidApiUrl = () => {
+    const params = new URLSearchParams({
+      paidOnly: "true",
+      limit: paidLimit.toString(),
+      offset: (paidPage * paidLimit).toString(),
+    });
+
+    if (searchTerm) {
+      params.set("search", searchTerm);
+    }
+
+    if (dateRange?.from) {
+      params.set("startDate", format(dateRange.from, "yyyy-MM-dd"));
+    }
+
+    if (dateRange?.to) {
+      params.set("endDate", format(dateRange.to, "yyyy-MM-dd"));
+    }
+
+    return `/api/tax-invoices?${params.toString()}`;
+  };
+
+  const {
+    data: paidData,
+    error: paidError,
+    isLoading: isPaidLoading,
+  } = useSWR<ApiResponse<ReceivablePayload>>(
+    isPaidDialogOpen ? buildPaidApiUrl() : null,
+    fetcher,
+    { refreshInterval: 60000 },
+  );
 
   const taxInvoices =
     data?.success && data?.data?.taxInvoices ? data.data.taxInvoices : [];
@@ -168,6 +213,13 @@ export default function TaxInvoicesPage() {
     data?.success && data?.data?.summary ? data.data.summary : null;
   const total = data?.success && data?.data?.total ? data.data.total : 0;
   const totalPages = Math.ceil(total / limit);
+  const paidBills =
+    paidData?.success && paidData.data?.taxInvoices
+      ? paidData.data.taxInvoices
+      : [];
+  const paidTotal =
+    paidData?.success && paidData.data ? paidData.data.total : 0;
+  const paidTotalPages = Math.ceil(paidTotal / paidLimit);
   const selectedInvoice = selectedSaleId
     ? taxInvoices.find((invoice) => invoice.numberPrint === selectedSaleId) ||
       null
@@ -220,6 +272,11 @@ export default function TaxInvoicesPage() {
   const handleViewSale = (saleId: string) => {
     setSelectedSaleId(saleId);
     setIsDialogOpen(true);
+  };
+
+  const handleViewPaidSale = (saleId: string) => {
+    setIsPaidDialogOpen(false);
+    handleViewSale(saleId);
   };
 
   const handleCloseDialog = () => {
@@ -419,6 +476,11 @@ export default function TaxInvoicesPage() {
               format="currency"
               icon={Banknote}
               variant="emerald"
+              subtitle="กดเพื่อดูรายการ"
+              onClick={() => {
+                setPaidPage(0);
+                setIsPaidDialogOpen(true);
+              }}
             />
             <KPICard
               title="ค้างชำระจริง"
@@ -769,6 +831,192 @@ export default function TaxInvoicesPage() {
             </>
           )}
         </div>
+
+        <LargeDialog open={isPaidDialogOpen} onOpenChange={setIsPaidDialogOpen}>
+          <LargeDialogContent size="xl">
+            <LargeDialogHeader>
+              <div className="flex items-start gap-3 pr-10">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-emerald-100 bg-emerald-50 text-main-green dark:border-emerald-500/20 dark:bg-emerald-500/10">
+                  <Banknote className="h-6 w-6" />
+                </div>
+                <div className="min-w-0">
+                  <LargeDialogTitle>รายการที่รับชำระแล้ว</LargeDialogTitle>
+                  <LargeDialogDescription>
+                    บิลลูกหนี้ที่มียอดรับแล้วบางส่วนตามตัวกรองปัจจุบัน
+                  </LargeDialogDescription>
+                </div>
+              </div>
+            </LargeDialogHeader>
+
+            <LargeDialogBody>
+              <div className="mb-5 flex flex-col justify-between gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4 dark:border-emerald-500/20 dark:bg-emerald-500/10 min-[560px]:flex-row min-[560px]:items-center">
+                <div>
+                  <p className="text-sm font-semibold text-muted-foreground">
+                    ยอดรับแล้วบางส่วน
+                  </p>
+                  <p
+                    className={cn(
+                      outfit.className,
+                      "text-2xl font-bold text-main-green",
+                    )}
+                  >
+                    {formatCurrency(summary?.paidAmount || 0)}
+                  </p>
+                </div>
+                <Badge
+                  variant="outline"
+                  className="h-8 w-fit rounded-full border-emerald-100 bg-white px-4 text-sm font-bold text-main-green dark:border-emerald-500/20 dark:bg-card"
+                >
+                  {paidTotal.toLocaleString()} บิล
+                </Badge>
+              </div>
+
+              {isPaidLoading ? (
+                <div className="space-y-3 rounded-2xl border p-4">
+                  {[1, 2, 3, 4, 5, 6].map((row) => (
+                    <Skeleton key={row} className="h-14 w-full rounded-xl" />
+                  ))}
+                </div>
+              ) : paidError || (paidData && !paidData.success) ? (
+                <div className="rounded-2xl border border-red-100 bg-red-50/50 px-4 py-12 text-center dark:border-red-500/20 dark:bg-red-500/10">
+                  <p className="font-bold text-main-red">
+                    โหลดรายการรับชำระไม่สำเร็จ
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-muted-foreground">
+                    กรุณาลองเปิดรายการใหม่อีกครั้ง
+                  </p>
+                </div>
+              ) : paidBills.length === 0 ? (
+                <div className="rounded-2xl border px-4 py-12 text-center">
+                  <p className="font-bold text-card-foreground">
+                    ยังไม่มีรายการที่รับชำระแล้ว
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-muted-foreground">
+                    ไม่พบบิลที่มียอดรับตามตัวกรองปัจจุบัน
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-hidden rounded-2xl border bg-white dark:bg-card">
+                    <Table>
+                      <TableHeader className="bg-secondary/70">
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="font-bold text-card-foreground">
+                            เลขที่บิล
+                          </TableHead>
+                          <TableHead className="font-bold text-card-foreground">
+                            ลูกค้า
+                          </TableHead>
+                          <TableHead className="hidden font-bold text-card-foreground min-[700px]:table-cell">
+                            วันที่ออกบิล
+                          </TableHead>
+                          <TableHead className="text-right font-bold text-card-foreground">
+                            รับแล้ว
+                          </TableHead>
+                          <TableHead className="hidden text-right font-bold text-card-foreground min-[820px]:table-cell">
+                            คงเหลือ
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {paidBills.map((bill) => (
+                          <TableRow
+                            key={bill.numberPrint}
+                            className="cursor-pointer hover:bg-emerald-50/40 dark:hover:bg-emerald-500/5"
+                            onClick={() => handleViewPaidSale(bill.numberPrint)}
+                          >
+                            <TableCell>
+                              <div className="flex min-w-0 flex-col">
+                                <span className="font-bold text-card-foreground">
+                                  {bill.numberPrint}
+                                </span>
+                                <span className="text-xs font-medium text-muted-foreground min-[700px]:hidden">
+                                  {formatDate(bill.date)}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex min-w-0 flex-col">
+                                <span className="max-w-[220px] truncate font-bold text-card-foreground">
+                                  {bill.customerName || "ไม่ระบุลูกค้า"}
+                                </span>
+                                <span className="text-xs font-medium text-muted-foreground">
+                                  {bill.customerCode || "ไม่มีรหัสลูกค้า"}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="hidden font-medium text-muted-foreground min-[700px]:table-cell">
+                              {formatDate(bill.date)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <span
+                                className={cn(
+                                  outfit.className,
+                                  "font-bold text-main-green",
+                                )}
+                              >
+                                {formatCurrency(bill.paidAmount)}
+                              </span>
+                            </TableCell>
+                            <TableCell className="hidden text-right min-[820px]:table-cell">
+                              <span
+                                className={cn(
+                                  outfit.className,
+                                  "font-bold text-main-orange",
+                                )}
+                              >
+                                {formatCurrency(bill.receivableAmount)}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {paidTotalPages > 1 ? (
+                    <div className="mt-4 flex flex-col items-center justify-between gap-3 rounded-2xl border p-3 sm:flex-row">
+                      <p className="text-sm font-medium text-muted-foreground">
+                        แสดง {paidPage * paidLimit + 1}-
+                        {Math.min((paidPage + 1) * paidLimit, paidTotal)} จาก{" "}
+                        {paidTotal.toLocaleString()} บิล
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={paidPage === 0}
+                          onClick={() =>
+                            setPaidPage((current) => Math.max(0, current - 1))
+                          }
+                        >
+                          ก่อนหน้า
+                        </Button>
+                        <span className="rounded-full bg-secondary px-3 py-1 text-sm font-bold">
+                          {paidPage + 1} / {paidTotalPages}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={paidPage >= paidTotalPages - 1}
+                          onClick={() =>
+                            setPaidPage((current) =>
+                              Math.min(paidTotalPages - 1, current + 1),
+                            )
+                          }
+                        >
+                          ถัดไป
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </LargeDialogBody>
+          </LargeDialogContent>
+        </LargeDialog>
 
         <SaleDetailDialog
           saleId={selectedSaleId}

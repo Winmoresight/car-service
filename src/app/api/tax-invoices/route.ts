@@ -182,6 +182,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search") || "";
     const startDate = searchParams.get("startDate") || "";
     const endDate = searchParams.get("endDate") || "";
+    const paidOnly = searchParams.get("paidOnly") === "true";
     const conditions = buildWhereClause();
 
     if (search) {
@@ -248,6 +249,18 @@ export async function GET(request: NextRequest) {
         ${whereClause}
       )
     `;
+    const paidAmountExpression = `
+      CASE
+        WHEN rawReceivableAmount > 0
+          THEN CASE
+            WHEN totalPrice - rawReceivableAmount > 0
+              THEN totalPrice - rawReceivableAmount
+            ELSE 0
+          END
+        ELSE cash + transfer
+      END
+    `;
+    const paidOnlyClause = paidOnly ? `WHERE ${paidAmountExpression} > 0` : "";
 
     const query = `
       ${baseCte},
@@ -262,15 +275,7 @@ export async function GET(request: NextRequest) {
           totalPrice,
           cash,
           transfer,
-          CASE
-            WHEN rawReceivableAmount > 0
-              THEN CASE
-                WHEN totalPrice - rawReceivableAmount > 0
-                  THEN totalPrice - rawReceivableAmount
-                ELSE 0
-              END
-            ELSE cash + transfer
-          END as paidAmount,
+          ${paidAmountExpression} as paidAmount,
           CASE
             WHEN rawReceivableAmount > 0 THEN rawReceivableAmount
             ELSE 0
@@ -279,6 +284,7 @@ export async function GET(request: NextRequest) {
           userName,
           ROW_NUMBER() OVER (ORDER BY date DESC, numberPrint DESC) as RowNum
         FROM normalized
+        ${paidOnlyClause}
       )
       SELECT
         numberPrint,
@@ -345,6 +351,7 @@ export async function GET(request: NextRequest) {
         ${baseCte}
         SELECT COUNT(*) as total
         FROM normalized
+        ${paidOnlyClause}
       `,
       params,
     );
