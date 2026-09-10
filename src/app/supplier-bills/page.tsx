@@ -2145,6 +2145,10 @@ function SupplierBillCreateDialog({
       const unitPrice = parseMoneyInput(item.unitPrice);
       const discount = parseMoneyInput(item.discount) ?? 0;
 
+      if (!item.barcode.trim()) {
+        return `กรุณาเลือกสินค้าเดิมหรือเพิ่มสินค้าใหม่พร้อมบาร์โค้ดก่อนบันทึก (${item.name})`;
+      }
+
       if (quantity === null) {
         return `กรุณาระบุจำนวนของ ${item.name} ให้ถูกต้อง`;
       }
@@ -2679,7 +2683,7 @@ function SupplierBillCreateDialog({
                 <div>
                   <h3 className="font-bold text-card-foreground">รายการสินค้า</h3>
                   <p className="mt-1 text-sm font-semibold text-muted-foreground">
-                    กรอกจากบิลคู่ค้า หรือเลือกสินค้าเดิมเพื่อช่วยเติมข้อมูล
+                    เลือกสินค้าเดิมหรือเพิ่มสินค้าใหม่พร้อมบาร์โค้ด เพื่อรับเข้าสต็อกอัตโนมัติ
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 min-[440px]:flex-row">

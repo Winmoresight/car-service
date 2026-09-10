@@ -601,7 +601,9 @@ async function receiveSupplierStock(
   const barcode = truncateText(params.item.barcode.trim(), 30);
 
   if (!barcode) {
-    return null;
+    throw new Error(
+      `กรุณาเลือกสินค้าในคลังหรือเพิ่มสินค้าใหม่พร้อมบาร์โค้ดก่อนบันทึก (${params.item.name})`,
+    );
   }
 
   const stockDate = new Date(params.billDate);
@@ -617,6 +619,7 @@ async function receiveSupplierStock(
     const currentStockRows = await currentStockRequest.query<{
       stock: string | number | null;
       productStock: string | number | null;
+      productCount: number;
     }>(`
       SELECT
         (
@@ -629,10 +632,20 @@ async function receiveSupplierStock(
           SELECT TOP 1 NProduct
           FROM dbo.MasterProductDetail WITH (UPDLOCK, HOLDLOCK)
           WHERE BarCode = @barcode
-        ) as productStock
+        ) as productStock,
+        (
+          SELECT COUNT(*)
+          FROM dbo.MasterProductDetail WITH (UPDLOCK, HOLDLOCK)
+          WHERE BarCode = @barcode
+        ) as productCount
     `);
 
     const currentRow = currentStockRows.recordset[0];
+
+    if ((Number(currentRow?.productCount) || 0) === 0) {
+      throw new Error(`ไม่พบสินค้าบาร์โค้ด ${barcode} ในคลังสินค้า`);
+    }
+
     currentStock =
       currentRow?.stock !== null && currentRow?.stock !== undefined
         ? parseLegacyNumber(currentRow.stock)
@@ -1892,6 +1905,15 @@ export async function POST(request: NextRequest) {
 
       if (items.length === 0) {
         return errorResponse("กรุณาเพิ่มรายการสินค้าอย่างน้อย 1 รายการ", 400);
+      }
+
+      const unlinkedItem = items.find((item) => !item.barcode);
+
+      if (unlinkedItem) {
+        return errorResponse(
+          `กรุณาเลือกสินค้าในคลังหรือเพิ่มสินค้าใหม่พร้อมบาร์โค้ดก่อนบันทึก (${unlinkedItem.name})`,
+          400,
+        );
       }
 
       if (

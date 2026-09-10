@@ -21,13 +21,6 @@ import { KPICard } from "@/components/dashboard/kpi-card";
 import { outfit } from "@/components/fonts/fonts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -70,7 +63,6 @@ interface CancellationReviewSummary {
   approvedCount: number;
   pendingAmount: number;
   approvedAmount: number;
-  periodDays: number;
 }
 
 interface AuthUser {
@@ -81,9 +73,7 @@ interface AuthUser {
 
 export default function DeletedBillsPage() {
   const [page, setPage] = useState(0);
-  const [days, setDays] = useState(30);
-  const [statusFilter, setStatusFilter] =
-    useState<ReviewStatusFilter>("pending");
+  const [statusFilter, setStatusFilter] = useState<ReviewStatusFilter>("all");
   const [approvingBill, setApprovingBill] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const limit = 20;
@@ -92,7 +82,6 @@ export default function DeletedBillsPage() {
     const params = new URLSearchParams({
       limit: limit.toString(),
       offset: (page * limit).toString(),
-      days: days.toString(),
       status: statusFilter,
     });
 
@@ -151,11 +140,6 @@ export default function DeletedBillsPage() {
       hour: "2-digit",
       minute: "2-digit",
     });
-  };
-
-  const handleDaysChange = (value: string) => {
-    setDays(Number(value));
-    setPage(0);
   };
 
   const handleStatusFilterChange = (value: ReviewStatusFilter) => {
@@ -271,7 +255,7 @@ export default function DeletedBillsPage() {
           {summary ? (
             <div className="grid gap-4 min-[600px]:grid-cols-2 xl:grid-cols-4">
               <KPICard
-                title={`รออนุมัติ (${summary.periodDays} วัน)`}
+                title="รออนุมัติ"
                 value={summary.pendingCount}
                 unit="บิล"
                 icon={Clock3}
@@ -306,26 +290,6 @@ export default function DeletedBillsPage() {
 
           <div className="mt-6 flex flex-col gap-4 border-t border-border/50 pt-6 min-[920px]:flex-row min-[920px]:items-end min-[920px]:justify-between">
             <div className="flex flex-col gap-3 min-[560px]:flex-row min-[560px]:items-end">
-              <div>
-                <span className="mb-2 block text-sm font-bold text-card-foreground">
-                  ช่วงเวลาย้อนหลัง
-                </span>
-                <Select
-                  value={days.toString()}
-                  onValueChange={handleDaysChange}
-                >
-                  <SelectTrigger className="h-10 w-full rounded-[8px] font-bold min-[560px]:w-[170px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="7">7 วันล่าสุด</SelectItem>
-                    <SelectItem value="30">30 วันล่าสุด</SelectItem>
-                    <SelectItem value="60">60 วันล่าสุด</SelectItem>
-                    <SelectItem value="90">90 วันล่าสุด</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
               <div className="space-y-2">
                 <span className="block text-sm font-bold text-card-foreground">
                   สถานะตรวจสอบ
@@ -409,7 +373,7 @@ export default function DeletedBillsPage() {
                 ไม่พบรายการยกเลิกตามตัวกรองนี้
               </h3>
               <p className="mt-1 text-sm font-medium text-muted-foreground">
-                ใน {days} วันล่าสุด
+                ในประวัติทั้งหมด
               </p>
             </div>
           ) : (

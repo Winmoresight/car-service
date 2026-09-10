@@ -38,7 +38,6 @@ interface CancellationReviewSummary {
   approvedCount: number;
   pendingAmount: number;
   approvedAmount: number;
-  periodDays: number;
 }
 
 interface CancellationReviewRow {
@@ -105,16 +104,6 @@ function toIsoString(value: Date | string | null | undefined) {
   }
 
   return date.toISOString();
-}
-
-function normalizeDays(value: string | null) {
-  const days = Number.parseInt(value || "30", 10);
-
-  if (!Number.isFinite(days) || days <= 0) {
-    return 30;
-  }
-
-  return Math.min(days, 365);
 }
 
 function normalizeLimit(value: string | null) {
@@ -222,7 +211,7 @@ async function ensureCancellationReviewTables() {
   );
 }
 
-async function syncCancellationReviews(days: number) {
+async function syncCancellationReviews() {
   await ensureCancellationReviewTables();
 
   await executeQuery(
@@ -242,7 +231,7 @@ async function syncCancellationReviews(days: number) {
       INNER JOIN dbo.MasterSalePost m
         ON m.NumberPrintSalePost = snapshot.NumberPrintSalePost
       WHERE ISNULL(m.NumberPrintSalePost, N'') <> N''
-        AND m.DateSalePost >= DATEADD(day, -@days, GETDATE())
+        AND m.NumberPrintSalePost LIKE N'SA%'
         AND LTRIM(RTRIM(ISNULL(m.Status, N''))) NOT LIKE N'%ยกเลิก%'
 
       INSERT INTO dbo.${quoteIdentifier(snapshotTableName)} (
@@ -268,7 +257,7 @@ async function syncCancellationReviews(days: number) {
         ISNULL(m.NameSave, N'')
       FROM dbo.MasterSalePost m
       WHERE ISNULL(m.NumberPrintSalePost, N'') <> N''
-        AND m.DateSalePost >= DATEADD(day, -@days, GETDATE())
+        AND m.NumberPrintSalePost LIKE N'SA%'
         AND LTRIM(RTRIM(ISNULL(m.Status, N''))) NOT LIKE N'%ยกเลิก%'
         AND NOT EXISTS (
           SELECT 1
@@ -301,12 +290,44 @@ async function syncCancellationReviews(days: number) {
         N'status_cancelled'
       FROM dbo.MasterSalePost m
       WHERE ISNULL(m.NumberPrintSalePost, N'') <> N''
-        AND m.DateSalePost >= DATEADD(day, -@days, GETDATE())
+        AND m.NumberPrintSalePost LIKE N'SA%'
         AND LTRIM(RTRIM(ISNULL(m.Status, N''))) LIKE N'%ยกเลิก%'
         AND NOT EXISTS (
           SELECT 1
           FROM dbo.${quoteIdentifier(reviewTableName)} review
           WHERE review.NumberPrintSalePost = m.NumberPrintSalePost
+        )
+
+      INSERT INTO dbo.${quoteIdentifier(reviewTableName)} (
+        NumberPrintSalePost,
+        OriginalDate,
+        CustomerName,
+        TotalPrice,
+        TotalProfit,
+        Cash,
+        Transfer,
+        LegacyStatus,
+        UserName,
+        DetectedReason
+      )
+      SELECT
+        d.NumberPrint,
+        d.DateDelect,
+        ISNULL(d.NameCustomer, N'ไม่ระบุ'),
+        ISNULL(d.TotalPrice, 0),
+        0,
+        0,
+        0,
+        N'ยกเลิก',
+        ISNULL(d.NameUser, N''),
+        N'status_cancelled'
+      FROM dbo.MasterPrintDelect d
+      WHERE ISNULL(d.NumberPrint, N'') <> N''
+        AND d.NumberPrint LIKE N'SA%'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM dbo.${quoteIdentifier(reviewTableName)} review
+          WHERE review.NumberPrintSalePost = d.NumberPrint
         )
 
       INSERT INTO dbo.${quoteIdentifier(reviewTableName)} (
@@ -333,7 +354,7 @@ async function syncCancellationReviews(days: number) {
         snapshot.UserName,
         N'missing'
       FROM dbo.${quoteIdentifier(snapshotTableName)} snapshot
-      WHERE snapshot.DateSalePost >= DATEADD(day, -@days, GETDATE())
+      WHERE snapshot.NumberPrintSalePost LIKE N'SA%'
         AND NOT EXISTS (
           SELECT 1
           FROM dbo.MasterSalePost m
@@ -345,7 +366,7 @@ async function syncCancellationReviews(days: number) {
           WHERE review.NumberPrintSalePost = snapshot.NumberPrintSalePost
         )
     `,
-    { days },
+    undefined,
     false,
   );
 }
@@ -384,17 +405,15 @@ function mapCancellationReview(row: CancellationReviewRow): CancellationReview {
 }
 
 async function getCancellationReviews({
-  days,
   limit,
   offset,
   filter,
 }: {
-  days: number;
   limit: number;
   offset: number;
   filter: CancellationReviewFilter;
 }) {
-  await syncCancellationReviews(days);
+  await syncCancellationReviews();
 
   const filterCondition = getFilterCondition(filter);
   const [summaryRows, countRows, rows] = await Promise.all([
@@ -413,19 +432,19 @@ async function getCancellationReviews({
           ISNULL(SUM(CASE WHEN ReviewStatus = N'pending' THEN TotalPrice ELSE 0 END), 0) as pendingAmount,
           ISNULL(SUM(CASE WHEN ReviewStatus = N'approved' THEN TotalPrice ELSE 0 END), 0) as approvedAmount
         FROM dbo.${quoteIdentifier(reviewTableName)}
-        WHERE DetectedAt >= DATEADD(day, -@days, GETDATE())
+        WHERE NumberPrintSalePost LIKE N'SA%'
       `,
-      { days },
+      undefined,
       false,
     ),
     executeQuery<{ total: number }>(
       `
         SELECT COUNT(1) as total
         FROM dbo.${quoteIdentifier(reviewTableName)}
-        WHERE DetectedAt >= DATEADD(day, -@days, GETDATE())
+        WHERE NumberPrintSalePost LIKE N'SA%'
           ${filterCondition}
       `,
-      { days },
+      undefined,
       false,
     ),
     executeQuery<CancellationReviewRow>(
@@ -449,12 +468,12 @@ async function getCancellationReviews({
             Note as note,
             ROW_NUMBER() OVER (
               ORDER BY
-                CASE WHEN ReviewStatus = N'pending' THEN 0 ELSE 1 END,
+                OriginalDate DESC,
                 DetectedAt DESC,
                 NumberPrintSalePost DESC
             ) as RowNum
           FROM dbo.${quoteIdentifier(reviewTableName)}
-          WHERE DetectedAt >= DATEADD(day, -@days, GETDATE())
+          WHERE NumberPrintSalePost LIKE N'SA%'
             ${filterCondition}
         )
         SELECT
@@ -477,7 +496,7 @@ async function getCancellationReviews({
         WHERE RowNum > @offset AND RowNum <= (@offset + @limit)
         ORDER BY RowNum
       `,
-      { days, limit, offset },
+      { limit, offset },
       false,
     ),
   ]);
@@ -488,7 +507,6 @@ async function getCancellationReviews({
     approvedCount: Number(summaryRow?.approvedCount) || 0,
     pendingAmount: normalizeMoney(summaryRow?.pendingAmount),
     approvedAmount: normalizeMoney(summaryRow?.approvedAmount),
-    periodDays: days,
   };
 
   return {
@@ -513,6 +531,7 @@ async function approveCancellationReview(payload: CancellationReviewPayload) {
         Note = @note
       OUTPUT inserted.NumberPrintSalePost as numberPrint
       WHERE NumberPrintSalePost = @numberPrint
+        AND NumberPrintSalePost LIKE N'SA%'
     `,
     {
       numberPrint: payload.numberPrint,
@@ -538,14 +557,13 @@ async function approveCancellationReview(payload: CancellationReviewPayload) {
 
 export async function GET(request: NextRequest) {
   try {
-    const days = normalizeDays(request.nextUrl.searchParams.get("days"));
     const limit = normalizeLimit(request.nextUrl.searchParams.get("limit"));
     const offset = normalizeOffset(request.nextUrl.searchParams.get("offset"));
     const filter = normalizeReviewFilter(
       request.nextUrl.searchParams.get("status"),
     );
     const data = await withTimeout(
-      () => getCancellationReviews({ days, limit, offset, filter }),
+      () => getCancellationReviews({ limit, offset, filter }),
       60000,
     );
 
