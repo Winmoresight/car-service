@@ -5,6 +5,7 @@
 
 import sql from "mssql";
 import { type NextRequest, NextResponse } from "next/server";
+import { AUTH_COOKIE_NAME, readAuthToken } from "@/lib/auth-session";
 import { executeQuery, getPool } from "@/lib/db";
 import type {
   ApiResponse,
@@ -42,11 +43,23 @@ interface StockProductCreatePayload {
   retailPrice: number;
 }
 
+type StockAdjustmentMode = "increase" | "decrease" | "set";
+
+interface StockAdjustmentPayload {
+  barcode: string;
+  mode: StockAdjustmentMode;
+  quantity: number;
+  reason: string;
+  note: string;
+  adjustedBy: string;
+}
+
 class StockValidationError extends Error {
   status = 400;
 }
 
 const productBarcodeAliasTableName = "WebProductBarcodeAliases";
+const stockAdjustmentTableName = "WebStockAdjustments";
 const allowedLimits = [20, 50, 100, 200];
 
 function getLimit(value: string | null) {
@@ -113,6 +126,16 @@ function formatLegacyTime(date: Date) {
     String(date.getMinutes()).padStart(2, "0"),
     String(date.getSeconds()).padStart(2, "0"),
   ].join(":");
+}
+
+function formatLegacySqlDateTime(date: Date) {
+  const datePart = [
+    String(date.getFullYear()).padStart(4, "0"),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+
+  return `${datePart}T${formatLegacyTime(date)}`;
 }
 
 function uniqueOptionsByName<T extends { name: string }>(options: T[]) {
@@ -183,6 +206,293 @@ function parseStockProductPayload(body: unknown): StockProductCreatePayload {
     costPrice,
     retailPrice,
   };
+}
+
+function parseStockAdjustmentPayload(
+  body: unknown,
+  adjustedBy: string,
+): StockAdjustmentPayload {
+  if (typeof body !== "object" || body === null) {
+    throw new StockValidationError("ข้อมูลปรับสต๊อกไม่ถูกต้อง");
+  }
+
+  const source = body as Record<string, unknown>;
+  const barcode = truncateText(
+    normalizeText(source.barcode).replace(/\s+/g, ""),
+    30,
+  );
+  const mode = normalizeText(source.mode) as StockAdjustmentMode;
+  const quantity = normalizeMoney(source.quantity);
+  const reason = truncateText(
+    normalizeText(source.reason) || "ปรับสต๊อกด้วยตนเอง",
+    100,
+  );
+  const note = truncateText(normalizeText(source.note), 500);
+
+  if (!barcode) {
+    throw new StockValidationError("กรุณาเลือกสินค้าที่ต้องการปรับสต๊อก");
+  }
+
+  if (!(["increase", "decrease", "set"] as const).includes(mode)) {
+    throw new StockValidationError("กรุณาเลือกวิธีปรับสต๊อก");
+  }
+
+  if (quantity === null || (mode !== "set" && quantity <= 0)) {
+    throw new StockValidationError("กรุณาระบุจำนวนสต๊อกให้ถูกต้อง");
+  }
+
+  return {
+    barcode,
+    mode,
+    quantity,
+    reason,
+    note,
+    adjustedBy: truncateText(adjustedBy, 250),
+  };
+}
+
+async function ensureStockAdjustmentTable() {
+  await executeQuery(
+    `
+      IF OBJECT_ID(N'dbo.${stockAdjustmentTableName}', N'U') IS NULL
+      BEGIN
+        CREATE TABLE dbo.${stockAdjustmentTableName} (
+          ReferenceNo nvarchar(30) NOT NULL,
+          AdjustedAt datetime NOT NULL
+            CONSTRAINT DF_${stockAdjustmentTableName}_AdjustedAt DEFAULT GETDATE(),
+          BarCode nvarchar(30) NOT NULL,
+          ProductName nvarchar(250) NULL,
+          AdjustmentMode nvarchar(20) NOT NULL,
+          BeforeStock real NOT NULL,
+          Quantity real NOT NULL,
+          AfterStock real NOT NULL,
+          Reason nvarchar(100) NOT NULL,
+          Note nvarchar(500) NULL,
+          AdjustedBy nvarchar(250) NULL,
+          CONSTRAINT PK_${stockAdjustmentTableName}
+            PRIMARY KEY (ReferenceNo)
+        )
+      END
+    `,
+    undefined,
+    false,
+  );
+}
+
+function createStockAdjustmentReference(now: Date) {
+  const timestamp = now.getTime().toString().slice(-13);
+  const random = Math.floor(Math.random() * 1000)
+    .toString()
+    .padStart(3, "0");
+
+  return `ADJ${timestamp}${random}`;
+}
+
+async function adjustStock(payload: StockAdjustmentPayload) {
+  await ensureStockAdjustmentTable();
+
+  const pool = await getPool();
+  const transaction = new sql.Transaction(pool);
+
+  await transaction.begin();
+
+  try {
+    const productRequest = new sql.Request(transaction);
+    productRequest.input("barcode", sql.NVarChar(30), payload.barcode);
+    const productRows = await productRequest.query<{
+      name: string | null;
+      unit: string | null;
+      costPrice: number | string | null;
+      productStock: number | string | null;
+      movementStock: number | string | null;
+    }>(`
+      SELECT TOP 1
+        ISNULL(m.NameProduct, N'') as name,
+        ISNULL(d.MeterProduct, N'') as unit,
+        ISNULL(d.CostPrice, 0) as costPrice,
+        ISNULL(d.NProduct, 0) as productStock,
+        (
+          SELECT TOP 1 Stock
+          FROM dbo.INOUTStockProduct WITH (UPDLOCK, HOLDLOCK)
+          WHERE BarCode = @barcode
+          ORDER BY DateSave DESC, Times DESC, NumberPrint DESC
+        ) as movementStock
+      FROM dbo.MasterProductDetail d WITH (UPDLOCK, HOLDLOCK)
+      LEFT JOIN dbo.MasterProduct m WITH (UPDLOCK, HOLDLOCK)
+        ON m.CodeProduct = d.CodeProduct
+      WHERE d.BarCode = @barcode
+    `);
+    const product = productRows.recordset[0];
+
+    if (!product) {
+      throw new StockValidationError(
+        `ไม่พบสินค้าบาร์โค้ด ${payload.barcode} ในคลังสินค้า`,
+      );
+    }
+
+    const beforeStock =
+      product.movementStock !== null && product.movementStock !== undefined
+        ? Number(product.movementStock) || 0
+        : Number(product.productStock) || 0;
+    const afterStock = Number(
+      (payload.mode === "set"
+        ? payload.quantity
+        : payload.mode === "increase"
+          ? beforeStock + payload.quantity
+          : beforeStock - payload.quantity
+      ).toFixed(2),
+    );
+    const quantityDelta = Number((afterStock - beforeStock).toFixed(2));
+
+    if (afterStock < 0) {
+      throw new StockValidationError(
+        `ไม่สามารถลดสต๊อกเกินยอดคงเหลือ ${beforeStock.toLocaleString("th-TH")}`,
+      );
+    }
+
+    if (quantityDelta === 0) {
+      throw new StockValidationError("ยอดหลังปรับเท่ากับยอดปัจจุบัน");
+    }
+
+    const now = new Date();
+    const referenceNo = createStockAdjustmentReference(now);
+    const productName = normalizeText(product.name) || payload.barcode;
+    const unit = normalizeText(product.unit) || "-";
+    const movementRequest = new sql.Request(transaction);
+
+    movementRequest.input("barcode", sql.NVarChar(30), payload.barcode);
+    movementRequest.input("afterStock", sql.Real, afterStock);
+    movementRequest.input(
+      "dateSave",
+      sql.VarChar(19),
+      formatLegacySqlDateTime(now),
+    );
+    movementRequest.input("times", sql.NVarChar(10), formatLegacyTime(now));
+    movementRequest.input("referenceNo", sql.NVarChar(30), referenceNo);
+    movementRequest.input("productName", sql.NVarChar(250), productName);
+    movementRequest.input("unit", sql.NVarChar(50), unit);
+    movementRequest.input(
+      "debit",
+      sql.NVarChar(30),
+      quantityDelta > 0 ? String(quantityDelta) : "",
+    );
+    movementRequest.input(
+      "credit",
+      sql.NVarChar(30),
+      quantityDelta < 0 ? String(Math.abs(quantityDelta)) : "",
+    );
+    movementRequest.input("stock", sql.NVarChar(30), String(afterStock));
+    movementRequest.input(
+      "costPrice",
+      sql.NVarChar(50),
+      String(Number(product.costPrice) || 0),
+    );
+    movementRequest.input("companyCode", sql.NVarChar(30), "ADJUST");
+    movementRequest.input(
+      "companyName",
+      sql.NVarChar(250),
+      truncateText(`${payload.reason} · ${payload.adjustedBy}`, 250),
+    );
+
+    await movementRequest.query(`
+      UPDATE dbo.MasterProductDetail
+      SET NProduct = @afterStock
+      WHERE BarCode = @barcode
+
+      INSERT INTO dbo.INOUTStockProduct (
+        DateSave,
+        Times,
+        NumberPrint,
+        BarCode,
+        NameProduct,
+        MeterProduct,
+        Debit,
+        Credit,
+        Stock,
+        CostPrice,
+        CodeCompany,
+        NameCompany
+      )
+      VALUES (
+        CONVERT(datetime, @dateSave, 126),
+        @times,
+        @referenceNo,
+        @barcode,
+        @productName,
+        @unit,
+        @debit,
+        @credit,
+        @stock,
+        @costPrice,
+        @companyCode,
+        @companyName
+      )
+    `);
+
+    const auditRequest = new sql.Request(transaction);
+    auditRequest.input("referenceNo", sql.NVarChar(30), referenceNo);
+    auditRequest.input(
+      "adjustedAt",
+      sql.VarChar(19),
+      formatLegacySqlDateTime(now),
+    );
+    auditRequest.input("barcode", sql.NVarChar(30), payload.barcode);
+    auditRequest.input("productName", sql.NVarChar(250), productName);
+    auditRequest.input("mode", sql.NVarChar(20), payload.mode);
+    auditRequest.input("beforeStock", sql.Real, beforeStock);
+    auditRequest.input("quantity", sql.Real, payload.quantity);
+    auditRequest.input("afterStock", sql.Real, afterStock);
+    auditRequest.input("reason", sql.NVarChar(100), payload.reason);
+    auditRequest.input("note", sql.NVarChar(500), payload.note);
+    auditRequest.input("adjustedBy", sql.NVarChar(250), payload.adjustedBy);
+
+    await auditRequest.query(`
+      INSERT INTO dbo.${stockAdjustmentTableName} (
+        ReferenceNo,
+        AdjustedAt,
+        BarCode,
+        ProductName,
+        AdjustmentMode,
+        BeforeStock,
+        Quantity,
+        AfterStock,
+        Reason,
+        Note,
+        AdjustedBy
+      )
+      VALUES (
+        @referenceNo,
+        CONVERT(datetime, @adjustedAt, 126),
+        @barcode,
+        @productName,
+        @mode,
+        @beforeStock,
+        @quantity,
+        @afterStock,
+        @reason,
+        @note,
+        @adjustedBy
+      )
+    `);
+
+    await transaction.commit();
+
+    return {
+      referenceNo,
+      barcode: payload.barcode,
+      productName,
+      beforeStock,
+      quantity: payload.quantity,
+      afterStock,
+      mode: payload.mode,
+      reason: payload.reason,
+      adjustedBy: payload.adjustedBy,
+      adjustedAt: now.toISOString(),
+    };
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
 }
 
 async function getStockCatalog(categoryId: number) {
@@ -678,15 +988,19 @@ export async function GET(request: NextRequest) {
 
     // Get stock summary
     const query = `
-      WITH StockData AS (
-        SELECT 
+      WITH RankedMovements AS (
+        SELECT
           BarCode as barCode,
           NameProduct as name,
           Stock as currentStock,
-          MAX(DateSave) as lastUpdate,
-          COUNT(*) as movements
+          DateSave as lastUpdate,
+          COUNT(*) OVER (PARTITION BY BarCode) as movements,
+          ROW_NUMBER() OVER (
+            PARTITION BY BarCode
+            ORDER BY DateSave DESC, Times DESC, NumberPrint DESC
+          ) as LatestRow
         FROM dbo.INOUTStockProduct
-        GROUP BY BarCode, NameProduct, Stock
+        WHERE ISNULL(BarCode, N'') <> N''
       ),
       PaginatedData AS (
         SELECT
@@ -695,8 +1009,9 @@ export async function GET(request: NextRequest) {
           currentStock,
           lastUpdate,
           movements,
-          ROW_NUMBER() OVER (ORDER BY movements DESC) as RowNum
-        FROM StockData
+          ROW_NUMBER() OVER (ORDER BY name, barCode) as RowNum
+        FROM RankedMovements
+        WHERE LatestRow = 1
       )
       SELECT
         barCode,
@@ -717,26 +1032,17 @@ export async function GET(request: NextRequest) {
       movements: number;
     }>(query, { limit, offset });
     const [countResult] = await executeQuery<{ total: number }>(`
-      WITH StockData AS (
-        SELECT
-          BarCode as barCode,
-          NameProduct as name,
-          Stock as currentStock,
-          MAX(DateSave) as lastUpdate,
-          COUNT(*) as movements
-        FROM dbo.INOUTStockProduct
-        GROUP BY BarCode, NameProduct, Stock
-      )
-      SELECT COUNT(*) as total
-      FROM StockData
+      SELECT COUNT(DISTINCT BarCode) as total
+      FROM dbo.INOUTStockProduct
+      WHERE ISNULL(BarCode, N'') <> N''
     `);
 
     const stockItems: StockItem[] = results.map((row) => ({
       barCode: row.barCode,
       name: row.name,
-      currentStock: row.currentStock,
+      currentStock: Number(row.currentStock) || 0,
       lastUpdate: new Date(row.lastUpdate).toISOString(),
-      movements: row.movements,
+      movements: Number(row.movements) || 0,
     }));
 
     const response: ApiResponse<PaginatedPayload<StockItem>> = {
@@ -781,6 +1087,54 @@ export async function POST(request: NextRequest) {
 
     const message =
       error instanceof Error ? error.message : "Failed to create product";
+    const status = error instanceof StockValidationError ? error.status : 500;
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: message,
+        timestamp: new Date().toISOString(),
+      },
+      { status },
+    );
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const session = await readAuthToken(
+      request.cookies.get(AUTH_COOKIE_NAME)?.value,
+    );
+
+    if (!session) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "กรุณาเข้าสู่ระบบก่อนปรับสต๊อก",
+          timestamp: new Date().toISOString(),
+        },
+        { status: 401 },
+      );
+    }
+
+    const adjustedBy =
+      session.nameUser || session.username || session.codePerson;
+    const payload = parseStockAdjustmentPayload(
+      await request.json(),
+      adjustedBy,
+    );
+    const data = await adjustStock(payload);
+
+    return NextResponse.json({
+      success: true,
+      data,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Stock adjustment API error:", error);
+
+    const message =
+      error instanceof Error ? error.message : "Failed to adjust stock";
     const status = error instanceof StockValidationError ? error.status : 500;
 
     return NextResponse.json(

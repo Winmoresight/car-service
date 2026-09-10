@@ -15,6 +15,7 @@ import {
   Package,
   Plus,
   Save,
+  SlidersHorizontal,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
@@ -88,6 +89,30 @@ interface ProductDraft {
   retailPrice: string;
 }
 
+type StockAdjustmentMode = "increase" | "decrease" | "set";
+
+interface AuthUser {
+  codePerson?: string;
+  nameUser?: string;
+  username?: string;
+}
+
+interface StockAdjustmentResult {
+  referenceNo: string;
+  productName: string;
+  beforeStock: number;
+  afterStock: number;
+}
+
+const STOCK_ADJUSTMENT_REASONS = [
+  "ตรวจนับสต๊อก",
+  "ของเสีย/ชำรุด",
+  "ของสูญหาย",
+  "แก้ยอดตั้งต้น",
+  "รับคืนสินค้า",
+  "อื่นๆ",
+];
+
 function createEmptyProductDraft(): ProductDraft {
   return {
     categoryId: "25",
@@ -149,6 +174,18 @@ export default function StockPage() {
     string | null
   >(null);
   const [isCreatingProduct, setIsCreatingProduct] = useState(false);
+  const [selectedAdjustmentItem, setSelectedAdjustmentItem] =
+    useState<StockItem | null>(null);
+  const [adjustmentMode, setAdjustmentMode] =
+    useState<StockAdjustmentMode>("increase");
+  const [adjustmentQuantity, setAdjustmentQuantity] = useState("");
+  const [adjustmentReason, setAdjustmentReason] = useState("");
+  const [adjustmentNote, setAdjustmentNote] = useState("");
+  const [adjustmentError, setAdjustmentError] = useState<string | null>(null);
+  const [adjustmentSuccess, setAdjustmentSuccess] = useState<string | null>(
+    null,
+  );
+  const [isAdjustingStock, setIsAdjustingStock] = useState(false);
   const selectedCategoryId =
     Number.parseInt(productDraft.categoryId || "25", 10) || 25;
 
@@ -185,6 +222,10 @@ export default function StockPage() {
       : null,
     fetcher,
   );
+  const { data: authData } = useSWR<ApiResponse<AuthUser>>(
+    "/api/auth/me",
+    fetcher,
+  );
 
   const stockItems =
     summaryData?.success && summaryData.data?.items
@@ -203,6 +244,29 @@ export default function StockPage() {
     productCatalog?.nextBarcodeSuffix,
   );
   const displayedBarcode = productDraft.barcode || previewBarcode;
+  const currentUser = authData?.success ? authData.data : undefined;
+  const adjustedBy =
+    currentUser?.nameUser ||
+    currentUser?.username ||
+    currentUser?.codePerson ||
+    "WEB";
+  const normalizedAdjustmentQuantity = Number(
+    adjustmentQuantity.replace(/,/g, "").trim(),
+  );
+  const hasValidAdjustmentQuantity =
+    adjustmentQuantity.trim() !== "" &&
+    Number.isFinite(normalizedAdjustmentQuantity) &&
+    normalizedAdjustmentQuantity >= 0 &&
+    (adjustmentMode === "set" || normalizedAdjustmentQuantity > 0);
+  const adjustmentPreview = selectedAdjustmentItem
+    ? !hasValidAdjustmentQuantity
+      ? selectedAdjustmentItem.currentStock
+      : adjustmentMode === "set"
+        ? normalizedAdjustmentQuantity
+        : adjustmentMode === "increase"
+          ? selectedAdjustmentItem.currentStock + normalizedAdjustmentQuantity
+          : selectedAdjustmentItem.currentStock - normalizedAdjustmentQuantity
+    : 0;
   const selectedCategory = productCatalog?.categories.find(
     (category) => String(category.id) === productDraft.categoryId,
   );
@@ -438,6 +502,68 @@ export default function StockPage() {
     }
   };
 
+  const openStockAdjustment = (item: StockItem) => {
+    setSelectedAdjustmentItem(item);
+    setAdjustmentMode("increase");
+    setAdjustmentQuantity("");
+    setAdjustmentReason("");
+    setAdjustmentNote("");
+    setAdjustmentError(null);
+  };
+
+  const handleStockAdjustmentOpenChange = (open: boolean) => {
+    if (open || isAdjustingStock) {
+      return;
+    }
+
+    setSelectedAdjustmentItem(null);
+    setAdjustmentError(null);
+  };
+
+  const handleStockAdjustmentSubmit = async (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
+    setAdjustmentError(null);
+
+    if (!selectedAdjustmentItem) {
+      return;
+    }
+
+    try {
+      setIsAdjustingStock(true);
+      const response = await fetch("/api/stock", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          barcode: selectedAdjustmentItem.barCode,
+          mode: adjustmentMode,
+          quantity: adjustmentQuantity,
+          reason: adjustmentReason,
+          note: adjustmentNote,
+        }),
+      });
+      const result =
+        (await response.json()) as ApiResponse<StockAdjustmentResult>;
+
+      if (!response.ok || !result.success) {
+        throw new Error(getResponseErrorMessage(result) || "ปรับสต๊อกไม่สำเร็จ");
+      }
+
+      setAdjustmentSuccess(
+        `${result.data.productName}: ${formatNumber(result.data.beforeStock)} → ${formatNumber(result.data.afterStock)} (${result.data.referenceNo})`,
+      );
+      setSelectedAdjustmentItem(null);
+      await Promise.all([mutateSummary(), mutateMovements()]);
+    } catch (error) {
+      setAdjustmentError(
+        error instanceof Error ? error.message : "ปรับสต๊อกไม่สำเร็จ",
+      );
+    } finally {
+      setIsAdjustingStock(false);
+    }
+  };
+
   return (
     <div className="p-6 pb-16">
       <DashboardBreadcrumb label="สต็อก" href="/stock" />
@@ -503,6 +629,13 @@ export default function StockPage() {
               variant="orange"
             />
           </div>
+
+          {adjustmentSuccess ? (
+            <div className="mt-4 flex items-start gap-2 rounded-[8px] border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-main-green dark:border-emerald-500/20 dark:bg-emerald-500/10">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>ปรับสต๊อกสำเร็จ: {adjustmentSuccess}</span>
+            </div>
+          ) : null}
         </div>
 
         {/* Tabs */}
@@ -595,6 +728,9 @@ export default function StockPage() {
                         <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
                           สถานะ
                         </TableHead>
+                        <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[650px]:table-cell">
+                          จัดการ
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -607,12 +743,23 @@ export default function StockPage() {
                         );
 
                         return (
+                          // biome-ignore lint/a11y/useSemanticElements: a table row cannot be replaced with a button without invalid table markup
                           <TableRow
                             key={`${item.barCode}-${item.name}-${index}`}
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`ปรับสต๊อก ${item.name || item.barCode}`}
                             className={cn(
-                              "group border-border/60 transition-colors duration-200",
+                              "group cursor-pointer border-border/60 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
                               stockMeta.rowClassName,
                             )}
+                            onClick={() => openStockAdjustment(item)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                openStockAdjustment(item);
+                              }
+                            }}
                           >
                             <TableCell className="px-4 py-4 font-medium">
                               <div className="flex items-center gap-3">
@@ -639,6 +786,19 @@ export default function StockPage() {
                                   <p className="text-xs font-semibold text-muted-foreground min-[760px]:hidden">
                                     เคลื่อนไหว {formatNumber(item.movements)} ครั้ง
                                   </p>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="mt-2 h-8 w-fit rounded-[8px] font-bold min-[650px]:hidden"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      openStockAdjustment(item);
+                                    }}
+                                  >
+                                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                                    ปรับสต๊อก
+                                  </Button>
                                 </div>
                               </div>
                             </TableCell>
@@ -714,6 +874,22 @@ export default function StockPage() {
                                   {stockMeta.description}
                                 </span>
                               </div>
+                            </TableCell>
+
+                            <TableCell className="hidden text-right align-middle min-[650px]:table-cell">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-9 rounded-[8px] font-bold"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openStockAdjustment(item);
+                                }}
+                              >
+                                <SlidersHorizontal className="h-4 w-4" />
+                                ปรับสต๊อก
+                              </Button>
                             </TableCell>
                           </TableRow>
                         );
@@ -1203,6 +1379,210 @@ export default function StockPage() {
                   <Save className="h-4 w-4" />
                 )}
                 บันทึกสินค้า
+              </Button>
+            </LargeDialogFooter>
+          </form>
+        </LargeDialogContent>
+      </LargeDialog>
+
+      <LargeDialog
+        open={selectedAdjustmentItem !== null}
+        onOpenChange={handleStockAdjustmentOpenChange}
+      >
+        <LargeDialogContent size="lg">
+          <form
+            className="flex min-h-0 flex-1 flex-col"
+            onSubmit={handleStockAdjustmentSubmit}
+          >
+            <LargeDialogHeader className="pr-16">
+              <div className="flex items-start gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] border border-orange-100 bg-orange-50 text-main-orange dark:border-orange-500/20 dark:bg-orange-500/10">
+                  <SlidersHorizontal className="h-6 w-6" />
+                </div>
+                <div className="min-w-0">
+                  <LargeDialogTitle>ปรับยอดสต๊อก</LargeDialogTitle>
+                  <LargeDialogDescription>
+                    บันทึกเป็นรายการเคลื่อนไหวใหม่และอัปเดตยอดคงเหลือในระบบเดิมทันที
+                  </LargeDialogDescription>
+                </div>
+              </div>
+            </LargeDialogHeader>
+
+            <LargeDialogBody className="space-y-5">
+              <div className="rounded-[8px] border bg-secondary/40 p-4">
+                <p className="font-bold text-card-foreground">
+                  {selectedAdjustmentItem?.name || "ไม่ระบุสินค้า"}
+                </p>
+                <p
+                  className={cn(
+                    outfit.className,
+                    "text-sm text-muted-foreground",
+                  )}
+                >
+                  {selectedAdjustmentItem?.barCode || "-"}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <span className="block text-sm font-bold text-card-foreground">
+                  วิธีปรับยอด
+                </span>
+                <div className="grid gap-2 min-[520px]:grid-cols-3">
+                  {(
+                    [
+                      ["increase", "เพิ่มจำนวน"],
+                      ["decrease", "ลดจำนวน"],
+                      ["set", "ตั้งยอดจริง"],
+                    ] as const
+                  ).map(([mode, label]) => (
+                    <Button
+                      key={mode}
+                      type="button"
+                      variant={adjustmentMode === mode ? "default" : "outline"}
+                      className="h-11 rounded-[8px] font-bold"
+                      onClick={() => {
+                        setAdjustmentMode(mode);
+                        setAdjustmentError(null);
+                      }}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid gap-4 min-[620px]:grid-cols-2">
+                <div className="space-y-2">
+                  <label
+                    htmlFor="stock-adjustment-quantity"
+                    className="block text-sm font-bold text-card-foreground"
+                  >
+                    {adjustmentMode === "set" ? "ยอดคงเหลือจริง" : "จำนวน"}
+                  </label>
+                  <Input
+                    id="stock-adjustment-quantity"
+                    inputMode="decimal"
+                    value={adjustmentQuantity}
+                    onChange={(event) =>
+                      setAdjustmentQuantity(event.target.value)
+                    }
+                    className="h-11 rounded-[8px] text-right text-lg font-bold"
+                    placeholder="0"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label
+                    htmlFor="stock-adjustment-reason"
+                    className="block text-sm font-bold text-card-foreground"
+                  >
+                    เหตุผล (ถ้ามี)
+                  </label>
+                  <select
+                    id="stock-adjustment-reason"
+                    value={adjustmentReason}
+                    onChange={(event) =>
+                      setAdjustmentReason(event.target.value)
+                    }
+                    className="h-11 w-full rounded-[8px] border border-input bg-background px-3 text-sm font-semibold shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  >
+                    <option value="">ไม่ระบุเหตุผล</option>
+                    {STOCK_ADJUSTMENT_REASONS.map((reason) => (
+                      <option key={reason} value={reason}>
+                        {reason}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label
+                  htmlFor="stock-adjustment-note"
+                  className="block text-sm font-bold text-card-foreground"
+                >
+                  หมายเหตุเพิ่มเติม (ถ้ามี)
+                </label>
+                <textarea
+                  id="stock-adjustment-note"
+                  value={adjustmentNote}
+                  onChange={(event) => setAdjustmentNote(event.target.value)}
+                  rows={3}
+                  maxLength={500}
+                  className="w-full resize-none rounded-[8px] border border-input bg-background px-3 py-2 text-sm font-medium shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  placeholder="รายละเอียดประกอบการปรับสต๊อก"
+                />
+              </div>
+
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-[8px] border bg-card p-4 text-center">
+                <div>
+                  <p className="text-xs font-bold text-muted-foreground">
+                    ก่อนปรับ
+                  </p>
+                  <p className={cn(outfit.className, "text-2xl font-bold")}>
+                    {formatNumber(selectedAdjustmentItem?.currentStock ?? 0)}
+                  </p>
+                </div>
+                <span className="text-xl font-bold text-muted-foreground">
+                  →
+                </span>
+                <div>
+                  <p className="text-xs font-bold text-muted-foreground">
+                    หลังปรับ
+                  </p>
+                  <p
+                    className={cn(
+                      outfit.className,
+                      "text-2xl font-bold",
+                      adjustmentPreview < 0
+                        ? "text-main-red"
+                        : "text-main-green",
+                    )}
+                  >
+                    {formatNumber(adjustmentPreview)}
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-xs font-semibold text-muted-foreground">
+                ผู้ทำรายการ: {adjustedBy}
+              </p>
+
+              {adjustmentError ? (
+                <div className="flex items-start gap-2 rounded-[8px] border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-main-red dark:border-red-500/20 dark:bg-red-500/10">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{adjustmentError}</span>
+                </div>
+              ) : null}
+            </LargeDialogBody>
+
+            <LargeDialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 rounded-[8px] font-bold"
+                disabled={isAdjustingStock}
+                onClick={() => handleStockAdjustmentOpenChange(false)}
+              >
+                ยกเลิก
+              </Button>
+              <Button
+                type="submit"
+                className="h-10 rounded-[8px] font-bold"
+                disabled={
+                  isAdjustingStock ||
+                  !hasValidAdjustmentQuantity ||
+                  adjustmentPreview < 0 ||
+                  adjustmentPreview === selectedAdjustmentItem?.currentStock
+                }
+              >
+                {isAdjustingStock ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                บันทึกการปรับสต๊อก
               </Button>
             </LargeDialogFooter>
           </form>

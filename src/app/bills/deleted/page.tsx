@@ -4,6 +4,7 @@
  * Bill Cancellation Review Page - อนุมัติบิลที่ยกเลิก
  */
 
+import { format } from "date-fns";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -15,12 +16,14 @@ import {
   TrendingDown,
 } from "lucide-react";
 import { useState } from "react";
+import type { DateRange } from "react-day-picker";
 import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { outfit } from "@/components/fonts/fonts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -74,6 +77,7 @@ interface AuthUser {
 export default function DeletedBillsPage() {
   const [page, setPage] = useState(0);
   const [statusFilter, setStatusFilter] = useState<ReviewStatusFilter>("all");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [approvingBill, setApprovingBill] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const limit = 20;
@@ -84,6 +88,14 @@ export default function DeletedBillsPage() {
       offset: (page * limit).toString(),
       status: statusFilter,
     });
+
+    if (dateRange?.from) {
+      params.set("startDate", format(dateRange.from, "yyyy-MM-dd"));
+    }
+
+    if (dateRange?.to) {
+      params.set("endDate", format(dateRange.to, "yyyy-MM-dd"));
+    }
 
     return `/api/bills/cancellation-reviews?${params.toString()}`;
   };
@@ -144,6 +156,11 @@ export default function DeletedBillsPage() {
 
   const handleStatusFilterChange = (value: ReviewStatusFilter) => {
     setStatusFilter(value);
+    setPage(0);
+  };
+
+  const handleDateRangeChange = (range: DateRange | undefined) => {
+    setDateRange(range);
     setPage(0);
   };
 
@@ -292,6 +309,17 @@ export default function DeletedBillsPage() {
             <div className="flex flex-col gap-3 min-[560px]:flex-row min-[560px]:items-end">
               <div className="space-y-2">
                 <span className="block text-sm font-bold text-card-foreground">
+                  ช่วงวันที่ยกเลิก
+                </span>
+                <DateRangePicker
+                  dateRange={dateRange}
+                  onDateRangeChange={handleDateRangeChange}
+                  placeholder="ทุกช่วงเวลา"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <span className="block text-sm font-bold text-card-foreground">
                   สถานะตรวจสอบ
                 </span>
                 <div className="flex flex-wrap gap-2">
@@ -373,7 +401,9 @@ export default function DeletedBillsPage() {
                 ไม่พบรายการยกเลิกตามตัวกรองนี้
               </h3>
               <p className="mt-1 text-sm font-medium text-muted-foreground">
-                ในประวัติทั้งหมด
+                {dateRange?.from || dateRange?.to
+                  ? "ในช่วงวันที่ที่เลือก"
+                  : "ในประวัติทั้งหมด"}
               </p>
             </div>
           ) : (

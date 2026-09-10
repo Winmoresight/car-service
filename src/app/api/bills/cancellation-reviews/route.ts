@@ -383,6 +383,20 @@ function getFilterCondition(filter: CancellationReviewFilter) {
   return "";
 }
 
+function getDateFilterCondition(startDate: string, endDate: string) {
+  const conditions: string[] = [];
+
+  if (startDate) {
+    conditions.push("AND CONVERT(date, OriginalDate) >= @startDate");
+  }
+
+  if (endDate) {
+    conditions.push("AND CONVERT(date, OriginalDate) <= @endDate");
+  }
+
+  return conditions.join("\n");
+}
+
 function mapCancellationReview(row: CancellationReviewRow): CancellationReview {
   return {
     numberPrint: normalizeText(row.numberPrint),
@@ -408,14 +422,23 @@ async function getCancellationReviews({
   limit,
   offset,
   filter,
+  startDate,
+  endDate,
 }: {
   limit: number;
   offset: number;
   filter: CancellationReviewFilter;
+  startDate: string;
+  endDate: string;
 }) {
   await syncCancellationReviews();
 
   const filterCondition = getFilterCondition(filter);
+  const dateFilterCondition = getDateFilterCondition(startDate, endDate);
+  const queryParams = {
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
+  };
   const [summaryRows, countRows, rows] = await Promise.all([
     executeQuery<{
       totalReviews: number | null;
@@ -433,8 +456,9 @@ async function getCancellationReviews({
           ISNULL(SUM(CASE WHEN ReviewStatus = N'approved' THEN TotalPrice ELSE 0 END), 0) as approvedAmount
         FROM dbo.${quoteIdentifier(reviewTableName)}
         WHERE NumberPrintSalePost LIKE N'SA%'
+          ${dateFilterCondition}
       `,
-      undefined,
+      queryParams,
       false,
     ),
     executeQuery<{ total: number }>(
@@ -443,8 +467,9 @@ async function getCancellationReviews({
         FROM dbo.${quoteIdentifier(reviewTableName)}
         WHERE NumberPrintSalePost LIKE N'SA%'
           ${filterCondition}
+          ${dateFilterCondition}
       `,
-      undefined,
+      queryParams,
       false,
     ),
     executeQuery<CancellationReviewRow>(
@@ -475,6 +500,7 @@ async function getCancellationReviews({
           FROM dbo.${quoteIdentifier(reviewTableName)}
           WHERE NumberPrintSalePost LIKE N'SA%'
             ${filterCondition}
+            ${dateFilterCondition}
         )
         SELECT
           numberPrint,
@@ -496,7 +522,7 @@ async function getCancellationReviews({
         WHERE RowNum > @offset AND RowNum <= (@offset + @limit)
         ORDER BY RowNum
       `,
-      { limit, offset },
+      { ...queryParams, limit, offset },
       false,
     ),
   ]);
@@ -562,8 +588,17 @@ export async function GET(request: NextRequest) {
     const filter = normalizeReviewFilter(
       request.nextUrl.searchParams.get("status"),
     );
+    const startDate = request.nextUrl.searchParams.get("startDate") || "";
+    const endDate = request.nextUrl.searchParams.get("endDate") || "";
     const data = await withTimeout(
-      () => getCancellationReviews({ limit, offset, filter }),
+      () =>
+        getCancellationReviews({
+          limit,
+          offset,
+          filter,
+          startDate,
+          endDate,
+        }),
       60000,
     );
 
