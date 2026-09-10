@@ -5,6 +5,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
+import { getProductAnalyticsSqlConfig } from "@/lib/product-analytics-policy";
 import type { ApiResponse, PaginatedPayload, TopProduct } from "@/types/api";
 
 type ProductFilter = "all" | "top" | "profit" | "low-margin";
@@ -85,9 +86,6 @@ export async function GET(request: NextRequest) {
     const includeMasterProducts = isPaginated ? 1 : 0;
 
     const orderByColumn = sortBy === "profit" ? "total_profit" : "total_sales";
-    const salesSearchCondition = search
-      ? "WHERE ISNULL(BarCode, '') LIKE @search OR ISNULL(NameProduct, '') LIKE @search"
-      : "";
     const masterSearchCondition = search
       ? `
         AND (
@@ -97,16 +95,33 @@ export async function GET(request: NextRequest) {
       `
       : "";
     const filterCondition = getFilterCondition(filter);
+    const analyticsSql = await getProductAnalyticsSqlConfig("s", "top");
+    const salesBarcodeExpression = analyticsSql.resolvedBarcodeExpression;
+    const salesAnalyticsJoins = analyticsSql.joins;
+    const salesSearchCondition = search
+      ? `
+          AND (
+            ISNULL(s.BarCode, '') LIKE @search
+            OR ${salesBarcodeExpression} LIKE @search
+            OR ISNULL(s.NameProduct, '') LIKE @search
+          )
+        `
+      : "";
     const productDataCte = `
       WITH SourceData AS (
         SELECT
-          ISNULL(NULLIF(NameProduct, ''), 'ไม่ระบุสินค้า') as name,
-          ISNULL(NULLIF(BarCode, ''), '') as barcode,
+          ISNULL(NULLIF(s.NameProduct, ''), 'ไม่ระบุสินค้า') as name,
+          ${salesBarcodeExpression} as barcode,
           '' as productCode,
-          ISNULL(NumProduct, 0) as quantity,
-          ISNULL(SumPrice, 0) as total_sales,
-          ISNULL(SumProfit, 0) as total_profit
-        FROM dbo.DetailSalePost
+          ISNULL(s.NumProduct, 0) as quantity,
+          ISNULL(s.SumPrice, 0) as total_sales,
+          ISNULL(s.SumProfit, 0) as total_profit
+        FROM dbo.DetailSalePost s
+        ${salesAnalyticsJoins}
+        WHERE (
+          @includeAnalyticsExcluded = 1
+          OR ${analyticsSql.includeInBestSellerExpression} = 1
+        )
         ${salesSearchCondition}
 
         UNION ALL
@@ -125,6 +140,10 @@ export async function GET(request: NextRequest) {
       ),
       RankedSourceData AS (
         SELECT
+          CASE
+            WHEN barcode <> '' THEN barcode
+            ELSE name
+          END as productKey,
           name,
           barcode,
           productCode,
@@ -132,9 +151,12 @@ export async function GET(request: NextRequest) {
           total_sales,
           total_profit,
           ROW_NUMBER() OVER (
-            PARTITION BY name
+            PARTITION BY CASE
+              WHEN barcode <> '' THEN barcode
+              ELSE name
+            END
             ORDER BY
-              CASE WHEN barcode <> '' THEN 0 ELSE 1 END,
+              CASE WHEN productCode <> '' THEN 0 ELSE 1 END,
               total_sales DESC,
               quantity DESC,
               barcode ASC
@@ -143,14 +165,14 @@ export async function GET(request: NextRequest) {
       ),
       ProductData AS (
         SELECT
-          ranked.name,
+          MAX(CASE WHEN ranked.source_rank = 1 THEN ranked.name END) as name,
           MAX(CASE WHEN ranked.source_rank = 1 THEN ranked.barcode END) as barcode,
           MAX(CASE WHEN ranked.source_rank = 1 THEN ranked.productCode END) as productCode,
           ISNULL(SUM(ranked.quantity), 0) as quantity,
           ISNULL(SUM(ranked.total_sales), 0) as total_sales,
           ISNULL(SUM(ranked.total_profit), 0) as total_profit
         FROM RankedSourceData ranked
-        GROUP BY ranked.name
+        GROUP BY ranked.productKey
         HAVING @includeMasterProducts = 1
           OR ISNULL(SUM(ranked.total_sales), 0) > 0
       )
@@ -204,6 +226,7 @@ export async function GET(request: NextRequest) {
       offset,
       search: `%${search}%`,
       includeMasterProducts,
+      includeAnalyticsExcluded: isPaginated ? 1 : 0,
     });
 
     const countQuery = `
@@ -223,6 +246,7 @@ export async function GET(request: NextRequest) {
     const [countResult] = await executeQuery<{ total: number }>(countQuery, {
       search: `%${search}%`,
       includeMasterProducts,
+      includeAnalyticsExcluded: isPaginated ? 1 : 0,
     });
 
     const summaryQuery = `
@@ -254,6 +278,7 @@ export async function GET(request: NextRequest) {
     const [summaryResult] = await executeQuery<ProductSummary>(summaryQuery, {
       search: `%${search}%`,
       includeMasterProducts,
+      includeAnalyticsExcluded: isPaginated ? 1 : 0,
     });
 
     // คำนวณ profit margin

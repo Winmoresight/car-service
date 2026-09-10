@@ -8,6 +8,7 @@
 import type { NextRequest } from "next/server";
 import { handleApiError, successResponse, withTimeout } from "@/lib/api-utils";
 import { executeQuery } from "@/lib/db";
+import { getProductAnalyticsSqlConfig } from "@/lib/product-analytics-policy";
 import {
   buildReceivablePaymentCte,
   getReceivablePaymentSourceConfig,
@@ -598,13 +599,16 @@ export async function GET(request: NextRequest) {
         ? "@selectedDate"
         : "CONVERT(date, GETDATE())";
       const dateCondition = `CONVERT(date, DateSalePost) = ${dateExpression}`;
+      const analyticsSql = await getProductAnalyticsSqlConfig(
+        "analyticsSale",
+        "dashboard",
+      );
 
       // Query สำหรับข้อมูลวันที่เลือก
       const todayQuery = `
         SELECT 
           COUNT(*) as bill_count,
           ISNULL(SUM(TotalPrice), 0) as total_sales,
-          ISNULL(SUM(TotalProfit), 0) as total_profit,
           ISNULL(SUM(Cash), 0) as total_cash,
           ISNULL(SUM(Transfer), 0) as total_transfer
         FROM dbo.MasterSalePost
@@ -615,18 +619,46 @@ export async function GET(request: NextRequest) {
       const monthQuery = `
         SELECT 
           COUNT(*) as bill_count,
-          ISNULL(SUM(TotalPrice), 0) as total_sales,
-          ISNULL(SUM(TotalProfit), 0) as total_profit
+          ISNULL(SUM(TotalPrice), 0) as total_sales
         FROM dbo.MasterSalePost
         WHERE YEAR(DateSalePost) = YEAR(GETDATE())
           AND MONTH(DateSalePost) = MONTH(GETDATE())
+      `;
+
+      const analyticProfitQuery = `
+        SELECT
+          ISNULL(SUM(CASE
+            WHEN CONVERT(date, analyticsSale.DateSalePost) = ${dateExpression}
+              THEN analyticsSale.SumPrice
+            ELSE 0
+          END), 0) as today_analytic_sales,
+          ISNULL(SUM(CASE
+            WHEN CONVERT(date, analyticsSale.DateSalePost) = ${dateExpression}
+              THEN analyticsSale.SumProfit
+            ELSE 0
+          END), 0) as today_profit,
+          ISNULL(SUM(CASE
+            WHEN YEAR(analyticsSale.DateSalePost) = YEAR(GETDATE())
+              AND MONTH(analyticsSale.DateSalePost) = MONTH(GETDATE())
+              THEN analyticsSale.SumProfit
+            ELSE 0
+          END), 0) as month_profit
+        FROM dbo.DetailSalePost analyticsSale
+        ${analyticsSql.joins}
+        WHERE ${analyticsSql.includeInProfitAnalysisExpression} = 1
+          AND (
+            CONVERT(date, analyticsSale.DateSalePost) = ${dateExpression}
+            OR (
+              YEAR(analyticsSale.DateSalePost) = YEAR(GETDATE())
+              AND MONTH(analyticsSale.DateSalePost) = MONTH(GETDATE())
+            )
+          )
       `;
 
       // Execute queries (with automatic retry)
       const [todayResult] = await executeQuery<{
         bill_count: number;
         total_sales: number;
-        total_profit: number;
         total_cash: number;
         total_transfer: number;
       }>(todayQuery, dateParams);
@@ -634,8 +666,13 @@ export async function GET(request: NextRequest) {
       const [monthResult] = await executeQuery<{
         bill_count: number;
         total_sales: number;
-        total_profit: number;
       }>(monthQuery);
+
+      const [analyticProfitResult] = await executeQuery<{
+        today_analytic_sales: number;
+        today_profit: number;
+        month_profit: number;
+      }>(analyticProfitQuery, dateParams);
 
       const [
         otherPayment,
@@ -656,8 +693,10 @@ export async function GET(request: NextRequest) {
 
       // คำนวณอัตรากำไรขั้นต้นของวันที่เลือกให้ตรงกับ KPI รายวัน
       const profitMargin =
-        todayResult.total_sales > 0
-          ? (todayResult.total_profit / todayResult.total_sales) * 100
+        analyticProfitResult.today_analytic_sales > 0
+          ? (analyticProfitResult.today_profit /
+              analyticProfitResult.today_analytic_sales) *
+            100
           : 0;
 
       const cashDrawerExpected = todayResult.total_cash;
@@ -666,7 +705,7 @@ export async function GET(request: NextRequest) {
       // สร้าง response
       const kpi: DashboardKPI = {
         todaySales: todayResult.total_sales,
-        todayProfit: todayResult.total_profit,
+        todayProfit: analyticProfitResult.today_profit,
         todayBills: todayResult.bill_count,
         todayCash: todayResult.total_cash,
         todayTransfer: todayResult.total_transfer,
@@ -692,7 +731,7 @@ export async function GET(request: NextRequest) {
         stockInCount: supplierBills.item_count,
         stockInQuantity: supplierBills.quantity,
         monthSales: monthResult.total_sales,
-        monthProfit: monthResult.total_profit,
+        monthProfit: analyticProfitResult.month_profit,
         monthBills: monthResult.bill_count,
         profitMargin: Number(profitMargin.toFixed(2)),
       };

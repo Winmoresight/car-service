@@ -297,6 +297,30 @@ export interface StockProductCreateResult {
   retailPrice: number;
 }
 
+export interface ProductManagementDetail {
+  productCode: string;
+  barcode: string;
+  name: string;
+  categoryId: number;
+  categoryName: string;
+  unit: string;
+  packageUnit: string;
+  packageQuantity: number;
+  stock: number;
+  costPrice: number;
+  retailPrice: number;
+  lowStock: number;
+  includeInBestSeller: boolean;
+  includeInProfitAnalysis: boolean;
+  analyticsExclusionReason: string;
+}
+
+export interface ProductManagementPayload {
+  product: ProductManagementDetail;
+  categories: StockCatalogOption[];
+  units: StockCatalogOption[];
+}
+
 export interface ProductBarcodeLinkResult {
   productCode: string;
   productName: string;
@@ -313,10 +337,16 @@ export interface BarcodeScanMovement {
   quantity: number;
   stock: number;
   company: string;
+  supplierCode: string;
+  costPrice: number;
+  documentNo: string;
+  saleId: string;
+  vehicleRegistration: string;
 }
 
 export interface BarcodeScanResult {
   barcode: string;
+  barcodes: string[];
   productCode: string;
   name: string;
   categoryName: string;
@@ -334,6 +364,7 @@ export interface BarcodeScanResult {
   totalSoldQuantity: number;
   totalSales: number;
   totalProfit: number;
+  totalProfitMargin: number;
   lastSaleAt: string | null;
   lastMovementAt: string | null;
   source: "master" | "sales-history" | "demo";

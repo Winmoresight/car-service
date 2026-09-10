@@ -74,6 +74,11 @@ interface SupplierBillDetailSummaryRow {
 interface SupplierBillDetailIdentityRow {
   rowNo: number | string | null;
   orderNo: string | null;
+  barcode: string | null;
+  name: string | null;
+  quantity: number | string | null;
+  unit: string | null;
+  unitPrice: number | string | null;
 }
 
 interface SupplierBillUpdatePayload {
@@ -83,6 +88,7 @@ interface SupplierBillUpdatePayload {
   vatInputAmount?: unknown;
   vatMode?: unknown;
   vatRate?: unknown;
+  specialDiscount?: unknown;
   note?: unknown;
   items?: unknown;
 }
@@ -512,12 +518,7 @@ function normalizeUpdateItems(items: unknown) {
     const unitPrice = normalizeCreateMoney(rawItem.unitPrice);
     const discount = normalizeCreateMoney(rawItem.discount) ?? 0;
 
-    if (
-      (!rowNo && !orderNo) ||
-      !name ||
-      quantity === null ||
-      unitPrice === null
-    ) {
+    if (!name || quantity === null || unitPrice === null) {
       continue;
     }
 
@@ -708,6 +709,164 @@ async function receiveSupplierStock(
       @unit,
       @quantity,
       '',
+      @stock,
+      @costPrice,
+      @supplierCode,
+      @supplierName
+    )
+  `);
+
+  return nextStock;
+}
+
+async function adjustSupplierStock(
+  transaction: sql.Transaction,
+  params: {
+    documentNo: string;
+    barcode: string;
+    name: string;
+    unit: string;
+    quantityDelta: number;
+    unitPrice: number;
+    supplierCode: string;
+    supplierName: string;
+    stockBalanceByBarcode: Map<string, number>;
+    requireProduct: boolean;
+  },
+) {
+  const barcode = truncateText(params.barcode.trim(), 30);
+  const quantityDelta = Number(params.quantityDelta.toFixed(2));
+
+  if (!barcode && params.requireProduct) {
+    throw new Error("สินค้าใหม่ต้องมีบาร์โค้ดที่อยู่ในคลังสินค้า");
+  }
+
+  if (!barcode || quantityDelta === 0) {
+    return null;
+  }
+
+  let currentStock = params.stockBalanceByBarcode.get(barcode);
+  let productExists = true;
+
+  if (currentStock === undefined) {
+    const currentStockRequest = new sql.Request(transaction);
+    currentStockRequest.input("barcode", sql.NVarChar(30), barcode);
+
+    const currentStockRows = await currentStockRequest.query<{
+      stock: string | number | null;
+      productStock: string | number | null;
+      productCount: number;
+    }>(`
+      SELECT
+        (
+          SELECT TOP 1 Stock
+          FROM dbo.INOUTStockProduct WITH (UPDLOCK, HOLDLOCK)
+          WHERE BarCode = @barcode
+          ORDER BY DateSave DESC, Times DESC, NumberPrint DESC
+        ) as stock,
+        (
+          SELECT TOP 1 NProduct
+          FROM dbo.MasterProductDetail WITH (UPDLOCK, HOLDLOCK)
+          WHERE BarCode = @barcode
+        ) as productStock,
+        (
+          SELECT COUNT(*)
+          FROM dbo.MasterProductDetail WITH (UPDLOCK, HOLDLOCK)
+          WHERE BarCode = @barcode
+        ) as productCount
+    `);
+
+    const currentRow = currentStockRows.recordset[0];
+    productExists = Number(currentRow?.productCount || 0) > 0;
+    currentStock =
+      currentRow?.stock !== null && currentRow?.stock !== undefined
+        ? parseLegacyNumber(currentRow.stock)
+        : parseLegacyNumber(currentRow?.productStock);
+  } else if (params.requireProduct) {
+    const productRequest = new sql.Request(transaction);
+    productRequest.input("barcode", sql.NVarChar(30), barcode);
+    const productRows = await productRequest.query<{ count: number }>(`
+      SELECT COUNT(*) as count
+      FROM dbo.MasterProductDetail WITH (UPDLOCK, HOLDLOCK)
+      WHERE BarCode = @barcode
+    `);
+    productExists = Number(productRows.recordset[0]?.count || 0) > 0;
+  }
+
+  if (params.requireProduct && !productExists) {
+    throw new Error(`ไม่พบสินค้าบาร์โค้ด ${barcode} ในคลังสินค้า`);
+  }
+
+  const nextStock = Number((currentStock + quantityDelta).toFixed(2));
+  params.stockBalanceByBarcode.set(barcode, nextStock);
+
+  const masterStockRequest = new sql.Request(transaction);
+  masterStockRequest.input("barcode", sql.NVarChar(30), barcode);
+  masterStockRequest.input("stock", sql.Real, nextStock);
+  masterStockRequest.input("costPrice", sql.Money, params.unitPrice);
+
+  await masterStockRequest.query(`
+    UPDATE dbo.MasterProductDetail
+    SET
+      NProduct = @stock,
+      CostPrice = CASE
+        WHEN @costPrice > 0 AND ${quantityDelta > 0 ? "1" : "0"} = 1
+          THEN @costPrice
+        ELSE CostPrice
+      END
+    WHERE BarCode = @barcode
+  `);
+
+  const movementDate = new Date();
+  const stockRequest = new sql.Request(transaction);
+  stockRequest.input(
+    "dateSave",
+    sql.VarChar(19),
+    formatLegacySqlDateTime(movementDate),
+  );
+  stockRequest.input("times", sql.NVarChar(10), formatLegacyTime(movementDate));
+  stockRequest.input("documentNo", sql.NVarChar(30), params.documentNo);
+  stockRequest.input("barcode", sql.NVarChar(30), barcode);
+  stockRequest.input("name", sql.NVarChar(250), params.name);
+  stockRequest.input("unit", sql.NVarChar(50), params.unit);
+  stockRequest.input(
+    "quantity",
+    sql.NVarChar(30),
+    formatStockValue(Math.abs(quantityDelta)),
+  );
+  stockRequest.input("stock", sql.NVarChar(30), formatStockValue(nextStock));
+  stockRequest.input(
+    "costPrice",
+    sql.NVarChar(50),
+    formatLegacyMoneyText(params.unitPrice),
+  );
+  stockRequest.input("supplierCode", sql.NVarChar(30), params.supplierCode);
+  stockRequest.input("supplierName", sql.NVarChar(250), params.supplierName);
+
+  await stockRequest.query(`
+    INSERT INTO dbo.INOUTStockProduct (
+      DateSave,
+      Times,
+      NumberPrint,
+      BarCode,
+      NameProduct,
+      MeterProduct,
+      Debit,
+      Credit,
+      Stock,
+      CostPrice,
+      CodeCompany,
+      NameCompany
+    )
+    VALUES (
+      CONVERT(datetime, @dateSave, 126),
+      @times,
+      @documentNo,
+      @barcode,
+      @name,
+      @unit,
+      ${quantityDelta > 0 ? "@quantity" : "''"},
+      ${quantityDelta < 0 ? "@quantity" : "''"},
       @stock,
       @costPrice,
       @supplierCode,
@@ -1791,6 +1950,10 @@ export async function PATCH(request: NextRequest) {
       );
       const vatMode = normalizeVatMode(body.vatMode);
       const vatRate = normalizeVatRate(body.vatRate, vatMode);
+      const normalizedSpecialDiscount = normalizeCreateMoney(
+        body.specialDiscount,
+      );
+      const specialDiscount = normalizedSpecialDiscount ?? 0;
       const vatInputAmount = normalizeEditableMoney(
         body.vatInputAmount ?? body.totalPrice,
       );
@@ -1814,6 +1977,13 @@ export async function PATCH(request: NextRequest) {
         return errorResponse("กรุณาระบุยอดเงินให้ถูกต้อง", 400);
       }
 
+      if (
+        body.specialDiscount !== undefined &&
+        normalizedSpecialDiscount === null
+      ) {
+        return errorResponse("กรุณาระบุส่วนลดท้ายบิลให้ถูกต้อง", 400);
+      }
+
       const totalPrice = vatInfo.vatTotalAmount;
 
       if (
@@ -1825,6 +1995,26 @@ export async function PATCH(request: NextRequest) {
 
       if (updateItems !== null && updateItems.length === 0) {
         return errorResponse("บิลคู่ค้าต้องมีรายการสินค้าอย่างน้อย 1 รายการ", 400);
+      }
+
+      if (updateItems !== null) {
+        const itemTotal = Number(
+          updateItems.reduce((sum, item) => sum + item.total, 0).toFixed(2),
+        );
+        const calculatedVatInputAmount = Number(
+          (itemTotal - specialDiscount).toFixed(2),
+        );
+
+        if (
+          specialDiscount > itemTotal ||
+          calculatedVatInputAmount < 0 ||
+          Math.abs(calculatedVatInputAmount - (vatInputAmount ?? 0)) > 0.01
+        ) {
+          return errorResponse(
+            "ยอดเงินหรือส่วนลดไม่ตรงกับรายการสินค้า กรุณาตรวจสอบอีกครั้ง",
+            400,
+          );
+        }
       }
 
       const sourceTable = await resolveTable(masterTableCandidates);
@@ -1844,6 +2034,10 @@ export async function PATCH(request: NextRequest) {
       const noteUpdate = noteColumn
         ? `, ${quoteIdentifier(noteColumn)} = @note`
         : "";
+      const specialDiscountUpdate =
+        body.specialDiscount !== undefined && columns.has("ReducePrice")
+          ? ", ReducePrice = @specialDiscount"
+          : "";
       const productDiscountUpdate =
         updateItems !== null && columns.has("Reduceproduct")
           ? ", Reduceproduct = @productDiscount"
@@ -1861,17 +2055,28 @@ export async function PATCH(request: NextRequest) {
         masterRequest.input("status", sql.NVarChar(30), status);
         masterRequest.input("totalPrice", sql.Money, totalPrice);
         masterRequest.input("productDiscount", sql.Money, productDiscount);
+        masterRequest.input("specialDiscount", sql.Money, specialDiscount);
         masterRequest.input("note", sql.NVarChar(sql.MAX), note);
 
-        const masterRows = await masterRequest.query<{ documentNo: string }>(`
+        const masterRows = await masterRequest.query<{
+          documentNo: string;
+          billDate: Date | null;
+          supplierCode: string | null;
+          supplierName: string | null;
+        }>(`
             UPDATE dbo.${quoteIdentifier(sourceTable)}
             SET
               Status = @status,
               TotalPrice = @totalPrice
               ${resultUpdate}
               ${noteUpdate}
+              ${specialDiscountUpdate}
               ${productDiscountUpdate}
-            OUTPUT INSERTED.NumberPrintPost as documentNo
+            OUTPUT
+              INSERTED.NumberPrintPost as documentNo,
+              INSERTED.DatePost as billDate,
+              INSERTED.CodeCompany as supplierCode,
+              INSERTED.NameCompany as supplierName
             WHERE NumberPrintPost = @documentNo
           `);
 
@@ -1884,7 +2089,10 @@ export async function PATCH(request: NextRequest) {
           return errorResponse("ไม่พบเอกสารคู่ค้านี้", 404);
         }
 
+        const updatedMaster = masterRows.recordset[0];
         let removedItemCount = 0;
+        let addedItemCount = 0;
+        let stockAdjustmentCount = 0;
 
         if (updateItems !== null && updateItems.length > 0) {
           const detailTable = await resolveTable(detailTableCandidates);
@@ -1914,10 +2122,40 @@ export async function PATCH(request: NextRequest) {
             await detailRowsRequest.query<SupplierBillDetailIdentityRow>(`
               SELECT
                 AddRows as rowNo,
-                AddOder as orderNo
+                AddOder as orderNo,
+                ISNULL(BarCode, '') as barcode,
+                ISNULL(NameProduct, '') as name,
+                ${getSafeMoneyExpression("NumProduct")} as quantity,
+                ISNULL(MeterProduct, '') as unit,
+                ${getSafeMoneyExpression("SalePrice")} as unitPrice
               FROM dbo.${quoteIdentifier(detailTable)} WITH (UPDLOCK, HOLDLOCK)
               WHERE NumberPrintPost = @documentNo
             `);
+          const stockBalanceByBarcode = new Map<string, number>();
+          const supplierCode = normalizeText(updatedMaster.supplierCode);
+          const supplierName = normalizeText(updatedMaster.supplierName);
+          const billDate = updatedMaster.billDate ?? new Date();
+
+          const applyStockAdjustment = async (params: {
+            barcode: string;
+            name: string;
+            unit: string;
+            quantityDelta: number;
+            unitPrice: number;
+            requireProduct: boolean;
+          }) => {
+            const adjustedStock = await adjustSupplierStock(transaction, {
+              documentNo,
+              supplierCode,
+              supplierName,
+              stockBalanceByBarcode,
+              ...params,
+            });
+
+            if (adjustedStock !== null) {
+              stockAdjustmentCount += 1;
+            }
+          };
 
           for (const row of existingDetailRows.recordset) {
             const rowKeys = getDetailIdentityKeys(row.rowNo, row.orderNo);
@@ -1948,10 +2186,143 @@ export async function PATCH(request: NextRequest) {
             `);
 
             removedItemCount += deleteResult.rowsAffected[0] ?? 0;
+
+            if ((deleteResult.rowsAffected[0] ?? 0) > 0) {
+              await applyStockAdjustment({
+                barcode: normalizeText(row.barcode),
+                name: normalizeText(row.name),
+                unit: normalizeText(row.unit),
+                quantityDelta: -normalizeMoney(row.quantity),
+                unitPrice: normalizeMoney(row.unitPrice),
+                requireProduct: false,
+              });
+            }
           }
+
+          let nextRowNo = existingDetailRows.recordset.reduce(
+            (maximum, row) =>
+              Math.max(maximum, parseDetailRowNo(row.rowNo) ?? 0),
+            0,
+          );
 
           for (const item of updateItems) {
             const rowNo = parseDetailRowNo(item.rowNo);
+            const itemKeys = getDetailIdentityKeys(item.rowNo, item.orderNo);
+            const existingItem = existingDetailRows.recordset.find((row) => {
+              const existingKeys = getDetailIdentityKeys(
+                row.rowNo,
+                row.orderNo,
+              );
+
+              return existingKeys.some((key) => itemKeys.includes(key));
+            });
+
+            if (!existingItem) {
+              if (itemKeys.length > 0) {
+                await transaction.rollback();
+                return errorResponse(
+                  `ไม่พบรายการสินค้า ${item.name} ในเอกสารนี้`,
+                  404,
+                );
+              }
+
+              nextRowNo += 1;
+              const insertRequest = new sql.Request(transaction);
+              insertRequest.input(
+                "datePost",
+                sql.VarChar(19),
+                formatLegacySqlDateStart(billDate),
+              );
+              insertRequest.input("documentNo", sql.NVarChar(30), documentNo);
+              insertRequest.input("rowNo", sql.Int, nextRowNo);
+              insertRequest.input(
+                "orderNo",
+                sql.NVarChar(10),
+                String(nextRowNo),
+              );
+              insertRequest.input("barcode", sql.NVarChar(30), item.barcode);
+              insertRequest.input("name", sql.NVarChar(250), item.name);
+              insertRequest.input(
+                "quantity",
+                sql.NVarChar(30),
+                formatLegacyQuantityText(item.quantity),
+              );
+              insertRequest.input("unit", sql.NVarChar(50), item.unit);
+              insertRequest.input(
+                "unitPrice",
+                sql.NVarChar(30),
+                formatLegacyMoneyText(item.unitPrice),
+              );
+              insertRequest.input(
+                "discount",
+                sql.NVarChar(30),
+                formatLegacyMoneyText(item.discount),
+              );
+              insertRequest.input(
+                "lineTotal",
+                sql.NVarChar(30),
+                formatLegacyMoneyText(item.total),
+              );
+              insertRequest.input(
+                "supplierCode",
+                sql.NVarChar(30),
+                supplierCode,
+              );
+              insertRequest.input("status", sql.NVarChar(30), status);
+
+              await applyStockAdjustment({
+                barcode: item.barcode,
+                name: item.name,
+                unit: item.unit,
+                quantityDelta: item.quantity,
+                unitPrice: item.unitPrice,
+                requireProduct: true,
+              });
+
+              await insertRequest.query(`
+                INSERT INTO dbo.${quoteIdentifier(detailTable)} (
+                  DatePost,
+                  NumberPrintPost,
+                  AddRows,
+                  AddOder,
+                  BarCode,
+                  NameProduct,
+                  NumProduct,
+                  MeterProduct,
+                  SalePrice,
+                  RealSalePrice,
+                  ReducePrice,
+                  SumPrice,
+                  CostPrice,
+                  CodeCompany,
+                  CaseProduct,
+                  Status,
+                  CheckIn
+                )
+                VALUES (
+                  CONVERT(datetime, @datePost, 126),
+                  @documentNo,
+                  @rowNo,
+                  @orderNo,
+                  @barcode,
+                  @name,
+                  @quantity,
+                  @unit,
+                  @unitPrice,
+                  @unitPrice,
+                  @discount,
+                  @lineTotal,
+                  @unitPrice,
+                  @supplierCode,
+                  25,
+                  @status,
+                  N'Y'
+                )
+              `);
+              addedItemCount += 1;
+              continue;
+            }
+
             const detailRequest = new sql.Request(transaction);
 
             detailRequest.input("documentNo", sql.NVarChar(30), documentNo);
@@ -2008,6 +2379,37 @@ export async function PATCH(request: NextRequest) {
                 404,
               );
             }
+
+            const oldBarcode = normalizeText(existingItem.barcode);
+            const oldQuantity = normalizeMoney(existingItem.quantity);
+
+            if (oldBarcode !== item.barcode) {
+              await applyStockAdjustment({
+                barcode: oldBarcode,
+                name: normalizeText(existingItem.name),
+                unit: normalizeText(existingItem.unit),
+                quantityDelta: -oldQuantity,
+                unitPrice: normalizeMoney(existingItem.unitPrice),
+                requireProduct: false,
+              });
+              await applyStockAdjustment({
+                barcode: item.barcode,
+                name: item.name,
+                unit: item.unit,
+                quantityDelta: item.quantity,
+                unitPrice: item.unitPrice,
+                requireProduct: true,
+              });
+            } else {
+              await applyStockAdjustment({
+                barcode: item.barcode,
+                name: item.name,
+                unit: item.unit,
+                quantityDelta: item.quantity - oldQuantity,
+                unitPrice: item.unitPrice,
+                requireProduct: false,
+              });
+            }
           }
         }
 
@@ -2025,6 +2427,8 @@ export async function PATCH(request: NextRequest) {
           note,
           itemCount: updateItems?.length,
           removedItemCount,
+          addedItemCount,
+          stockAdjustmentCount,
         });
       } catch (error) {
         try {
@@ -2039,6 +2443,13 @@ export async function PATCH(request: NextRequest) {
 
     return data;
   } catch (error) {
+    if (
+      error instanceof Error &&
+      /^(กรุณา|ไม่พบ|ไม่สามารถ|สินค้าใหม่)/.test(error.message)
+    ) {
+      return errorResponse(error.message, 400);
+    }
+
     return handleApiError(error, "Supplier bill update API error");
   }
 }

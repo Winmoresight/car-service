@@ -771,12 +771,14 @@ function SupplierBillEditDialog({
 }: SupplierBillEditDialogProps) {
   const [status, setStatus] = useState("");
   const [amount, setAmount] = useState("");
+  const [specialDiscount, setSpecialDiscount] = useState("");
   const [vatMode, setVatMode] = useState<SupplierBillVatMode>(
     defaultSupplierBillVatMode,
   );
   const [note, setNote] = useState("");
   const [lineItems, setLineItems] = useState<SupplierBillDraftLine[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [lookingUpLineId, setLookingUpLineId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -787,6 +789,7 @@ function SupplierBillEditDialog({
 
     setStatus(normalizeDialogStatus(bill.status || bill.paymentLabel || ""));
     setAmount(String(getEditableBillAmount(bill)));
+    setSpecialDiscount(getMoneyInputValue(bill.discount));
     setVatMode(bill.vatMode || defaultSupplierBillVatMode);
     setNote(bill.note || "");
     setLineItems(bill.lineItems.map(createEditableLineFromBillItem));
@@ -797,10 +800,12 @@ function SupplierBillEditDialog({
   const resetDialog = () => {
     setStatus("");
     setAmount("");
+    setSpecialDiscount("");
     setVatMode(defaultSupplierBillVatMode);
     setNote("");
     setLineItems([]);
     setIsSaving(false);
+    setLookingUpLineId(null);
     setErrorMessage(null);
     setSuccessMessage(null);
   };
@@ -830,6 +835,57 @@ function SupplierBillEditDialog({
     );
   };
 
+  const addLineItem = () => {
+    setLineItems((currentItems) => [...currentItems, createEmptyLine()]);
+    setErrorMessage(null);
+  };
+
+  const lookupLineProduct = async (
+    item: SupplierBillDraftLine,
+    barcodeInput = item.barcode,
+  ) => {
+    const barcode = normalizeBarcodeValue(barcodeInput);
+
+    if (!barcode) {
+      return;
+    }
+
+    const originalItem = bill?.lineItems.find(
+      (candidate) => candidate.id === item.id,
+    );
+
+    if (
+      originalItem &&
+      normalizeBarcodeValue(originalItem.barcode) === barcode
+    ) {
+      return;
+    }
+
+    try {
+      setLookingUpLineId(item.id);
+      setErrorMessage(null);
+      const product = await fetchSupplierProductByBarcode(barcode);
+
+      if (!product) {
+        setErrorMessage(
+          `ไม่พบสินค้าบาร์โค้ด ${barcode} กรุณาเพิ่มสินค้าเข้าคลังก่อนนำมาใส่ในบิล`,
+        );
+        return;
+      }
+
+      updateLineItem(item.id, {
+        ...getLineProductUpdates({ ...item, barcode: barcodeInput }, product),
+        unitPrice: getMoneyInputValue(product.cost || product.unitPrice),
+      });
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "ค้นหาสินค้าไม่สำเร็จ",
+      );
+    } finally {
+      setLookingUpLineId(null);
+    }
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -842,9 +898,10 @@ function SupplierBillEditDialog({
         .reduce((sum, item) => sum + getDraftLineTotal(item), 0)
         .toFixed(2),
     );
+    const parsedSpecialDiscount = parseMoneyInput(specialDiscount) ?? 0;
     const calculatedAmount =
       lineItems.length > 0
-        ? Number(Math.max(lineItemsTotal - bill.discount, 0).toFixed(2))
+        ? Number(Math.max(lineItemsTotal - parsedSpecialDiscount, 0).toFixed(2))
         : null;
     const vatInputAmount = calculatedAmount ?? parseMoneyInput(amount);
     const vatTotals =
@@ -868,6 +925,14 @@ function SupplierBillEditDialog({
       return;
     }
 
+    if (
+      parsedSpecialDiscount < 0 ||
+      (lineItems.length > 0 && parsedSpecialDiscount > lineItemsTotal)
+    ) {
+      setErrorMessage("ส่วนลดท้ายบิลต้องไม่เกินยอดรวมสินค้า");
+      return;
+    }
+
     for (const item of lineItems) {
       const quantity = parsePositiveNumberInput(item.quantity);
       const unitPrice = parseMoneyInput(item.unitPrice);
@@ -878,8 +943,8 @@ function SupplierBillEditDialog({
         return;
       }
 
-      if (!item.rowNo && !item.orderNo) {
-        setErrorMessage("ข้อมูลแถวรายการสินค้าไม่ครบ กรุณาโหลดหน้านี้ใหม่");
+      if (!item.barcode.trim() && !item.rowNo && !item.orderNo) {
+        setErrorMessage("สินค้าใหม่ต้องมีบาร์โค้ดที่อยู่ในคลังสินค้า");
         return;
       }
 
@@ -922,8 +987,12 @@ function SupplierBillEditDialog({
           vatInputAmount,
           vatMode,
           vatRate: defaultSupplierBillVatRate,
+          specialDiscount: parsedSpecialDiscount,
           note,
-          items: bill.lineItems.length > 0 ? updateItems : undefined,
+          items:
+            lineItems.length > 0 || bill.lineItems.length > 0
+              ? updateItems
+              : undefined,
         }),
       });
       const result = await response.json();
@@ -951,9 +1020,10 @@ function SupplierBillEditDialog({
       .reduce((sum, item) => sum + getDraftLineTotal(item), 0)
       .toFixed(2),
   );
+  const parsedSpecialDiscount = parseMoneyInput(specialDiscount) ?? 0;
   const calculatedAmount =
     bill && lineItems.length > 0
-      ? Number(Math.max(lineItemsTotal - bill.discount, 0).toFixed(2))
+      ? Number(Math.max(lineItemsTotal - parsedSpecialDiscount, 0).toFixed(2))
       : null;
   const amountInputValue =
     calculatedAmount !== null ? String(calculatedAmount) : amount;
@@ -969,7 +1039,7 @@ function SupplierBillEditDialog({
   );
   const discountTotal =
     lineItems.length > 0 && bill
-      ? Number((bill.discount + productDiscount).toFixed(2))
+      ? Number((parsedSpecialDiscount + productDiscount).toFixed(2))
       : bill
         ? bill.discount + bill.productDiscount
         : 0;
@@ -977,21 +1047,28 @@ function SupplierBillEditDialog({
   return (
     <LargeDialog open={open} onOpenChange={handleOpenChange}>
       <LargeDialogContent size="2xl">
-        <LargeDialogHeader className="gap-2 px-5 py-5 md:px-6">
-          <LargeDialogTitle className="text-primary text-xl md:text-2xl">
-            แก้ไขบิลคู่ค้า
-          </LargeDialogTitle>
-          <LargeDialogDescription>
-            {bill
-              ? `${bill.documentNo || "ไม่ระบุเลขเอกสาร"} · ${bill.supplierName || "ไม่ระบุคู่ค้า"}`
-              : "ปรับสถานะและยอดเงินของรายการคู่ค้า"}
-          </LargeDialogDescription>
+        <LargeDialogHeader className="gap-3 border-b bg-gradient-to-r from-blue-50/80 via-background to-emerald-50/60 px-5 py-5 md:px-6 dark:from-blue-500/10 dark:to-emerald-500/10">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-blue-100 bg-white text-main-blue shadow-sm dark:border-blue-500/20 dark:bg-card">
+              <ReceiptText className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <LargeDialogTitle className="text-primary text-xl md:text-2xl">
+                แก้ไขบิลคู่ค้า
+              </LargeDialogTitle>
+              <LargeDialogDescription className="mt-1">
+                {bill
+                  ? `${bill.documentNo || "ไม่ระบุเลขเอกสาร"} · ${bill.supplierName || "ไม่ระบุคู่ค้า"}`
+                  : "ปรับสถานะ ยอดเงิน และรายการรับสินค้า"}
+              </LargeDialogDescription>
+            </div>
+          </div>
         </LargeDialogHeader>
 
         <LargeDialogBody className="px-5 py-5 md:px-6">
           {bill ? (
             <form className="space-y-4" onSubmit={handleSubmit}>
-              <div className="rounded-[8px] border bg-[#FCFCFC] p-4">
+              <div className="rounded-xl border bg-card p-4 shadow-sm">
                 <div className="flex flex-col gap-4 min-[720px]:flex-row min-[720px]:items-start min-[720px]:justify-between">
                   <div className="min-w-0 space-y-3">
                     <div className="flex flex-wrap items-center gap-2">
@@ -1029,7 +1106,7 @@ function SupplierBillEditDialog({
                     </div>
                   </div>
 
-                  <div className="rounded-[8px] border bg-white px-4 py-3 text-left dark:bg-card min-[720px]:min-w-[220px] min-[720px]:text-right">
+                  <div className="rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3 text-left dark:border-blue-500/20 dark:bg-blue-500/10 min-[720px]:min-w-[220px] min-[720px]:text-right">
                     <span className="text-sm font-bold text-muted-foreground">
                       ยอดปัจจุบัน
                     </span>
@@ -1038,6 +1115,14 @@ function SupplierBillEditDialog({
                     </p>
                   </div>
                 </div>
+              </div>
+
+              <div className="flex gap-3 rounded-xl border border-orange-100 bg-orange-50/70 px-4 py-3 text-sm font-semibold text-main-orange dark:border-orange-500/20 dark:bg-orange-500/10">
+                <Package className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>
+                  การเพิ่ม ลบ หรือเปลี่ยนจำนวนสินค้า
+                  จะปรับสต๊อกและบันทึกประวัติอ้างอิงเลขบิลนี้โดยอัตโนมัติ
+                </p>
               </div>
 
               <div className="grid gap-4 min-[760px]:grid-cols-[1fr_0.85fr]">
@@ -1159,7 +1244,7 @@ function SupplierBillEditDialog({
                 </div>
               </div>
 
-              <div className="grid gap-2 rounded-[8px] border bg-muted/25 p-3 text-sm font-semibold min-[620px]:grid-cols-3">
+              <div className="grid gap-3 rounded-xl border bg-muted/20 p-4 text-sm font-semibold min-[620px]:grid-cols-4">
                 <div className="flex items-center justify-between gap-3 min-[620px]:block">
                   <span className="text-muted-foreground">รายการสินค้า</span>
                   <p className="font-bold text-card-foreground min-[620px]:mt-1">
@@ -1167,10 +1252,26 @@ function SupplierBillEditDialog({
                   </p>
                 </div>
                 <div className="flex items-center justify-between gap-3 min-[620px]:block">
-                  <span className="text-muted-foreground">ส่วนลด</span>
+                  <span className="text-muted-foreground">ส่วนลดรวม</span>
                   <p className="font-bold text-card-foreground min-[620px]:mt-1">
                     {formatCurrency(discountTotal)}
                   </p>
+                </div>
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="supplier-edit-special-discount"
+                    className="block text-xs font-bold text-muted-foreground"
+                  >
+                    ส่วนลดท้ายบิล
+                  </label>
+                  <Input
+                    id="supplier-edit-special-discount"
+                    inputMode="decimal"
+                    value={specialDiscount}
+                    onChange={(event) => setSpecialDiscount(event.target.value)}
+                    className="h-9 bg-background text-right font-bold"
+                    placeholder="0.00"
+                  />
                 </div>
                 <div className="flex items-center justify-between gap-3 min-[620px]:block">
                   <span className="text-muted-foreground">ผู้บันทึก</span>
@@ -1196,48 +1297,72 @@ function SupplierBillEditDialog({
                 />
               </div>
 
-              <div className="overflow-hidden rounded-[8px] border bg-white dark:bg-card">
-                <div className="flex items-center justify-between gap-3 border-b bg-muted/25 px-3 py-2">
-                  <span className="text-sm font-bold text-card-foreground">
-                    รายการสินค้า
-                  </span>
-                  <span className="text-xs font-bold text-muted-foreground">
-                    {formatNumber(bill.lineItems.length || bill.itemCount)}{" "}
-                    รายการ
-                  </span>
+              <div className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.06)] dark:border-blue-500/20 dark:bg-card">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-blue-100 bg-gradient-to-r from-blue-50 via-white to-emerald-50/60 px-4 py-4 dark:border-blue-500/20 dark:from-blue-500/10 dark:via-card dark:to-emerald-500/10">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-main-blue text-white shadow-sm">
+                      <Package className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <span className="text-base font-bold text-card-foreground">
+                        รายการสินค้าในใบสั่งซื้อ
+                      </span>
+                      <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
+                        {formatNumber(lineItems.length)} รายการ ·
+                        แก้จำนวนหรือราคาเพื่อปรับยอดบิล
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    className="h-10 bg-main-blue px-4 font-bold text-white shadow-sm hover:bg-main-blue/90"
+                    disabled={isSaving || lookingUpLineId !== null}
+                    onClick={addLineItem}
+                  >
+                    <Plus className="h-4 w-4" />
+                    เพิ่มสินค้า
+                  </Button>
                 </div>
 
                 {lineItems.length > 0 ? (
-                  <div className="space-y-3 bg-muted/20 p-3">
+                  <div className="space-y-4 bg-slate-50/70 p-3 md:p-4 dark:bg-muted/10">
                     {lineItems.map((item, index) => {
                       const itemTotal = getDraftLineTotal(item);
 
                       return (
                         <div
                           key={item.id || `${bill.id}-${index}`}
-                          className="overflow-hidden rounded-[8px] border bg-background shadow-sm"
+                          className="overflow-hidden rounded-xl border border-slate-200 bg-background shadow-[0_4px_16px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_8px_24px_rgba(15,23,42,0.09)] dark:border-border"
                         >
-                          <div className="flex flex-col gap-2 border-b bg-[#FCFCFC] px-4 py-3 dark:bg-muted/20 min-[680px]:flex-row min-[680px]:items-center min-[680px]:justify-between">
-                            <div className="flex min-w-0 items-center gap-2">
-                              <Badge
-                                variant="outline"
-                                className="h-7 rounded-full bg-white px-2.5 text-xs font-bold shadow-none dark:bg-card"
-                              >
-                                รายการที่ {index + 1}
-                              </Badge>
-                              <span className="truncate text-sm font-bold text-card-foreground">
-                                {item.name || "ไม่ระบุสินค้า"}
-                              </span>
+                          <div className="flex flex-col gap-3 border-b border-blue-100 bg-gradient-to-r from-blue-50/90 via-white to-white px-4 py-3 dark:border-blue-500/20 dark:from-blue-500/10 dark:via-card dark:to-card min-[680px]:flex-row min-[680px]:items-center min-[680px]:justify-between">
+                            <div className="flex min-w-0 items-center gap-3">
+                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-main-blue text-sm font-bold text-white shadow-sm">
+                                {index + 1}
+                              </div>
+                              <div className="min-w-0">
+                                <span className="block text-xs font-bold text-main-blue">
+                                  รายการสินค้า
+                                </span>
+                                <span className="block truncate text-sm font-bold text-card-foreground">
+                                  {item.name || "ยังไม่ได้ระบุชื่อสินค้า"}
+                                </span>
+                              </div>
+                              {!item.rowNo && !item.orderNo ? (
+                                <Badge className="h-7 rounded-full bg-blue-50 px-2.5 text-xs font-bold text-main-blue shadow-none hover:bg-blue-50 dark:bg-blue-500/10">
+                                  เพิ่มใหม่
+                                </Badge>
+                              ) : null}
                             </div>
                             <div className="flex flex-col gap-2 min-[680px]:flex-row min-[680px]:items-center">
-                              <div className="flex items-center justify-between gap-3 rounded-[8px] border bg-white px-3 py-2 text-sm font-bold dark:bg-card min-[680px]:min-w-[170px]">
-                                <span className="text-xs text-muted-foreground">
+                              <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-100 bg-emerald-50/80 px-3 py-2 text-sm font-bold dark:border-emerald-500/20 dark:bg-emerald-500/10 min-[680px]:min-w-[180px]">
+                                <span className="flex items-center gap-1.5 text-xs text-main-green">
+                                  <ReceiptText className="h-3.5 w-3.5" />
                                   ยอดรายการ
                                 </span>
                                 <span
                                   className={cn(
                                     outfit.className,
-                                    "text-primary",
+                                    "text-base text-main-green",
                                   )}
                                 >
                                   {formatCurrency(itemTotal)}
@@ -1256,143 +1381,171 @@ function SupplierBillEditDialog({
                             </div>
                           </div>
 
-                          <div className="grid gap-4 p-4">
-                            <div className="grid gap-3 min-[760px]:grid-cols-[minmax(0,1.3fr)_minmax(150px,0.7fr)]">
-                              <div className="space-y-1.5">
-                                <label
-                                  htmlFor={`supplier-edit-name-${item.id}`}
-                                  className="block text-xs font-bold text-muted-foreground"
-                                >
-                                  รายการสินค้า
-                                </label>
-                                <Input
-                                  id={`supplier-edit-name-${item.id}`}
-                                  value={item.name}
-                                  onChange={(event) =>
-                                    updateLineItem(item.id, {
-                                      name: event.target.value,
-                                    })
-                                  }
-                                  className="h-10 rounded-[8px] font-semibold"
-                                />
+                          <div className="grid gap-3 bg-white p-3 md:p-4 dark:bg-card">
+                            <div className="rounded-xl border border-blue-100 bg-blue-50/35 p-3 dark:border-blue-500/20 dark:bg-blue-500/5">
+                              <div className="mb-3 flex items-center gap-2 text-xs font-bold text-main-blue">
+                                <Barcode className="h-4 w-4" />
+                                ข้อมูลสินค้า
                               </div>
+                              <div className="grid gap-3 min-[760px]:grid-cols-[minmax(0,1.3fr)_minmax(150px,0.7fr)]">
+                                <div className="space-y-1.5">
+                                  <label
+                                    htmlFor={`supplier-edit-name-${item.id}`}
+                                    className="block text-xs font-bold text-muted-foreground"
+                                  >
+                                    รายการสินค้า
+                                  </label>
+                                  <Input
+                                    id={`supplier-edit-name-${item.id}`}
+                                    value={item.name}
+                                    onChange={(event) =>
+                                      updateLineItem(item.id, {
+                                        name: event.target.value,
+                                      })
+                                    }
+                                    className="h-10 rounded-[8px] font-semibold"
+                                  />
+                                </div>
 
-                              <div className="space-y-1.5">
-                                <label
-                                  htmlFor={`supplier-edit-barcode-${item.id}`}
-                                  className="block text-xs font-bold text-muted-foreground"
-                                >
-                                  บาร์โค้ด
-                                </label>
-                                <Input
-                                  id={`supplier-edit-barcode-${item.id}`}
-                                  value={item.barcode}
-                                  onChange={(event) =>
-                                    updateLineItem(item.id, {
-                                      barcode: event.target.value,
-                                    })
-                                  }
-                                  className="h-10 rounded-[8px] font-semibold"
-                                  placeholder="-"
-                                />
+                                <div className="space-y-1.5">
+                                  <label
+                                    htmlFor={`supplier-edit-barcode-${item.id}`}
+                                    className="block text-xs font-bold text-muted-foreground"
+                                  >
+                                    บาร์โค้ด
+                                  </label>
+                                  <Input
+                                    id={`supplier-edit-barcode-${item.id}`}
+                                    value={item.barcode}
+                                    onChange={(event) =>
+                                      updateLineItem(item.id, {
+                                        barcode: event.target.value,
+                                      })
+                                    }
+                                    onBlur={(event) =>
+                                      lookupLineProduct(
+                                        item,
+                                        event.currentTarget.value,
+                                      )
+                                    }
+                                    className="h-10 rounded-[8px] font-semibold"
+                                    placeholder="-"
+                                  />
+                                  {lookingUpLineId === item.id ? (
+                                    <span className="flex items-center gap-1 text-xs font-semibold text-main-blue">
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                      กำลังตรวจสอบสินค้า
+                                    </span>
+                                  ) : !item.rowNo && !item.orderNo ? (
+                                    <span className="text-xs font-semibold text-muted-foreground">
+                                      กรอกบาร์โค้ดแล้วออกจากช่อง ระบบจะเติมข้อมูลสินค้าให้
+                                    </span>
+                                  ) : null}
+                                </div>
                               </div>
                             </div>
 
-                            <div className="grid gap-3 min-[760px]:grid-cols-[minmax(80px,0.7fr)_minmax(100px,0.7fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(130px,1fr)]">
-                              <div className="space-y-1.5">
-                                <label
-                                  htmlFor={`supplier-edit-quantity-${item.id}`}
-                                  className="block text-xs font-bold text-muted-foreground"
-                                >
-                                  จำนวน
-                                </label>
-                                <Input
-                                  id={`supplier-edit-quantity-${item.id}`}
-                                  inputMode="decimal"
-                                  value={item.quantity}
-                                  onChange={(event) =>
-                                    updateLineItem(item.id, {
-                                      quantity: event.target.value,
-                                    })
-                                  }
-                                  className="h-10 rounded-[8px] text-right font-semibold"
-                                />
+                            <div className="rounded-xl border bg-slate-50/70 p-3 dark:bg-muted/15">
+                              <div className="mb-3 flex items-center gap-2 text-xs font-bold text-card-foreground">
+                                <ReceiptText className="h-4 w-4 text-main-green" />
+                                จำนวนและราคา
                               </div>
+                              <div className="grid gap-3 min-[760px]:grid-cols-[minmax(80px,0.7fr)_minmax(100px,0.7fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(130px,1fr)]">
+                                <div className="space-y-1.5">
+                                  <label
+                                    htmlFor={`supplier-edit-quantity-${item.id}`}
+                                    className="block text-xs font-bold text-muted-foreground"
+                                  >
+                                    จำนวน
+                                  </label>
+                                  <Input
+                                    id={`supplier-edit-quantity-${item.id}`}
+                                    inputMode="decimal"
+                                    value={item.quantity}
+                                    onChange={(event) =>
+                                      updateLineItem(item.id, {
+                                        quantity: event.target.value,
+                                      })
+                                    }
+                                    className="h-10 rounded-[8px] text-right font-semibold"
+                                  />
+                                </div>
 
-                              <div className="space-y-1.5">
-                                <label
-                                  htmlFor={`supplier-edit-unit-${item.id}`}
-                                  className="block text-xs font-bold text-muted-foreground"
-                                >
-                                  หน่วย
-                                </label>
-                                <Input
-                                  id={`supplier-edit-unit-${item.id}`}
-                                  value={item.unit}
-                                  onChange={(event) =>
-                                    updateLineItem(item.id, {
-                                      unit: event.target.value,
-                                    })
-                                  }
-                                  className="h-10 rounded-[8px] font-semibold"
-                                  placeholder="-"
-                                />
-                              </div>
+                                <div className="space-y-1.5">
+                                  <label
+                                    htmlFor={`supplier-edit-unit-${item.id}`}
+                                    className="block text-xs font-bold text-muted-foreground"
+                                  >
+                                    หน่วย
+                                  </label>
+                                  <Input
+                                    id={`supplier-edit-unit-${item.id}`}
+                                    value={item.unit}
+                                    onChange={(event) =>
+                                      updateLineItem(item.id, {
+                                        unit: event.target.value,
+                                      })
+                                    }
+                                    className="h-10 rounded-[8px] font-semibold"
+                                    placeholder="-"
+                                  />
+                                </div>
 
-                              <div className="space-y-1.5">
-                                <label
-                                  htmlFor={`supplier-edit-unit-price-${item.id}`}
-                                  className="block text-xs font-bold text-muted-foreground"
-                                >
-                                  ราคา/หน่วย
-                                </label>
-                                <Input
-                                  id={`supplier-edit-unit-price-${item.id}`}
-                                  inputMode="decimal"
-                                  value={item.unitPrice}
-                                  onChange={(event) =>
-                                    updateLineItem(item.id, {
-                                      unitPrice: event.target.value,
-                                    })
-                                  }
-                                  className="h-10 rounded-[8px] text-right font-semibold"
-                                />
-                              </div>
+                                <div className="space-y-1.5">
+                                  <label
+                                    htmlFor={`supplier-edit-unit-price-${item.id}`}
+                                    className="block text-xs font-bold text-muted-foreground"
+                                  >
+                                    ราคา/หน่วย
+                                  </label>
+                                  <Input
+                                    id={`supplier-edit-unit-price-${item.id}`}
+                                    inputMode="decimal"
+                                    value={item.unitPrice}
+                                    onChange={(event) =>
+                                      updateLineItem(item.id, {
+                                        unitPrice: event.target.value,
+                                      })
+                                    }
+                                    className="h-10 rounded-[8px] text-right font-semibold"
+                                  />
+                                </div>
 
-                              <div className="space-y-1.5">
-                                <label
-                                  htmlFor={`supplier-edit-discount-${item.id}`}
-                                  className="block text-xs font-bold text-muted-foreground"
-                                >
-                                  ส่วนลด
-                                </label>
-                                <Input
-                                  id={`supplier-edit-discount-${item.id}`}
-                                  inputMode="decimal"
-                                  value={item.discount}
-                                  onChange={(event) =>
-                                    updateLineItem(item.id, {
-                                      discount: event.target.value,
-                                    })
-                                  }
-                                  className="h-10 rounded-[8px] text-right font-semibold"
-                                  placeholder="0.00"
-                                />
-                              </div>
+                                <div className="space-y-1.5">
+                                  <label
+                                    htmlFor={`supplier-edit-discount-${item.id}`}
+                                    className="block text-xs font-bold text-muted-foreground"
+                                  >
+                                    ส่วนลด
+                                  </label>
+                                  <Input
+                                    id={`supplier-edit-discount-${item.id}`}
+                                    inputMode="decimal"
+                                    value={item.discount}
+                                    onChange={(event) =>
+                                      updateLineItem(item.id, {
+                                        discount: event.target.value,
+                                      })
+                                    }
+                                    className="h-10 rounded-[8px] text-right font-semibold"
+                                    placeholder="0.00"
+                                  />
+                                </div>
 
-                              <div className="space-y-1.5">
-                                <span className="block text-xs font-bold text-muted-foreground">
-                                  รวม
-                                </span>
-                                <Input
-                                  value={formatCurrency(itemTotal)}
-                                  readOnly
-                                  tabIndex={-1}
-                                  className={cn(
-                                    outfit.className,
-                                    "h-10 rounded-[8px] bg-muted/30 text-right font-bold text-primary shadow-none",
-                                  )}
-                                />
+                                <div className="space-y-1.5">
+                                  <span className="block text-xs font-bold text-muted-foreground">
+                                    รวม
+                                  </span>
+                                  <Input
+                                    value={formatCurrency(itemTotal)}
+                                    readOnly
+                                    tabIndex={-1}
+                                    className={cn(
+                                      outfit.className,
+                                      "h-10 rounded-[8px] bg-muted/30 text-right font-bold text-primary shadow-none",
+                                    )}
+                                  />
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -1419,28 +1572,36 @@ function SupplierBillEditDialog({
                 </div>
               ) : null}
 
-              <div className="flex flex-col-reverse gap-2 border-t pt-4 min-[520px]:flex-row min-[520px]:justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-10 font-bold"
-                  disabled={isSaving}
-                  onClick={() => handleOpenChange(false)}
-                >
-                  ยกเลิก
-                </Button>
-                <Button
-                  type="submit"
-                  className="h-10 font-bold"
-                  disabled={isSaving}
-                >
-                  {isSaving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  บันทึก
-                </Button>
+              <div className="sticky -bottom-5 z-10 -mx-5 flex flex-col-reverse gap-2 border-t bg-background/95 px-5 py-4 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] backdrop-blur md:-mx-6 md:px-6 min-[520px]:flex-row min-[520px]:items-center min-[520px]:justify-between">
+                <p className="text-sm font-semibold text-muted-foreground">
+                  ยอดสุทธิใหม่{" "}
+                  <span className="font-bold text-primary">
+                    {formatCurrency(editVatBreakdown.totalPrice, 2)}
+                  </span>
+                </p>
+                <div className="flex flex-col-reverse gap-2 min-[520px]:flex-row">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 font-bold"
+                    disabled={isSaving}
+                    onClick={() => handleOpenChange(false)}
+                  >
+                    ยกเลิก
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="h-10 font-bold"
+                    disabled={isSaving || lookingUpLineId !== null}
+                  >
+                    {isSaving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                    บันทึก
+                  </Button>
+                </div>
               </div>
             </form>
           ) : null}

@@ -5,6 +5,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
+import { getProductAnalyticsSqlConfig } from "@/lib/product-analytics-policy";
 import type { ApiResponse, DailySales } from "@/types/api";
 
 type SalesPeriod = "day" | "week" | "month";
@@ -72,21 +73,46 @@ export async function GET(request: NextRequest) {
       selectedDateExpression,
       Number.isFinite(requestedDays) ? requestedDays : 30,
     );
+    const analyticsSql = await getProductAnalyticsSqlConfig(
+      "profitSale",
+      "daily",
+    );
 
     const query = `
-      SELECT 
-        CONVERT(date, DateSalePost) as sale_date,
-        COUNT(*) as bill_count,
-        ISNULL(SUM(TotalPrice), 0) as total_sales,
-        ISNULL(SUM(TotalProfit), 0) as total_profit,
-        ISNULL(SUM(Cash), 0) as total_cash,
-        ISNULL(SUM(Transfer), 0) as total_transfer
-      FROM dbo.MasterSalePost
-      WHERE DateSalePost >= ${startDateExpression}
-        AND DateSalePost < ${endDateExpression}
-        AND DATEDIFF(day, '19000107', CONVERT(date, DateSalePost)) % 7 <> 0
-      GROUP BY CONVERT(date, DateSalePost)
-      ORDER BY sale_date ASC
+      WITH TransactionDaily AS (
+        SELECT
+          CONVERT(date, DateSalePost) as sale_date,
+          COUNT(*) as bill_count,
+          ISNULL(SUM(TotalPrice), 0) as total_sales,
+          ISNULL(SUM(Cash), 0) as total_cash,
+          ISNULL(SUM(Transfer), 0) as total_transfer
+        FROM dbo.MasterSalePost
+        WHERE DateSalePost >= ${startDateExpression}
+          AND DateSalePost < ${endDateExpression}
+          AND DATEDIFF(day, '19000107', CONVERT(date, DateSalePost)) % 7 <> 0
+        GROUP BY CONVERT(date, DateSalePost)
+      ),
+      ProfitDaily AS (
+        SELECT
+          CONVERT(date, profitSale.DateSalePost) as sale_date,
+          ISNULL(SUM(profitSale.SumProfit), 0) as total_profit
+        FROM dbo.DetailSalePost profitSale
+        ${analyticsSql.joins}
+        WHERE profitSale.DateSalePost >= ${startDateExpression}
+          AND profitSale.DateSalePost < ${endDateExpression}
+          AND ${analyticsSql.includeInProfitAnalysisExpression} = 1
+        GROUP BY CONVERT(date, profitSale.DateSalePost)
+      )
+      SELECT
+        transactions.sale_date,
+        transactions.bill_count,
+        transactions.total_sales,
+        ISNULL(profit.total_profit, 0) as total_profit,
+        transactions.total_cash,
+        transactions.total_transfer
+      FROM TransactionDaily transactions
+      LEFT JOIN ProfitDaily profit ON profit.sale_date = transactions.sale_date
+      ORDER BY transactions.sale_date ASC
     `;
 
     const results = await executeQuery<{

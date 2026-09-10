@@ -554,7 +554,7 @@ export default function DashboardPage() {
             <KPICard
               title="Gross Margin"
               value={kpi?.profitMargin || 0}
-              subtitle={`อัตรากำไรขั้นต้น${dateLabel}`}
+              subtitle={`เฉพาะสินค้าที่รวมในการวิเคราะห์${dateLabel}`}
               icon={Percent}
               variant={(kpi?.profitMargin || 0) < 0 ? "red" : "emerald"}
               format="percent"

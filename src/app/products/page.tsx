@@ -436,10 +436,24 @@ export default function ProductsPage() {
                           );
 
                           return (
+                            // biome-ignore lint/a11y/useSemanticElements: A table row cannot be replaced by a button without invalid table markup.
                             <TableRow
                               key={`${product.name}-${index}`}
+                              role="button"
+                              tabIndex={0}
+                              aria-label={`เปิดรายละเอียด ${product.name || "สินค้า"}`}
+                              onClick={() => openProductDetail(product)}
+                              onKeyDown={(event) => {
+                                if (
+                                  event.key === "Enter" ||
+                                  event.key === " "
+                                ) {
+                                  event.preventDefault();
+                                  openProductDetail(product);
+                                }
+                              }}
                               className={cn(
-                                "group border-border/60 transition-colors duration-200",
+                                "group cursor-pointer border-border/60 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
                                 marginMeta.rowClassName,
                               )}
                             >
@@ -454,13 +468,9 @@ export default function ProductsPage() {
                                     {page * limit + index + 1}
                                   </div>
                                   <div className="flex min-w-0 flex-col">
-                                    <button
-                                      type="button"
-                                      onClick={() => openProductDetail(product)}
-                                      className="max-w-[150px] cursor-pointer truncate text-left text-base font-bold text-card-foreground transition-colors group-hover:text-main-blue hover:text-main-blue focus-visible:text-main-blue focus-visible:outline-none min-[420px]:max-w-[220px] min-[550px]:max-w-[330px] min-[1180px]:max-w-[520px]"
-                                    >
+                                    <span className="max-w-[150px] truncate text-left text-base font-bold text-card-foreground transition-colors group-hover:text-main-blue min-[420px]:max-w-[220px] min-[550px]:max-w-[330px] min-[1180px]:max-w-[520px]">
                                       {product.name || "ไม่ระบุสินค้า"}
-                                    </button>
+                                    </span>
                                     <span
                                       className={cn(
                                         outfit.className,
