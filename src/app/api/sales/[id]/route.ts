@@ -4,6 +4,7 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
+import { ensureBillDepositPaymentTable } from "@/lib/bill-deposit-payment";
 import { executeQuery } from "@/lib/db";
 import { maskPhone } from "@/lib/privacy";
 import type { ApiResponse } from "@/types/api";
@@ -24,6 +25,8 @@ interface SaleDetail {
   cash: number;
   transfer: number;
   deposits: number;
+  depositPaymentMethod: "cash" | "transfer" | null;
+  depositBankName: string;
   receivableAmount: number;
 
   // Customer
@@ -45,6 +48,38 @@ interface SaleDetail {
   }>;
 }
 
+function normalizeNumber(value: unknown) {
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : 0;
+}
+
+function getDepositPaymentInfo(description: string) {
+  const normalizedDescription = description.trim();
+  const isTransfer =
+    normalizedDescription.includes("เงินโอน") ||
+    normalizedDescription.toLowerCase().includes("transfer");
+  const isCash =
+    normalizedDescription.includes("เงินสด") ||
+    normalizedDescription.toLowerCase().includes("cash");
+  const separatorIndex = Math.max(
+    normalizedDescription.lastIndexOf(","),
+    normalizedDescription.lastIndexOf("，"),
+  );
+
+  return {
+    method: isTransfer
+      ? ("transfer" as const)
+      : isCash
+        ? ("cash" as const)
+        : null,
+    bankName:
+      isTransfer && separatorIndex >= 0
+        ? normalizedDescription.slice(separatorIndex + 1).trim()
+        : "",
+  };
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -52,44 +87,75 @@ export async function GET(
   try {
     const { id } = await params;
 
+    await ensureBillDepositPaymentTable();
+
     // Get sale header
     const headerQuery = `
       SELECT 
         m.NumberPrintSalePost as id,
         m.DateSalePost as date,
-        m.TotalPrice as totalPrice,
+        ${getSafeMoneyExpression("m.TotalPrice")} as storedTotalPrice,
         m.TotalCost as totalCost,
         m.TotalProfit as totalProfit,
-        m.Cash as cash,
-        m.Transfer as transfer,
-        ${getSafeMoneyExpression("m.Deposits")} as deposits,
-        CASE
-          WHEN LTRIM(RTRIM(ISNULL(m.Status, ''))) = N'ค้างชำระ'
-            THEN CASE
-              WHEN m.TotalPrice - ISNULL(m.Cash, 0) - ISNULL(m.Transfer, 0) - ${getSafeMoneyExpression("m.Deposits")} > 0
-                THEN m.TotalPrice - ISNULL(m.Cash, 0) - ISNULL(m.Transfer, 0) - ${getSafeMoneyExpression("m.Deposits")}
-              ELSE 0
-            END
-          ELSE 0
-        END as receivableAmount,
+        ${getSafeMoneyExpression("m.Cash")} as cash,
+        ${getSafeMoneyExpression("m.Transfer")} as transfer,
+        ${getSafeMoneyExpression("m.Deposits")} as storedDeposits,
+        LTRIM(RTRIM(ISNULL(m.Status, ''))) as status,
+        detailFinancials.grossPositiveTotal,
+        detailFinancials.netDetailTotal,
+        detailFinancials.legacyDepositAmount,
+        detailFinancials.legacyDepositDescription,
+        depositPayment.PaymentMethod as savedDepositPaymentMethod,
+        ISNULL(depositPayment.Amount, 0) as savedDepositAmount,
+        ISNULL(depositPayment.BankName, '') as savedDepositBankName,
+        latestReceivable.outstandingAmount,
+        latestReceivable.receivableBillNo,
         ISNULL(m.NameCustomer, 'ไม่ระบุ') as customerName,
         ISNULL(c.PhoneCustomer, '') as customerPhone,
         ISNULL(c.AddressCustomer, '') as customerAddress
       FROM dbo.MasterSalePost m
       LEFT JOIN dbo.Customer c ON m.CodeCustomer = c.CodeCustomer
+      LEFT JOIN dbo.WebBillDepositPayments depositPayment
+        ON depositPayment.BillNo = m.NumberPrintSalePost
+      OUTER APPLY (
+        SELECT
+          ISNULL(SUM(CASE WHEN ${getSafeMoneyExpression("d.SumPrice")} > 0 THEN ${getSafeMoneyExpression("d.SumPrice")} ELSE 0 END), 0) as grossPositiveTotal,
+          ISNULL(SUM(${getSafeMoneyExpression("d.SumPrice")}), 0) as netDetailTotal,
+          ISNULL(SUM(CASE WHEN ${getSafeMoneyExpression("d.SumPrice")} < 0 AND d.NameProduct LIKE N'%มัดจำ%' THEN ABS(${getSafeMoneyExpression("d.SumPrice")}) ELSE 0 END), 0) as legacyDepositAmount,
+          MAX(CASE WHEN ${getSafeMoneyExpression("d.SumPrice")} < 0 AND d.NameProduct LIKE N'%มัดจำ%' THEN ISNULL(d.NameProduct, '') ELSE '' END) as legacyDepositDescription
+        FROM dbo.DetailSalePost d
+        WHERE d.NumberPrintSalePost = m.NumberPrintSalePost
+      ) detailFinancials
+      OUTER APPLY (
+        SELECT TOP 1
+          r.NumberPrintPost as receivableBillNo,
+          ${getSafeMoneyExpression("r.SubMoney")} as outstandingAmount
+        FROM dbo.MasterRecivePaymentCustomer r
+        WHERE r.NumberPrintPost = m.NumberPrintSalePost
+        ORDER BY r.DatePost DESC
+      ) latestReceivable
       WHERE m.NumberPrintSalePost = @id
     `;
 
     const [header] = await executeQuery<{
       id: string;
       date: Date;
-      totalPrice: number;
+      storedTotalPrice: number;
       totalCost: number;
       totalProfit: number;
       cash: number;
       transfer: number;
-      deposits: number;
-      receivableAmount: number;
+      storedDeposits: number;
+      status: string;
+      grossPositiveTotal: number;
+      netDetailTotal: number;
+      legacyDepositAmount: number;
+      legacyDepositDescription: string;
+      savedDepositPaymentMethod: "cash" | "transfer" | null;
+      savedDepositAmount: number;
+      savedDepositBankName: string;
+      outstandingAmount: number | null;
+      receivableBillNo: string | null;
       customerName: string;
       customerPhone: string;
       customerAddress: string;
@@ -105,6 +171,50 @@ export async function GET(
         { status: 404 },
       );
     }
+
+    const storedTotalPrice = normalizeNumber(header.storedTotalPrice);
+    const storedCash = normalizeNumber(header.cash);
+    const storedTransfer = normalizeNumber(header.transfer);
+    const storedDeposits = normalizeNumber(header.storedDeposits);
+    const legacyDepositAmount = normalizeNumber(header.legacyDepositAmount);
+    const isLegacyNetTotal =
+      legacyDepositAmount > 0 &&
+      Math.abs(normalizeNumber(header.netDetailTotal) - storedTotalPrice) <
+        0.01;
+    const totalPrice = isLegacyNetTotal
+      ? normalizeNumber(header.grossPositiveTotal)
+      : storedTotalPrice;
+    const deposits = storedDeposits || legacyDepositAmount;
+    const depositPayment = getDepositPaymentInfo(
+      header.legacyDepositDescription || "",
+    );
+    const depositPaymentMethod =
+      header.savedDepositPaymentMethod || depositPayment.method;
+    const depositBankName =
+      header.savedDepositBankName || depositPayment.bankName;
+    const savedDepositAmount = normalizeNumber(header.savedDepositAmount);
+    const cash = Math.max(
+      storedCash -
+        (header.savedDepositPaymentMethod === "cash" ? savedDepositAmount : 0),
+      0,
+    );
+    const transfer = Math.max(
+      storedTransfer -
+        (header.savedDepositPaymentMethod === "transfer"
+          ? savedDepositAmount
+          : 0),
+      0,
+    );
+    const fallbackOutstanding = header.savedDepositPaymentMethod
+      ? storedTotalPrice - storedCash - storedTransfer
+      : isLegacyNetTotal
+        ? storedTotalPrice - storedCash - storedTransfer
+        : storedTotalPrice - storedCash - storedTransfer - deposits;
+    const receivableAmount = header.receivableBillNo
+      ? Math.max(normalizeNumber(header.outstandingAmount), 0)
+      : header.status === "ค้างชำระ"
+        ? Math.max(fallbackOutstanding, 0)
+        : 0;
 
     // Get sale items
     const itemsQuery = `
@@ -135,13 +245,15 @@ export async function GET(
     const saleDetail: SaleDetail = {
       id: header.id,
       date: new Date(header.date).toISOString(),
-      totalPrice: header.totalPrice,
+      totalPrice,
       totalCost: header.totalCost,
       totalProfit: header.totalProfit,
-      cash: header.cash,
-      transfer: header.transfer,
-      deposits: header.deposits,
-      receivableAmount: header.receivableAmount,
+      cash,
+      transfer,
+      deposits,
+      depositPaymentMethod,
+      depositBankName,
+      receivableAmount,
       customer: {
         name: header.customerName,
         phone: maskPhone(header.customerPhone),

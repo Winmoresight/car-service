@@ -4,6 +4,7 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
+import { ensureBillDepositPaymentTable } from "@/lib/bill-deposit-payment";
 import { executeQuery } from "@/lib/db";
 import type { ApiResponse } from "@/types/api";
 
@@ -69,7 +70,24 @@ function buildSalesConditions({
   if (status === "cash") {
     conditions.push("ISNULL(m.Cash, 0) > 0");
   } else if (status === "transfer") {
-    conditions.push("ISNULL(m.Transfer, 0) > 0");
+    conditions.push(`(
+      ISNULL(m.Transfer, 0) > 0
+      OR EXISTS (
+        SELECT 1
+        FROM dbo.DetailSalePost transferDeposit
+        WHERE transferDeposit.NumberPrintSalePost = m.NumberPrintSalePost
+          AND transferDeposit.NameProduct LIKE N'%มัดจำ%'
+          AND transferDeposit.NameProduct LIKE N'%เงินโอน%'
+          AND ISNULL(transferDeposit.SumPrice, 0) < 0
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM dbo.WebBillDepositPayments savedDeposit
+        WHERE savedDeposit.BillNo = m.NumberPrintSalePost
+          AND savedDeposit.PaymentMethod = N'transfer'
+          AND savedDeposit.Amount > 0
+      )
+    )`);
   } else if (status === "unpaid") {
     conditions.push("LTRIM(RTRIM(ISNULL(m.Status, ''))) = N'ค้างชำระ'");
   }
@@ -79,6 +97,8 @@ function buildSalesConditions({
 
 export async function GET(request: NextRequest) {
   try {
+    await ensureBillDepositPaymentTable();
+
     const searchParams = request.nextUrl.searchParams;
     const limit = Number.parseInt(searchParams.get("limit") || "20", 10);
     const offset = Number.parseInt(searchParams.get("offset") || "0", 10);
@@ -102,22 +122,61 @@ export async function GET(request: NextRequest) {
     });
 
     let query = `
-      WITH PaginatedData AS (
+      WITH DetailFinancials AS (
+        SELECT
+          NumberPrintSalePost,
+          ISNULL(SUM(CASE WHEN ${getSafeMoneyExpression("SumPrice")} > 0 THEN ${getSafeMoneyExpression("SumPrice")} ELSE 0 END), 0) as grossPositiveTotal,
+          ISNULL(SUM(${getSafeMoneyExpression("SumPrice")}), 0) as netDetailTotal,
+          ISNULL(SUM(CASE WHEN ${getSafeMoneyExpression("SumPrice")} < 0 AND NameProduct LIKE N'%มัดจำ%' THEN ABS(${getSafeMoneyExpression("SumPrice")}) ELSE 0 END), 0) as legacyDepositAmount,
+          ISNULL(SUM(CASE WHEN ${getSafeMoneyExpression("SumPrice")} < 0 AND NameProduct LIKE N'%มัดจำ%' AND NameProduct LIKE N'%เงินสด%' THEN ABS(${getSafeMoneyExpression("SumPrice")}) ELSE 0 END), 0) as legacyCashDepositAmount,
+          ISNULL(SUM(CASE WHEN ${getSafeMoneyExpression("SumPrice")} < 0 AND NameProduct LIKE N'%มัดจำ%' AND NameProduct LIKE N'%เงินโอน%' THEN ABS(${getSafeMoneyExpression("SumPrice")}) ELSE 0 END), 0) as legacyTransferDepositAmount
+        FROM dbo.DetailSalePost
+        GROUP BY NumberPrintSalePost
+      ),
+      LatestReceivables AS (
+        SELECT
+          NumberPrintPost,
+          ${getSafeMoneyExpression("SubMoney")} as outstandingAmount,
+          ROW_NUMBER() OVER (
+            PARTITION BY NumberPrintPost
+            ORDER BY DatePost DESC
+          ) as latestRow
+        FROM dbo.MasterRecivePaymentCustomer
+      ),
+      PaginatedData AS (
         SELECT 
           m.NumberPrintSalePost as id,
           m.DateSalePost as date,
           ISNULL(m.NameCustomer, 'ไม่ระบุ') as customerName,
           ISNULL(c.PhoneCustomer, '') as customerPhone,
-          m.TotalPrice as totalPrice,
+          CASE
+            WHEN ISNULL(financials.legacyDepositAmount, 0) > 0
+              AND ABS(ISNULL(financials.netDetailTotal, 0) - ${getSafeMoneyExpression("m.TotalPrice")}) < 0.01
+              THEN ISNULL(financials.grossPositiveTotal, ${getSafeMoneyExpression("m.TotalPrice")})
+            ELSE ${getSafeMoneyExpression("m.TotalPrice")}
+          END as totalPrice,
           m.TotalProfit as totalProfit,
-          m.Cash as cash,
-          m.Transfer as transfer,
-          ${getSafeMoneyExpression("m.Deposits")} as deposits,
+          ${getSafeMoneyExpression("m.Cash")} + CASE WHEN depositPayment.BillNo IS NULL THEN ISNULL(financials.legacyCashDepositAmount, 0) ELSE 0 END as cash,
+          ${getSafeMoneyExpression("m.Transfer")} + CASE WHEN depositPayment.BillNo IS NULL THEN ISNULL(financials.legacyTransferDepositAmount, 0) ELSE 0 END as transfer,
+          CASE
+            WHEN ${getSafeMoneyExpression("m.Deposits")} > 0
+              THEN ${getSafeMoneyExpression("m.Deposits")}
+            ELSE ISNULL(financials.legacyDepositAmount, 0)
+          END as deposits,
           CASE
             WHEN LTRIM(RTRIM(ISNULL(m.Status, ''))) = N'ค้างชำระ'
               THEN CASE
-                WHEN m.TotalPrice - ISNULL(m.Cash, 0) - ISNULL(m.Transfer, 0) - ${getSafeMoneyExpression("m.Deposits")} > 0
-                  THEN m.TotalPrice - ISNULL(m.Cash, 0) - ISNULL(m.Transfer, 0) - ${getSafeMoneyExpression("m.Deposits")}
+                WHEN receivable.NumberPrintPost IS NOT NULL
+                  THEN receivable.outstandingAmount
+                WHEN ISNULL(financials.legacyDepositAmount, 0) > 0
+                  AND ABS(ISNULL(financials.netDetailTotal, 0) - ${getSafeMoneyExpression("m.TotalPrice")}) < 0.01
+                  THEN CASE
+                    WHEN ${getSafeMoneyExpression("m.TotalPrice")} - ${getSafeMoneyExpression("m.Cash")} - ${getSafeMoneyExpression("m.Transfer")} > 0
+                      THEN ${getSafeMoneyExpression("m.TotalPrice")} - ${getSafeMoneyExpression("m.Cash")} - ${getSafeMoneyExpression("m.Transfer")}
+                    ELSE 0
+                  END
+                WHEN ${getSafeMoneyExpression("m.TotalPrice")} - ${getSafeMoneyExpression("m.Cash")} - ${getSafeMoneyExpression("m.Transfer")} - ${getSafeMoneyExpression("m.Deposits")} > 0
+                  THEN ${getSafeMoneyExpression("m.TotalPrice")} - ${getSafeMoneyExpression("m.Cash")} - ${getSafeMoneyExpression("m.Transfer")} - ${getSafeMoneyExpression("m.Deposits")}
                 ELSE 0
               END
             ELSE 0
@@ -127,6 +186,13 @@ export async function GET(request: NextRequest) {
           ROW_NUMBER() OVER (ORDER BY m.DateSalePost DESC) as RowNum
         FROM dbo.MasterSalePost m
         LEFT JOIN dbo.Customer c ON m.CodeCustomer = c.CodeCustomer
+        LEFT JOIN dbo.WebBillDepositPayments depositPayment
+          ON depositPayment.BillNo = m.NumberPrintSalePost
+        LEFT JOIN DetailFinancials financials
+          ON financials.NumberPrintSalePost = m.NumberPrintSalePost
+        LEFT JOIN LatestReceivables receivable
+          ON receivable.NumberPrintPost = m.NumberPrintSalePost
+          AND receivable.latestRow = 1
     `;
 
     // Build WHERE clause
@@ -207,18 +273,48 @@ export async function GET(request: NextRequest) {
     // Get sales summary with the same filters as the list above
     let summaryQuery = `
       SELECT
-        ISNULL(SUM(m.TotalPrice), 0) as totalSales,
+        ISNULL(SUM(
+          CASE
+            WHEN ISNULL(financials.legacyDepositAmount, 0) > 0
+              AND ABS(ISNULL(financials.netDetailTotal, 0) - ${getSafeMoneyExpression("m.TotalPrice")}) < 0.01
+              THEN ISNULL(financials.grossPositiveTotal, ${getSafeMoneyExpression("m.TotalPrice")})
+            ELSE ${getSafeMoneyExpression("m.TotalPrice")}
+          END
+        ), 0) as totalSales,
         ISNULL(SUM(m.TotalProfit), 0) as totalProfit,
-        ISNULL(SUM(m.Cash), 0) as totalCash,
-        ISNULL(SUM(m.Transfer), 0) as totalTransfer,
-        ISNULL(SUM(${getSafeMoneyExpression("m.Deposits")}), 0) as totalDeposits,
+        ISNULL(SUM(
+          ${getSafeMoneyExpression("m.Cash")}
+          + CASE
+              WHEN depositPayment.BillNo IS NULL
+                THEN ISNULL(financials.legacyCashDepositAmount, 0)
+              ELSE 0
+            END
+        ), 0) as totalCash,
+        ISNULL(SUM(
+          ${getSafeMoneyExpression("m.Transfer")}
+          + CASE
+              WHEN depositPayment.BillNo IS NULL
+                THEN ISNULL(financials.legacyTransferDepositAmount, 0)
+              ELSE 0
+            END
+        ), 0) as totalTransfer,
+        ISNULL(SUM(CASE WHEN ${getSafeMoneyExpression("m.Deposits")} > 0 THEN ${getSafeMoneyExpression("m.Deposits")} ELSE ISNULL(financials.legacyDepositAmount, 0) END), 0) as totalDeposits,
         ISNULL(
           SUM(
             CASE
               WHEN LTRIM(RTRIM(ISNULL(m.Status, ''))) = N'ค้างชำระ'
                 THEN CASE
-                  WHEN m.TotalPrice - ISNULL(m.Cash, 0) - ISNULL(m.Transfer, 0) - ${getSafeMoneyExpression("m.Deposits")} > 0
-                    THEN m.TotalPrice - ISNULL(m.Cash, 0) - ISNULL(m.Transfer, 0) - ${getSafeMoneyExpression("m.Deposits")}
+                  WHEN receivable.NumberPrintPost IS NOT NULL
+                    THEN receivable.outstandingAmount
+                  WHEN ISNULL(financials.legacyDepositAmount, 0) > 0
+                    AND ABS(ISNULL(financials.netDetailTotal, 0) - ${getSafeMoneyExpression("m.TotalPrice")}) < 0.01
+                    THEN CASE
+                      WHEN ${getSafeMoneyExpression("m.TotalPrice")} - ${getSafeMoneyExpression("m.Cash")} - ${getSafeMoneyExpression("m.Transfer")} > 0
+                        THEN ${getSafeMoneyExpression("m.TotalPrice")} - ${getSafeMoneyExpression("m.Cash")} - ${getSafeMoneyExpression("m.Transfer")}
+                      ELSE 0
+                    END
+                  WHEN ${getSafeMoneyExpression("m.TotalPrice")} - ${getSafeMoneyExpression("m.Cash")} - ${getSafeMoneyExpression("m.Transfer")} - ${getSafeMoneyExpression("m.Deposits")} > 0
+                    THEN ${getSafeMoneyExpression("m.TotalPrice")} - ${getSafeMoneyExpression("m.Cash")} - ${getSafeMoneyExpression("m.Transfer")} - ${getSafeMoneyExpression("m.Deposits")}
                   ELSE 0
                 END
               ELSE 0
@@ -227,6 +323,26 @@ export async function GET(request: NextRequest) {
           0
         ) as totalReceivable
       FROM dbo.MasterSalePost m
+      LEFT JOIN dbo.WebBillDepositPayments depositPayment
+        ON depositPayment.BillNo = m.NumberPrintSalePost
+      OUTER APPLY (
+        SELECT
+          ISNULL(SUM(CASE WHEN ${getSafeMoneyExpression("detail.SumPrice")} > 0 THEN ${getSafeMoneyExpression("detail.SumPrice")} ELSE 0 END), 0) as grossPositiveTotal,
+          ISNULL(SUM(${getSafeMoneyExpression("detail.SumPrice")}), 0) as netDetailTotal,
+          ISNULL(SUM(CASE WHEN ${getSafeMoneyExpression("detail.SumPrice")} < 0 AND detail.NameProduct LIKE N'%มัดจำ%' THEN ABS(${getSafeMoneyExpression("detail.SumPrice")}) ELSE 0 END), 0) as legacyDepositAmount,
+          ISNULL(SUM(CASE WHEN ${getSafeMoneyExpression("detail.SumPrice")} < 0 AND detail.NameProduct LIKE N'%มัดจำ%' AND detail.NameProduct LIKE N'%เงินสด%' THEN ABS(${getSafeMoneyExpression("detail.SumPrice")}) ELSE 0 END), 0) as legacyCashDepositAmount,
+          ISNULL(SUM(CASE WHEN ${getSafeMoneyExpression("detail.SumPrice")} < 0 AND detail.NameProduct LIKE N'%มัดจำ%' AND detail.NameProduct LIKE N'%เงินโอน%' THEN ABS(${getSafeMoneyExpression("detail.SumPrice")}) ELSE 0 END), 0) as legacyTransferDepositAmount
+        FROM dbo.DetailSalePost detail
+        WHERE detail.NumberPrintSalePost = m.NumberPrintSalePost
+      ) financials
+      OUTER APPLY (
+        SELECT TOP 1
+          r.NumberPrintPost,
+          ${getSafeMoneyExpression("r.SubMoney")} as outstandingAmount
+        FROM dbo.MasterRecivePaymentCustomer r
+        WHERE r.NumberPrintPost = m.NumberPrintSalePost
+        ORDER BY r.DatePost DESC
+      ) receivable
     `;
 
     if (conditions.length > 0) {

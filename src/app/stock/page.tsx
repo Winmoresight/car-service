@@ -81,6 +81,7 @@ interface StockMovement {
 interface ProductDraft {
   categoryId: string;
   barcode: string;
+  initialStock: string;
   name: string;
   unit: string;
   packageQuantity: string;
@@ -117,6 +118,7 @@ function createEmptyProductDraft(): ProductDraft {
   return {
     categoryId: "25",
     barcode: "",
+    initialStock: "",
     name: "",
     unit: "",
     packageQuantity: "1",
@@ -463,6 +465,7 @@ export default function StockPage() {
         body: JSON.stringify({
           categoryId: Number.parseInt(productDraft.categoryId, 10),
           barcode: productDraft.barcode,
+          initialStock: productDraft.initialStock,
           name: productDraft.name,
           unit: productDraft.unit,
           packageQuantity: productDraft.packageQuantity,
@@ -1130,10 +1133,6 @@ export default function StockPage() {
                 </div>
                 <div className="min-w-0">
                   <LargeDialogTitle>เพิ่มสินค้า</LargeDialogTitle>
-                  <LargeDialogDescription>
-                    รหัสสินค้าและจำนวนคงเหลือเริ่มต้นจะถูกกำหนดโดยระบบ
-                    ส่วนบาร์โค้ดสามารถใช้ค่าที่ระบบสร้างหรือสแกนจากสินค้าได้
-                  </LargeDialogDescription>
                 </div>
               </div>
             </LargeDialogHeader>
@@ -1178,13 +1177,21 @@ export default function StockPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <span className="block text-sm font-bold text-muted-foreground">
+                  <label
+                    htmlFor="stock-product-initial-stock"
+                    className="block text-sm font-bold text-muted-foreground"
+                  >
                     จำนวนคงเหลือ
-                  </span>
+                  </label>
                   <Input
-                    value="0"
-                    readOnly
-                    className="h-11 rounded-[8px] bg-muted/30 text-right font-bold shadow-none"
+                    id="stock-product-initial-stock"
+                    inputMode="decimal"
+                    value={productDraft.initialStock ?? ""}
+                    onChange={(event) =>
+                      updateProductDraft({ initialStock: event.target.value })
+                    }
+                    className="h-11 rounded-[8px] bg-white text-right font-bold shadow-none dark:bg-background"
+                    placeholder="0"
                   />
                 </div>
               </div>

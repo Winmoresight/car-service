@@ -169,6 +169,8 @@ export default function NewBillPage() {
     brandAndGenerate: "",
     mileCar: "",
     deposits: "",
+    depositPaymentMethod: "transfer",
+    depositBankName: "",
     cash: "",
     transfer: "",
     nameBank: "",
@@ -274,6 +276,8 @@ export default function NewBillPage() {
       setForm((current) => ({
         ...current,
         deposits: "",
+        depositPaymentMethod: "transfer",
+        depositBankName: "",
         cash: "",
         transfer: "",
         nameBank: "",
@@ -392,6 +396,8 @@ export default function NewBillPage() {
       brandAndGenerate: "",
       mileCar: "",
       deposits: "",
+      depositPaymentMethod: "transfer",
+      depositBankName: "",
       cash: "",
       transfer: "",
       nameBank: "",
@@ -430,6 +436,15 @@ export default function NewBillPage() {
 
       if (paymentSummary.transfer > 0 && !form.nameBank.trim()) {
         setError("กรุณาระบุธนาคารสำหรับเงินโอน");
+        return;
+      }
+
+      if (
+        paymentSummary.deposits > 0 &&
+        form.depositPaymentMethod === "transfer" &&
+        !form.depositBankName.trim()
+      ) {
+        setError("กรุณาระบุธนาคารสำหรับเงินมัดจำที่รับด้วยเงินโอน");
         return;
       }
 
@@ -1171,25 +1186,84 @@ export default function NewBillPage() {
                     </div>
 
                     {showDepositInput ? (
-                      <label
-                        htmlFor="depositAmount"
-                        className="mt-3 block space-y-1.5"
-                      >
-                        <span className="text-sm font-bold text-primary">
-                          เงินค่ามัดจำ
-                        </span>
-                        <Input
-                          id="depositAmount"
-                          type="number"
-                          min="0"
-                          inputMode="decimal"
-                          value={form.deposits}
-                          onChange={(event) =>
-                            updateForm("deposits", event.target.value)
-                          }
-                          className="h-11 rounded-xl text-right font-semibold"
-                        />
-                      </label>
+                      <div className="mt-3 space-y-3 rounded-[8px] border bg-background p-3 dark:bg-secondary">
+                        <label
+                          htmlFor="depositAmount"
+                          className="block space-y-1.5"
+                        >
+                          <span className="text-sm font-bold text-primary">
+                            เงินค่ามัดจำ
+                          </span>
+                          <Input
+                            id="depositAmount"
+                            type="number"
+                            min="0"
+                            inputMode="decimal"
+                            value={form.deposits}
+                            onChange={(event) =>
+                              updateForm("deposits", event.target.value)
+                            }
+                            className="h-11 rounded-xl text-right font-semibold"
+                          />
+                        </label>
+
+                        {paymentSummary.deposits > 0 ? (
+                          <div className="space-y-3">
+                            <div>
+                              <span className="mb-1.5 block text-sm font-bold text-primary">
+                                ช่องทางรับมัดจำ
+                              </span>
+                              <div className="grid grid-cols-2 gap-2">
+                                {(["cash", "transfer"] as const).map(
+                                  (method) => (
+                                    <Button
+                                      key={method}
+                                      type="button"
+                                      variant="outline"
+                                      onClick={() =>
+                                        updateForm(
+                                          "depositPaymentMethod",
+                                          method,
+                                        )
+                                      }
+                                      className={`h-10 rounded-xl font-bold ${
+                                        form.depositPaymentMethod === method
+                                          ? "border-violet-600 bg-violet-600 !text-white hover:bg-violet-600/90 hover:!text-white"
+                                          : "bg-white text-muted-foreground dark:bg-background"
+                                      }`}
+                                    >
+                                      {method === "cash" ? "เงินสด" : "เงินโอน"}
+                                    </Button>
+                                  ),
+                                )}
+                              </div>
+                            </div>
+
+                            {form.depositPaymentMethod === "transfer" ? (
+                              <label
+                                htmlFor="depositBankName"
+                                className="block space-y-1.5"
+                              >
+                                <span className="text-sm font-bold text-primary">
+                                  ธนาคารที่รับเงินมัดจำ
+                                </span>
+                                <Input
+                                  id="depositBankName"
+                                  value={form.depositBankName}
+                                  onChange={(event) =>
+                                    updateForm(
+                                      "depositBankName",
+                                      event.target.value,
+                                    )
+                                  }
+                                  className="h-11 rounded-xl"
+                                  placeholder="เช่น กรุงไทย"
+                                />
+                              </label>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
                     ) : null}
 
                     {paymentMode === "full" ? (

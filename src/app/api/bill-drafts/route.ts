@@ -5,6 +5,10 @@
 
 import sql from "mssql";
 import { type NextRequest, NextResponse } from "next/server";
+import {
+  billDepositPaymentTableName,
+  ensureBillDepositPaymentTable,
+} from "@/lib/bill-deposit-payment";
 import { executeQuery, getPool } from "@/lib/db";
 import { getOverpaymentMessage } from "@/lib/payment-validation";
 
@@ -28,6 +32,8 @@ interface BillDraftPayload {
   brandAndGenerate?: string;
   mileCar?: string;
   deposits?: number;
+  depositPaymentMethod?: "cash" | "transfer";
+  depositBankName?: string;
   cash?: number;
   transfer?: number;
   nameBank?: string;
@@ -71,6 +77,8 @@ interface BillTotals {
 
 interface BillPayment {
   deposits: number;
+  depositPaymentMethod: "cash" | "transfer" | null;
+  depositBankName: string;
   cash: number;
   transfer: number;
   paidTotal: number;
@@ -185,6 +193,16 @@ function calculatePayment(body: BillDraftPayload, totalPrice: number) {
   const remainingAmount = Number(
     Math.max(totalPrice - paidTotal, 0).toFixed(2),
   );
+  const depositPaymentMethod =
+    deposits > 0 && body.depositPaymentMethod === "cash"
+      ? "cash"
+      : deposits > 0
+        ? "transfer"
+        : null;
+  const depositBankName =
+    depositPaymentMethod === "transfer"
+      ? sanitizeText(body.depositBankName)
+      : "";
   const draftPaymentStatus =
     remainingAmount <= 0
       ? "ชำระแล้ว"
@@ -194,6 +212,8 @@ function calculatePayment(body: BillDraftPayload, totalPrice: number) {
 
   return {
     deposits,
+    depositPaymentMethod,
+    depositBankName,
     cash,
     transfer,
     paidTotal,
@@ -628,14 +648,27 @@ async function createLegacySaleBill(params: {
     masterRequest.input("totalPrice", sql.Money, totals.totalPrice);
     masterRequest.input("totalCost", sql.Money, totals.totalCost);
     masterRequest.input("totalProfit", sql.Money, totals.totalProfit);
-    masterRequest.input("cash", sql.Money, payment.cash);
-    masterRequest.input("transfer", sql.Money, payment.transfer);
+    masterRequest.input(
+      "cash",
+      sql.Money,
+      payment.cash +
+        (payment.depositPaymentMethod === "cash" ? payment.deposits : 0),
+    );
+    masterRequest.input(
+      "transfer",
+      sql.Money,
+      payment.transfer +
+        (payment.depositPaymentMethod === "transfer" ? payment.deposits : 0),
+    );
     masterRequest.input("createdBy", createdBy);
     masterRequest.input("closeAcc", "");
     masterRequest.input("status", payment.legacyStatus);
     masterRequest.input("numberPrintCash", "");
     masterRequest.input("code", sql.Int, null);
-    masterRequest.input("nameBank", truncateText(payment.nameBank, 250) || "");
+    masterRequest.input(
+      "nameBank",
+      truncateText(payment.nameBank || payment.depositBankName, 250) || "",
+    );
     masterRequest.input("priceService", sql.Money, totals.serviceTotal);
     masterRequest.input("itemSummary", itemSummary);
     masterRequest.input("detailPrint", getLegacyDetailPrint(body));
@@ -848,6 +881,44 @@ async function createLegacySaleBill(params: {
           @totalPrice,
           @payMoney,
           @subMoney
+        )
+      `);
+    }
+
+    if (payment.deposits > 0 && payment.depositPaymentMethod) {
+      const depositRequest = new sql.Request(transaction);
+
+      depositRequest.input("billNo", sql.NVarChar(30), billNo);
+      depositRequest.input("amount", sql.Money, payment.deposits);
+      depositRequest.input(
+        "paymentMethod",
+        sql.NVarChar(20),
+        payment.depositPaymentMethod,
+      );
+      depositRequest.input(
+        "bankName",
+        sql.NVarChar(250),
+        payment.depositBankName,
+      );
+      depositRequest.input("createdBy", sql.NVarChar(250), createdBy);
+      depositRequest.input("createdAt", sql.DateTime, createdAt);
+
+      await depositRequest.query(`
+        INSERT INTO dbo.${billDepositPaymentTableName} (
+          BillNo,
+          Amount,
+          PaymentMethod,
+          BankName,
+          CreatedBy,
+          CreatedAt
+        )
+        VALUES (
+          @billNo,
+          @amount,
+          @paymentMethod,
+          @bankName,
+          @createdBy,
+          @createdAt
         )
       `);
     }
@@ -1090,6 +1161,21 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
+
+    if (
+      payment.depositPaymentMethod === "transfer" &&
+      !payment.depositBankName
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "กรุณาระบุธนาคารสำหรับเงินมัดจำที่รับด้วยเงินโอน",
+        },
+        { status: 400 },
+      );
+    }
+
+    await ensureBillDepositPaymentTable();
 
     const legacyBill = await createLegacySaleBill({
       body,

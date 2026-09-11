@@ -35,6 +35,7 @@ interface StockMovement {
 interface StockProductCreatePayload {
   categoryId: number;
   barcode: string;
+  initialStock: number;
   name: string;
   unit: string;
   packageQuantity: number;
@@ -162,6 +163,7 @@ function parseStockProductPayload(body: unknown): StockProductCreatePayload {
   const source = body as Record<string, unknown>;
   const categoryId = normalizePositiveInteger(source.categoryId);
   const barcode = normalizeText(source.barcode).replace(/\s+/g, "");
+  const initialStock = normalizeMoney(source.initialStock);
   const name = truncateText(normalizeText(source.name), 250);
   const unit = truncateText(normalizeText(source.unit), 50);
   const packageUnit = truncateText(
@@ -178,6 +180,10 @@ function parseStockProductPayload(body: unknown): StockProductCreatePayload {
 
   if (barcode.length > 30) {
     throw new StockValidationError("บาร์โค้ดต้องมีความยาวไม่เกิน 30 ตัวอักษร");
+  }
+
+  if (initialStock === null) {
+    throw new StockValidationError("กรุณาระบุจำนวนคงเหลือให้ถูกต้อง");
   }
 
   if (!name) {
@@ -199,6 +205,7 @@ function parseStockProductPayload(body: unknown): StockProductCreatePayload {
   return {
     categoryId,
     barcode,
+    initialStock,
     name,
     unit,
     packageQuantity,
@@ -778,7 +785,7 @@ async function createStockProduct(
     const detailRequest = new sql.Request(transaction);
     detailRequest.input("barcode", sql.NVarChar(30), barcode);
     detailRequest.input("productCode", sql.NVarChar(30), productCode);
-    detailRequest.input("stock", sql.Real, 0);
+    detailRequest.input("stock", sql.Real, payload.initialStock);
     detailRequest.input("unit", sql.NVarChar(50), payload.unit);
     detailRequest.input("contain", sql.Int, payload.packageQuantity);
     detailRequest.input("costPrice", sql.Money, payload.costPrice);
@@ -834,7 +841,11 @@ async function createStockProduct(
     stockRequest.input("barcode", sql.NVarChar(30), barcode);
     stockRequest.input("name", sql.NVarChar(250), payload.name);
     stockRequest.input("unit", sql.NVarChar(50), payload.unit);
-    stockRequest.input("zero", sql.NVarChar(30), "0");
+    stockRequest.input(
+      "initialStock",
+      sql.NVarChar(30),
+      String(payload.initialStock),
+    );
     stockRequest.input(
       "costPrice",
       sql.NVarChar(50),
@@ -865,9 +876,9 @@ async function createStockProduct(
         @barcode,
         @name,
         @unit,
-        @zero,
+        @initialStock,
         '',
-        @zero,
+        @initialStock,
         @costPrice,
         @emptyCompanyCode,
         @emptyCompanyName
@@ -883,7 +894,7 @@ async function createStockProduct(
       categoryId: payload.categoryId,
       categoryName,
       unit: payload.unit,
-      stock: 0,
+      stock: payload.initialStock,
       costPrice: payload.costPrice,
       retailPrice: payload.retailPrice,
     };

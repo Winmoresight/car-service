@@ -105,82 +105,6 @@ function getMoneySourceLabel(source: DashboardMoneyBreakdownItem["source"]) {
   return "รับ-จ่ายอื่น";
 }
 
-interface MoneyBreakdownRow {
-  label: string;
-  amount: number;
-  type?: "in" | "out" | "neutral";
-}
-
-interface MoneyBreakdownProps {
-  title: string;
-  subtitle: string;
-  totalLabel: string;
-  totalValue: number;
-  icon: LucideIcon;
-  rows: MoneyBreakdownRow[];
-}
-
-function MoneyBreakdown({
-  title,
-  subtitle,
-  totalLabel,
-  totalValue,
-  icon: Icon,
-  rows,
-}: MoneyBreakdownProps) {
-  return (
-    <section className="rounded-[8px] border bg-card p-4 shadow-sm">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold text-card-foreground">{title}</h2>
-          <p className="text-sm font-semibold text-muted-foreground">
-            {subtitle}
-          </p>
-        </div>
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] border bg-background text-primary">
-          <Icon className="h-5 w-5" strokeWidth={2.5} />
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        {rows.map((row) => {
-          const amount =
-            row.type === "out" ? -Math.abs(row.amount) : Math.abs(row.amount);
-          const isOut = row.type === "out";
-
-          return (
-            <div
-              key={row.label}
-              className="flex items-center justify-between gap-3 rounded-[8px] border bg-background px-3 py-2"
-            >
-              <span className="min-w-0 text-sm font-semibold text-muted-foreground">
-                {row.label}
-              </span>
-              <span
-                className={
-                  isOut
-                    ? "shrink-0 text-sm font-bold text-main-red"
-                    : "shrink-0 text-sm font-bold text-main-green"
-                }
-              >
-                {amount < 0 ? "-" : "+"}
-                {formatCurrency(Math.abs(amount))} บาท
-              </span>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="mt-4 flex flex-col gap-1 rounded-[8px] border border-blue-100 bg-blue-50 px-3 py-3 dark:border-blue-500/20 dark:bg-blue-500/10">
-        <span className="text-sm font-bold text-main-blue">{totalLabel}</span>
-        <span className="text-2xl font-bold text-primary">
-          {formatCurrency(totalValue)} บาท
-        </span>
-      </div>
-    </section>
-  );
-}
-
 interface MoneyDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -562,44 +486,13 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-2">
-          <MoneyBreakdown
-            title="ตรวจเงินสด"
-            subtitle="เฉพาะยอดขายเงินสดของวันที่เลือก"
-            totalLabel="ยอดขายเงินสด"
-            totalValue={kpi?.cashDrawerExpected || 0}
-            icon={Wallet}
-            rows={[
-              {
-                label: "ยอดขายเงินสด",
-                amount: kpi?.todayCash || 0,
-                type: "in",
-              },
-            ]}
-          />
-
-          <MoneyBreakdown
-            title="ตรวจเงินโอน"
-            subtitle="เฉพาะยอดขายเงินโอนของวันที่เลือก"
-            totalLabel="ยอดขายเงินโอน"
-            totalValue={kpi?.transferNet || 0}
-            icon={CreditCard}
-            rows={[
-              {
-                label: "ยอดขายเงินโอน",
-                amount: kpi?.todayTransfer || 0,
-                type: "in",
-              },
-            ]}
-          />
-        </div>
-
         {/* Sales Chart */}
         <SalesChart
           data={dailySales}
           period={salesChartPeriod}
           selectedDate={selectedDate ?? new Date()}
           onPeriodChange={setSalesChartPeriod}
+          onSelectedDateChange={setSelectedDate}
         />
 
         <CategorySalesShareCard

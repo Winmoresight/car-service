@@ -1,0 +1,394 @@
+     1	/**
+     2	 * Sales API
+     3	 * GET /api/sales - ดึงรายการบิลขายพร้อมสรุปยอดตามตัวกรอง
+     4	 */
+     5	
+     6	import { type NextRequest, NextResponse } from "next/server";
+     7	import { ensureBillDepositPaymentTable } from "@/lib/bill-deposit-payment";
+     8	import { executeQuery } from "@/lib/db";
+     9	import type { ApiResponse } from "@/types/api";
+    10	
+    11	interface SaleItem {
+    12	  id: string;
+    13	  date: string;
+    14	  customerName: string;
+    15	  customerPhone: string;
+    16	  totalPrice: number;
+    17	  totalProfit: number;
+    18	  cash: number;
+    19	  transfer: number;
+    20	  deposits: number;
+    21	  receivableAmount: number;
+    22	  status: string;
+    23	  itemCount: number;
+    24	}
+    25	
+    26	interface SalesSummary {
+    27	  totalSales: number;
+    28	  totalProfit: number;
+    29	  totalCash: number;
+    30	  totalTransfer: number;
+    31	  totalDeposits: number;
+    32	  totalReceivable: number;
+    33	}
+    34	
+    35	type SalesStatusFilter = "all" | "cash" | "transfer" | "unpaid";
+    36	
+    37	function getSafeMoneyExpression(valueExpression: string) {
+    38	  const textExpression = `CONVERT(nvarchar(100), ${valueExpression})`;
+    39	
+    40	  return `ISNULL(CONVERT(money, CASE WHEN ${valueExpression} IS NULL THEN '0' WHEN ISNUMERIC(${textExpression}) = 1 THEN ${textExpression} ELSE '0' END), 0)`;
+    41	}
+    42	
+    43	function buildSalesConditions({
+    44	  search,
+    45	  startDate,
+    46	  endDate,
+    47	  status,
+    48	}: {
+    49	  search: string;
+    50	  startDate: string;
+    51	  endDate: string;
+    52	  status: SalesStatusFilter;
+    53	}) {
+    54	  const conditions: string[] = [];
+    55	
+    56	  if (search) {
+    57	    conditions.push(
+    58	      `(m.NumberPrintSalePost LIKE @search OR m.NameCustomer LIKE @search)`,
+    59	    );
+    60	  }
+    61	
+    62	  if (startDate) {
+    63	    conditions.push("CONVERT(date, m.DateSalePost) >= @startDate");
+    64	  }
+    65	
+    66	  if (endDate) {
+    67	    conditions.push("CONVERT(date, m.DateSalePost) <= @endDate");
+    68	  }
+    69	
+    70	  if (status === "cash") {
+    71	    conditions.push("ISNULL(m.Cash, 0) > 0");
+    72	  } else if (status === "transfer") {
+    73	    conditions.push(`(
+    74	      ISNULL(m.Transfer, 0) > 0
+    75	      OR EXISTS (
+    76	        SELECT 1
+    77	        FROM dbo.DetailSalePost transferDeposit
+    78	        WHERE transferDeposit.NumberPrintSalePost = m.NumberPrintSalePost
+    79	          AND transferDeposit.NameProduct LIKE N'%มัดจำ%'
+    80	          AND transferDeposit.NameProduct LIKE N'%เงินโอน%'
+    81	          AND ISNULL(transferDeposit.SumPrice, 0) < 0
+    82	      )
+    83	      OR EXISTS (
+    84	        SELECT 1
+    85	        FROM dbo.WebBillDepositPayments savedDeposit
+    86	        WHERE savedDeposit.BillNo = m.NumberPrintSalePost
+    87	          AND savedDeposit.PaymentMethod = N'transfer'
+    88	          AND savedDeposit.Amount > 0
+    89	      )
+    90	    )`);
+    91	  } else if (status === "unpaid") {
+    92	    conditions.push("LTRIM(RTRIM(ISNULL(m.Status, ''))) = N'ค้างชำระ'");
+    93	  }
+    94	
+    95	  return conditions;
+    96	}
+    97	
+    98	export async function GET(request: NextRequest) {
+    99	  try {
+   100	    await ensureBillDepositPaymentTable();
+   101	
+   102	    const searchParams = request.nextUrl.searchParams;
+   103	    const limit = Number.parseInt(searchParams.get("limit") || "20", 10);
+   104	    const offset = Number.parseInt(searchParams.get("offset") || "0", 10);
+   105	    const search = searchParams.get("search") || "";
+   106	    const startDate = searchParams.get("startDate") || "";
+   107	    const endDate = searchParams.get("endDate") || "";
+   108	    const statusParam = searchParams.get("status") || "all";
+   109	    const status: SalesStatusFilter =
+   110	      statusParam === "cash" ||
+   111	      statusParam === "transfer" ||
+   112	      statusParam === "unpaid"
+   113	        ? statusParam
+   114	        : "all";
+   115	
+   116	    // Build query
+   117	    const conditions = buildSalesConditions({
+   118	      search,
+   119	      startDate,
+   120	      endDate,
+   121	      status,
+   122	    });
+   123	
+   124	    let query = `
+   125	      WITH DetailFinancials AS (
+   126	        SELECT
+   127	          NumberPrintSalePost,
+   128	          ISNULL(SUM(CASE WHEN ${getSafeMoneyExpression("SumPrice")} > 0 THEN ${getSafeMoneyExpression("SumPrice")} ELSE 0 END), 0) as grossPositiveTotal,
+   129	          ISNULL(SUM(${getSafeMoneyExpression("SumPrice")}), 0) as netDetailTotal,
+   130	          ISNULL(SUM(CASE WHEN ${getSafeMoneyExpression("SumPrice")} < 0 AND NameProduct LIKE N'%มัดจำ%' THEN ABS(${getSafeMoneyExpression("SumPrice")}) ELSE 0 END), 0) as legacyDepositAmount,
+   131	          ISNULL(SUM(CASE WHEN ${getSafeMoneyExpression("SumPrice")} < 0 AND NameProduct LIKE N'%มัดจำ%' AND NameProduct LIKE N'%เงินสด%' THEN ABS(${getSafeMoneyExpression("SumPrice")}) ELSE 0 END), 0) as legacyCashDepositAmount,
+   132	          ISNULL(SUM(CASE WHEN ${getSafeMoneyExpression("SumPrice")} < 0 AND NameProduct LIKE N'%มัดจำ%' AND NameProduct LIKE N'%เงินโอน%' THEN ABS(${getSafeMoneyExpression("SumPrice")}) ELSE 0 END), 0) as legacyTransferDepositAmount
+   133	        FROM dbo.DetailSalePost
+   134	        GROUP BY NumberPrintSalePost
+   135	      ),
+   136	      LatestReceivables AS (
+   137	        SELECT
+   138	          NumberPrintPost,
+   139	          ${getSafeMoneyExpression("SubMoney")} as outstandingAmount,
+   140	          ROW_NUMBER() OVER (
+   141	            PARTITION BY NumberPrintPost
+   142	            ORDER BY DatePost DESC
+   143	          ) as latestRow
+   144	        FROM dbo.MasterRecivePaymentCustomer
+   145	      ),
+   146	      PaginatedData AS (
+   147	        SELECT 
+   148	          m.NumberPrintSalePost as id,
+   149	          m.DateSalePost as date,
+   150	          ISNULL(m.NameCustomer, 'ไม่ระบุ') as customerName,
+   151	          ISNULL(c.PhoneCustomer, '') as customerPhone,
+   152	          CASE
+   153	            WHEN ISNULL(financials.legacyDepositAmount, 0) > 0
+   154	              AND ABS(ISNULL(financials.netDetailTotal, 0) - ${getSafeMoneyExpression("m.TotalPrice")}) < 0.01
+   155	              THEN ISNULL(financials.grossPositiveTotal, ${getSafeMoneyExpression("m.TotalPrice")})
+   156	            ELSE ${getSafeMoneyExpression("m.TotalPrice")}
+   157	          END as totalPrice,
+   158	          m.TotalProfit as totalProfit,
+   159	          ${getSafeMoneyExpression("m.Cash")} + ISNULL(financials.legacyCashDepositAmount, 0) as cash,
+   160	          ${getSafeMoneyExpression("m.Transfer")} + ISNULL(financials.legacyTransferDepositAmount, 0) as transfer,
+   161	          CASE
+   162	            WHEN ${getSafeMoneyExpression("m.Deposits")} > 0
+   163	              THEN ${getSafeMoneyExpression("m.Deposits")}
+   164	            ELSE ISNULL(financials.legacyDepositAmount, 0)
+   165	          END as deposits,
+   166	          CASE
+   167	            WHEN LTRIM(RTRIM(ISNULL(m.Status, ''))) = N'ค้างชำระ'
+   168	              THEN CASE
+   169	                WHEN receivable.NumberPrintPost IS NOT NULL
+   170	                  THEN receivable.outstandingAmount
+   171	                WHEN ISNULL(financials.legacyDepositAmount, 0) > 0
+   172	                  AND ABS(ISNULL(financials.netDetailTotal, 0) - ${getSafeMoneyExpression("m.TotalPrice")}) < 0.01
+   173	                  THEN CASE
+   174	                    WHEN ${getSafeMoneyExpression("m.TotalPrice")} - ${getSafeMoneyExpression("m.Cash")} - ${getSafeMoneyExpression("m.Transfer")} > 0
+   175	                      THEN ${getSafeMoneyExpression("m.TotalPrice")} - ${getSafeMoneyExpression("m.Cash")} - ${getSafeMoneyExpression("m.Transfer")}
+   176	                    ELSE 0
+   177	                  END
+   178	                WHEN ${getSafeMoneyExpression("m.TotalPrice")} - ${getSafeMoneyExpression("m.Cash")} - ${getSafeMoneyExpression("m.Transfer")} - ${getSafeMoneyExpression("m.Deposits")} > 0
+   179	                  THEN ${getSafeMoneyExpression("m.TotalPrice")} - ${getSafeMoneyExpression("m.Cash")} - ${getSafeMoneyExpression("m.Transfer")} - ${getSafeMoneyExpression("m.Deposits")}
+   180	                ELSE 0
+   181	              END
+   182	            ELSE 0
+   183	          END as receivableAmount,
+   184	          LTRIM(RTRIM(ISNULL(m.Status, ''))) as status,
+   185	          (SELECT COUNT(*) FROM dbo.DetailSalePost WHERE NumberPrintSalePost = m.NumberPrintSalePost) as itemCount,
+   186	          ROW_NUMBER() OVER (ORDER BY m.DateSalePost DESC) as RowNum
+   187	        FROM dbo.MasterSalePost m
+   188	        LEFT JOIN dbo.Customer c ON m.CodeCustomer = c.CodeCustomer
+   189	        LEFT JOIN DetailFinancials financials
+   190	          ON financials.NumberPrintSalePost = m.NumberPrintSalePost
+   191	        LEFT JOIN LatestReceivables receivable
+   192	          ON receivable.NumberPrintPost = m.NumberPrintSalePost
+   193	          AND receivable.latestRow = 1
+   194	    `;
+   195	
+   196	    // Build WHERE clause
+   197	    if (conditions.length > 0) {
+   198	      query += ` WHERE ${conditions.join(" AND ")}`;
+   199	    }
+   200	
+   201	    query += `
+   202	      )
+   203	      SELECT
+   204	        id,
+   205	        date,
+   206	        customerName,
+   207	        customerPhone,
+   208	        totalPrice,
+   209	        totalProfit,
+   210	        cash,
+   211	        transfer,
+   212	        deposits,
+   213	        receivableAmount,
+   214	        status,
+   215	        itemCount
+   216	      FROM PaginatedData
+   217	      WHERE RowNum > @offset AND RowNum <= (@offset + @limit)
+   218	      ORDER BY RowNum
+   219	    `;
+   220	
+   221	    const results = await executeQuery<{
+   222	      id: string;
+   223	      date: Date;
+   224	      customerName: string;
+   225	      customerPhone: string;
+   226	      totalPrice: number;
+   227	      totalProfit: number;
+   228	      cash: number;
+   229	      transfer: number;
+   230	      deposits: number;
+   231	      receivableAmount: number;
+   232	      status: string;
+   233	      itemCount: number;
+   234	    }>(query, {
+   235	      limit,
+   236	      offset,
+   237	      search: `%${search}%`,
+   238	      startDate: startDate || undefined,
+   239	      endDate: endDate || undefined,
+   240	    });
+   241	
+   242	    // Return data without masking
+   243	    const sales: SaleItem[] = results.map((row) => ({
+   244	      id: row.id,
+   245	      date: new Date(row.date).toISOString(),
+   246	      customerName: row.customerName,
+   247	      customerPhone: row.customerPhone,
+   248	      totalPrice: row.totalPrice,
+   249	      totalProfit: row.totalProfit,
+   250	      cash: row.cash,
+   251	      transfer: row.transfer,
+   252	      deposits: row.deposits,
+   253	      receivableAmount: row.receivableAmount,
+   254	      status: row.status,
+   255	      itemCount: row.itemCount,
+   256	    }));
+   257	
+   258	    // Get total count
+   259	    let countQuery = `SELECT COUNT(*) as total FROM dbo.MasterSalePost m`;
+   260	
+   261	    if (conditions.length > 0) {
+   262	      countQuery += ` WHERE ${conditions.join(" AND ")}`;
+   263	    }
+   264	
+   265	    const [countResult] = await executeQuery<{ total: number }>(countQuery, {
+   266	      search: `%${search}%`,
+   267	      startDate: startDate || undefined,
+   268	      endDate: endDate || undefined,
+   269	    });
+   270	
+   271	    // Get sales summary with the same filters as the list above
+   272	    let summaryQuery = `
+   273	      SELECT
+   274	        ISNULL(SUM(
+   275	          CASE
+   276	            WHEN ISNULL(financials.legacyDepositAmount, 0) > 0
+   277	              AND ABS(ISNULL(financials.netDetailTotal, 0) - ${getSafeMoneyExpression("m.TotalPrice")}) < 0.01
+   278	              THEN ISNULL(financials.grossPositiveTotal, ${getSafeMoneyExpression("m.TotalPrice")})
+   279	            ELSE ${getSafeMoneyExpression("m.TotalPrice")}
+   280	          END
+   281	        ), 0) as totalSales,
+   282	        ISNULL(SUM(m.TotalProfit), 0) as totalProfit,
+   283	        ISNULL(SUM(
+   284	          ${getSafeMoneyExpression("m.Cash")}
+   285	          + CASE
+   286	              WHEN depositPayment.BillNo IS NULL
+   287	                THEN ISNULL(financials.legacyCashDepositAmount, 0)
+   288	              ELSE 0
+   289	            END
+   290	        ), 0) as totalCash,
+   291	        ISNULL(SUM(
+   292	          ${getSafeMoneyExpression("m.Transfer")}
+   293	          + CASE
+   294	              WHEN depositPayment.BillNo IS NULL
+   295	                THEN ISNULL(financials.legacyTransferDepositAmount, 0)
+   296	              ELSE 0
+   297	            END
+   298	        ), 0) as totalTransfer,
+   299	        ISNULL(SUM(CASE WHEN ${getSafeMoneyExpression("m.Deposits")} > 0 THEN ${getSafeMoneyExpression("m.Deposits")} ELSE ISNULL(financials.legacyDepositAmount, 0) END), 0) as totalDeposits,
+   300	        ISNULL(
+   301	          SUM(
+   302	            CASE
+   303	              WHEN LTRIM(RTRIM(ISNULL(m.Status, ''))) = N'ค้างชำระ'
+   304	                THEN CASE
+   305	                  WHEN receivable.NumberPrintPost IS NOT NULL
+   306	                    THEN receivable.outstandingAmount
+   307	                  WHEN ISNULL(financials.legacyDepositAmount, 0) > 0
+   308	                    AND ABS(ISNULL(financials.netDetailTotal, 0) - ${getSafeMoneyExpression("m.TotalPrice")}) < 0.01
+   309	                    THEN CASE
+   310	                      WHEN ${getSafeMoneyExpression("m.TotalPrice")} - ${getSafeMoneyExpression("m.Cash")} - ${getSafeMoneyExpression("m.Transfer")} > 0
+   311	                        THEN ${getSafeMoneyExpression("m.TotalPrice")} - ${getSafeMoneyExpression("m.Cash")} - ${getSafeMoneyExpression("m.Transfer")}
+   312	                      ELSE 0
+   313	                    END
+   314	                  WHEN ${getSafeMoneyExpression("m.TotalPrice")} - ${getSafeMoneyExpression("m.Cash")} - ${getSafeMoneyExpression("m.Transfer")} - ${getSafeMoneyExpression("m.Deposits")} > 0
+   315	                    THEN ${getSafeMoneyExpression("m.TotalPrice")} - ${getSafeMoneyExpression("m.Cash")} - ${getSafeMoneyExpression("m.Transfer")} - ${getSafeMoneyExpression("m.Deposits")}
+   316	                  ELSE 0
+   317	                END
+   318	              ELSE 0
+   319	            END
+   320	          ),
+   321	          0
+   322	        ) as totalReceivable
+   323	      FROM dbo.MasterSalePost m
+   324	      LEFT JOIN dbo.WebBillDepositPayments depositPayment
+   325	        ON depositPayment.BillNo = m.NumberPrintSalePost
+   326	      OUTER APPLY (
+   327	        SELECT
+   328	          ISNULL(SUM(CASE WHEN ${getSafeMoneyExpression("detail.SumPrice")} > 0 THEN ${getSafeMoneyExpression("detail.SumPrice")} ELSE 0 END), 0) as grossPositiveTotal,
+   329	          ISNULL(SUM(${getSafeMoneyExpression("detail.SumPrice")}), 0) as netDetailTotal,
+   330	          ISNULL(SUM(CASE WHEN ${getSafeMoneyExpression("detail.SumPrice")} < 0 AND detail.NameProduct LIKE N'%มัดจำ%' THEN ABS(${getSafeMoneyExpression("detail.SumPrice")}) ELSE 0 END), 0) as legacyDepositAmount,
+   331	          ISNULL(SUM(CASE WHEN ${getSafeMoneyExpression("detail.SumPrice")} < 0 AND detail.NameProduct LIKE N'%มัดจำ%' AND detail.NameProduct LIKE N'%เงินสด%' THEN ABS(${getSafeMoneyExpression("detail.SumPrice")}) ELSE 0 END), 0) as legacyCashDepositAmount,
+   332	          ISNULL(SUM(CASE WHEN ${getSafeMoneyExpression("detail.SumPrice")} < 0 AND detail.NameProduct LIKE N'%มัดจำ%' AND detail.NameProduct LIKE N'%เงินโอน%' THEN ABS(${getSafeMoneyExpression("detail.SumPrice")}) ELSE 0 END), 0) as legacyTransferDepositAmount
+   333	        FROM dbo.DetailSalePost detail
+   334	        WHERE detail.NumberPrintSalePost = m.NumberPrintSalePost
+   335	      ) financials
+   336	      OUTER APPLY (
+   337	        SELECT TOP 1
+   338	          r.NumberPrintPost,
+   339	          ${getSafeMoneyExpression("r.SubMoney")} as outstandingAmount
+   340	        FROM dbo.MasterRecivePaymentCustomer r
+   341	        WHERE r.NumberPrintPost = m.NumberPrintSalePost
+   342	        ORDER BY r.DatePost DESC
+   343	      ) receivable
+   344	    `;
+   345	
+   346	    if (conditions.length > 0) {
+   347	      summaryQuery += ` WHERE ${conditions.join(" AND ")}`;
+   348	    }
+   349	
+   350	    const [summaryResult] = await executeQuery<SalesSummary>(summaryQuery, {
+   351	      search: `%${search}%`,
+   352	      startDate: startDate || undefined,
+   353	      endDate: endDate || undefined,
+   354	    });
+   355	
+   356	    const response: ApiResponse<{
+   357	      sales: SaleItem[];
+   358	      total: number;
+   359	      limit: number;
+   360	      offset: number;
+   361	      summary: SalesSummary;
+   362	    }> = {
+   363	      success: true,
+   364	      data: {
+   365	        sales,
+   366	        total: countResult.total,
+   367	        limit,
+   368	        offset,
+   369	        summary: {
+   370	          totalSales: summaryResult.totalSales,
+   371	          totalProfit: summaryResult.totalProfit,
+   372	          totalCash: summaryResult.totalCash,
+   373	          totalTransfer: summaryResult.totalTransfer,
+   374	          totalDeposits: summaryResult.totalDeposits,
+   375	          totalReceivable: summaryResult.totalReceivable,
+   376	        },
+   377	      },
+   378	      timestamp: new Date().toISOString(),
+   379	    };
+   380	
+   381	    return NextResponse.json(response);
+   382	  } catch (error) {
+   383	    console.error("Sales API error:", error);
+   384	
+   385	    return NextResponse.json(
+   386	      {
+   387	        success: false,
+   388	        error: "Failed to fetch sales data",
+   389	        timestamp: new Date().toISOString(),
+   390	      },
+   391	      { status: 500 },
+   392	    );
+   393	  }
+   394	}

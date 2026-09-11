@@ -48,6 +48,8 @@ interface SaleDetail {
   cash: number;
   transfer: number;
   deposits: number;
+  depositPaymentMethod: "cash" | "transfer" | null;
+  depositBankName: string;
   receivableAmount: number;
   customer: {
     name: string;
@@ -169,8 +171,15 @@ export function SaleDetailDialog({
     }
 
     if (sale.deposits > 0) {
+      const depositChannel =
+        sale.depositPaymentMethod === "transfer"
+          ? `เงินโอน${sale.depositBankName ? ` · ${sale.depositBankName}` : ""}`
+          : sale.depositPaymentMethod === "cash"
+            ? "เงินสด"
+            : "";
+
       methods.push({
-        label: "เงินค่ามัดจำ",
+        label: depositChannel ? `เงินค่ามัดจำ (${depositChannel})` : "เงินค่ามัดจำ",
         amount: sale.deposits,
         icon: Receipt,
         className:

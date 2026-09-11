@@ -8,6 +8,7 @@
 import { addDays, format, startOfWeek } from "date-fns";
 import { th } from "date-fns/locale";
 import { TrendingUp } from "lucide-react";
+import { useState } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +24,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
+import { DatePicker } from "@/components/ui/date-picker";
 import type { DailySales } from "@/types/api";
 
 export type SalesChartPeriod = "day" | "week" | "month";
@@ -32,7 +34,10 @@ interface SalesChartProps {
   period: SalesChartPeriod;
   selectedDate: Date;
   onPeriodChange: (period: SalesChartPeriod) => void;
+  onSelectedDateChange?: (date: Date | undefined) => void;
 }
+
+type SalesChartSeries = "sales" | "profit" | "grossMargin";
 
 const chartConfig = {
   sales: {
@@ -43,6 +48,10 @@ const chartConfig = {
     label: "กำไร",
     color: "hsl(var(--chart-2))",
   },
+  grossMargin: {
+    label: "%Gross Margin",
+    color: "#f59e0b",
+  },
 } satisfies ChartConfig;
 
 export function SalesChart({
@@ -50,15 +59,17 @@ export function SalesChart({
   period,
   selectedDate,
   onPeriodChange,
+  onSelectedDateChange,
 }: SalesChartProps) {
+  const [visibleSeries, setVisibleSeries] = useState<
+    Record<SalesChartSeries, boolean>
+  >({
+    sales: true,
+    profit: true,
+    grossMargin: true,
+  });
   const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
   const weekEnd = addDays(weekStart, 5);
-  const title =
-    period === "week"
-      ? "ยอดขายรายสัปดาห์"
-      : period === "month"
-        ? "ยอดขายรายเดือน"
-        : "ยอดขายรายวัน";
   const description =
     period === "week"
       ? `${format(weekStart, "d MMM", { locale: th })} - ${format(weekEnd, "d MMM yyyy", { locale: th })} · จันทร์–เสาร์`
@@ -72,10 +83,29 @@ export function SalesChart({
       date: format(date, "d MMM", { locale: th }),
       sales: item.sales,
       profit: item.profit,
+      grossMargin:
+        item.sales !== 0
+          ? Number(((item.profit / item.sales) * 100).toFixed(2))
+          : 0,
     };
   });
 
-  const selectedDateLabel = format(selectedDate, "d MMMM yyyy", { locale: th });
+  const seriesOptions: Array<{
+    key: SalesChartSeries;
+    label: string;
+    color: string;
+  }> = [
+    { key: "sales", label: "ยอดขาย", color: "#3b82f6" },
+    { key: "profit", label: "กำไร", color: "#10b981" },
+    { key: "grossMargin", label: "%Gross Margin", color: "#f59e0b" },
+  ];
+
+  const toggleSeries = (series: SalesChartSeries) => {
+    setVisibleSeries((current) => ({
+      ...current,
+      [series]: !current[series],
+    }));
+  };
 
   return (
     <Card className="rounded-3xl border bg-card py-4 shadow-sm">
@@ -85,11 +115,9 @@ export function SalesChart({
             <TrendingUp className="h-6 w-6 text-main-blue" />
           </div>
           <div className="flex flex-col">
-            {title && (
-              <CardTitle className="text-xl font-bold text-card-foreground">
-                {title}
-              </CardTitle>
-            )}
+            <CardTitle className="text-xl font-bold text-card-foreground">
+              กราฟยอดขาย
+            </CardTitle>
             {description && (
               <CardDescription className="text-sm font-medium text-muted-foreground">
                 {description}
@@ -118,15 +146,37 @@ export function SalesChart({
               </Button>
             ))}
           </div>
-          <div className="flex w-fit items-center gap-2 rounded-full border border-border bg-secondary px-4 py-2">
-            <div className="h-2 w-2 rounded-full bg-main-blue" />
-            <span className="text-xs font-bold text-muted-foreground">
-              {selectedDateLabel}
-            </span>
-          </div>
+          <DatePicker
+            date={selectedDate}
+            onDateChange={onSelectedDateChange}
+            placeholder="เลือกวันที่อ้างอิง"
+            className="h-10 w-full rounded-xl px-3 text-xs font-bold min-[520px]:w-[210px]"
+          />
         </div>
       </CardHeader>
       <CardContent className="px-4 pt-0">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="mr-1 text-xs font-semibold text-muted-foreground">
+            เลือกเส้นที่แสดง
+          </span>
+          {seriesOptions.map((series) => (
+            <Button
+              key={series.key}
+              type="button"
+              size="sm"
+              variant={visibleSeries[series.key] ? "secondary" : "outline"}
+              aria-pressed={visibleSeries[series.key]}
+              onClick={() => toggleSeries(series.key)}
+              className="h-8 gap-2 rounded-full px-3 text-xs font-bold"
+            >
+              <span
+                className="h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: series.color }}
+              />
+              {series.label}
+            </Button>
+          ))}
+        </div>
         <ChartContainer config={chartConfig} className="h-[450px] w-full">
           <AreaChart
             data={chartData}
@@ -165,6 +215,7 @@ export function SalesChart({
               }}
             />
             <YAxis
+              yAxisId="money"
               tickLine={false}
               axisLine={false}
               tickMargin={16}
@@ -178,33 +229,98 @@ export function SalesChart({
                 return value;
               }}
             />
+            {visibleSeries.grossMargin ? (
+              <YAxis
+                yAxisId="percentage"
+                orientation="right"
+                tickLine={false}
+                axisLine={false}
+                tickMargin={12}
+                width={48}
+                tick={{
+                  fontSize: 11,
+                  fill: "#f59e0b",
+                  fontWeight: 600,
+                }}
+                tickFormatter={(value) => `${value}%`}
+              />
+            ) : null}
             <ChartTooltip
               cursor={{
                 stroke: "hsl(var(--border))",
                 strokeWidth: 2,
               }}
-              content={<ChartTooltipContent indicator="dot" />}
+              content={
+                <ChartTooltipContent
+                  indicator="dot"
+                  formatter={(value, name, item) => {
+                    const isGrossMargin = item.dataKey === "grossMargin";
+                    const label = isGrossMargin
+                      ? "%Gross Margin"
+                      : name === "sales"
+                        ? "ยอดขาย"
+                        : "กำไร";
+                    const formattedValue = isGrossMargin
+                      ? `${Number(value).toLocaleString("th-TH", { maximumFractionDigits: 2 })}%`
+                      : `${Number(value).toLocaleString("th-TH", { maximumFractionDigits: 0 })} บาท`;
+
+                    return (
+                      <div className="flex w-full min-w-44 items-center gap-2">
+                        <span
+                          className="h-2.5 w-2.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: item.color }}
+                        />
+                        <span className="flex-1 text-muted-foreground">
+                          {label}
+                        </span>
+                        <span className="font-mono font-medium tabular-nums">
+                          {formattedValue}
+                        </span>
+                      </div>
+                    );
+                  }}
+                />
+              }
             />
-            <Area
-              dataKey="sales"
-              type="natural"
-              fill="url(#fillSales)"
-              stroke="#3b82f6"
-              strokeWidth={4}
-              dot={false}
-              activeDot={{ r: 6, strokeWidth: 0 }}
-              animationDuration={1000}
-            />
-            <Area
-              dataKey="profit"
-              type="natural"
-              fill="url(#fillProfit)"
-              stroke="#10b981"
-              strokeWidth={4}
-              dot={false}
-              activeDot={{ r: 6, strokeWidth: 0 }}
-              animationDuration={1000}
-            />
+            {visibleSeries.sales ? (
+              <Area
+                yAxisId="money"
+                dataKey="sales"
+                type="natural"
+                fill="url(#fillSales)"
+                stroke="#3b82f6"
+                strokeWidth={4}
+                dot={false}
+                activeDot={{ r: 6, strokeWidth: 0 }}
+                animationDuration={1000}
+              />
+            ) : null}
+            {visibleSeries.profit ? (
+              <Area
+                yAxisId="money"
+                dataKey="profit"
+                type="natural"
+                fill="url(#fillProfit)"
+                stroke="#10b981"
+                strokeWidth={4}
+                dot={false}
+                activeDot={{ r: 6, strokeWidth: 0 }}
+                animationDuration={1000}
+              />
+            ) : null}
+            {visibleSeries.grossMargin ? (
+              <Area
+                yAxisId="percentage"
+                dataKey="grossMargin"
+                type="natural"
+                fill="transparent"
+                stroke="#f59e0b"
+                strokeWidth={3}
+                dot={false}
+                activeDot={{ r: 6, strokeWidth: 0 }}
+                animationDuration={1000}
+              />
+            ) : null}
           </AreaChart>
         </ChartContainer>
       </CardContent>

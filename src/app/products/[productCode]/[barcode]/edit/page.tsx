@@ -6,6 +6,7 @@ import {
   BarChart3,
   Barcode,
   Boxes,
+  Camera,
   CheckCircle2,
   Loader2,
   Package,
@@ -21,6 +22,7 @@ import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { outfit } from "@/components/fonts/fonts";
 import { BarcodePreview } from "@/components/products/barcode-preview";
+import { BarcodeCameraDialog } from "@/components/stock/barcode-camera-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -165,6 +167,7 @@ export default function ProductEditPage() {
   const [isSavingBarcode, setIsSavingBarcode] = useState(false);
   const [barcodeError, setBarcodeError] = useState<string | null>(null);
   const [barcodeSuccess, setBarcodeSuccess] = useState<string | null>(null);
+  const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
 
   const payload = data?.success ? data.data : null;
   const product = payload?.product ?? null;
@@ -378,18 +381,32 @@ export default function ProductEditPage() {
                       พิมพ์รหัสใหม่เพื่อดูตัวอย่างได้ทันที บาร์โค้ดเดิมจะยังค้นหารายการย้อนหลังได้
                     </p>
                     <div className="mt-4 flex flex-col gap-3 sm:flex-row lg:flex-col xl:flex-row">
-                      <Input
-                        aria-label="บาร์โค้ดสินค้า"
-                        value={barcodeDraft}
-                        onChange={(event) => {
-                          setBarcodeDraft(event.target.value);
-                          setBarcodeError(null);
-                          setBarcodeSuccess(null);
-                        }}
-                        className={`${outfit.className} h-11 flex-1 rounded-xl font-bold`}
-                        maxLength={30}
-                        placeholder="ระบุบาร์โค้ดใหม่"
-                      />
+                      <div className="flex min-w-0 flex-1 gap-2">
+                        <Input
+                          aria-label="บาร์โค้ดสินค้า"
+                          value={barcodeDraft}
+                          onChange={(event) => {
+                            setBarcodeDraft(event.target.value);
+                            setBarcodeError(null);
+                            setBarcodeSuccess(null);
+                          }}
+                          className={`${outfit.className} h-11 min-w-0 flex-1 rounded-xl font-bold`}
+                          maxLength={30}
+                          placeholder="ระบุหรือสแกนบาร์โค้ดใหม่"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-11 w-11 shrink-0 rounded-xl"
+                          onClick={() => setIsBarcodeScannerOpen(true)}
+                          disabled={isSavingBarcode}
+                          aria-label="เปิดกล้องสแกนบาร์โค้ด"
+                          title="เปิดกล้องสแกนบาร์โค้ด"
+                        >
+                          <Camera className="h-4 w-4" />
+                        </Button>
+                      </div>
                       <Button
                         type="button"
                         variant="outline"
@@ -720,6 +737,18 @@ export default function ProductEditPage() {
           </form>
         )}
       </div>
+
+      <BarcodeCameraDialog
+        open={isBarcodeScannerOpen}
+        onOpenChange={setIsBarcodeScannerOpen}
+        onDetected={(detectedBarcode) => {
+          setBarcodeDraft(detectedBarcode);
+          setBarcodeError(null);
+          setBarcodeSuccess(null);
+        }}
+        title="สแกนบาร์โค้ดใหม่"
+        description="เล็งกล้องไปที่บาร์โค้ดใหม่ของสินค้า ระบบจะนำรหัสมาใส่ในช่องให้อัตโนมัติ"
+      />
     </div>
   );
 }
