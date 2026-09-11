@@ -455,7 +455,7 @@ async function getCancellationReviews({
           ISNULL(SUM(CASE WHEN ReviewStatus = N'pending' THEN TotalPrice ELSE 0 END), 0) as pendingAmount,
           ISNULL(SUM(CASE WHEN ReviewStatus = N'approved' THEN TotalPrice ELSE 0 END), 0) as approvedAmount
         FROM dbo.${quoteIdentifier(reviewTableName)}
-        WHERE NumberPrintSalePost LIKE N'SA%'
+        WHERE ISNULL(NumberPrintSalePost, N'') <> N''
           ${dateFilterCondition}
       `,
       queryParams,
@@ -465,7 +465,7 @@ async function getCancellationReviews({
       `
         SELECT COUNT(1) as total
         FROM dbo.${quoteIdentifier(reviewTableName)}
-        WHERE NumberPrintSalePost LIKE N'SA%'
+        WHERE ISNULL(NumberPrintSalePost, N'') <> N''
           ${filterCondition}
           ${dateFilterCondition}
       `,
@@ -498,7 +498,7 @@ async function getCancellationReviews({
                 NumberPrintSalePost DESC
             ) as RowNum
           FROM dbo.${quoteIdentifier(reviewTableName)}
-          WHERE NumberPrintSalePost LIKE N'SA%'
+          WHERE ISNULL(NumberPrintSalePost, N'') <> N''
             ${filterCondition}
             ${dateFilterCondition}
         )
