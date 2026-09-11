@@ -265,6 +265,25 @@ async function syncCancellationReviews() {
           WHERE snapshot.NumberPrintSalePost = m.NumberPrintSalePost
         )
 
+      ;WITH cancelledSales AS (
+        SELECT
+          LTRIM(RTRIM(m.NumberPrintSalePost)) as NumberPrintSalePost,
+          m.DateSalePost,
+          m.NameCustomer,
+          m.TotalPrice,
+          m.TotalProfit,
+          m.Cash,
+          m.Transfer,
+          m.Status,
+          m.NameSave,
+          ROW_NUMBER() OVER (
+            PARTITION BY LTRIM(RTRIM(m.NumberPrintSalePost))
+            ORDER BY m.DateSalePost DESC
+          ) as RowNum
+        FROM dbo.MasterSalePost m
+        WHERE ISNULL(LTRIM(RTRIM(m.NumberPrintSalePost)), N'') <> N''
+          AND LTRIM(RTRIM(ISNULL(m.Status, N''))) LIKE N'%ยกเลิก%'
+      )
       INSERT INTO dbo.${quoteIdentifier(reviewTableName)} (
         NumberPrintSalePost,
         OriginalDate,
@@ -288,15 +307,28 @@ async function syncCancellationReviews() {
         LTRIM(RTRIM(ISNULL(m.Status, N''))),
         ISNULL(m.NameSave, N''),
         N'status_cancelled'
-      FROM dbo.MasterSalePost m
-      WHERE ISNULL(m.NumberPrintSalePost, N'') <> N''
-        AND LTRIM(RTRIM(ISNULL(m.Status, N''))) LIKE N'%ยกเลิก%'
+      FROM cancelledSales m
+      WHERE m.RowNum = 1
         AND NOT EXISTS (
           SELECT 1
           FROM dbo.${quoteIdentifier(reviewTableName)} review
           WHERE review.NumberPrintSalePost = m.NumberPrintSalePost
         )
 
+      ;WITH deletedBills AS (
+        SELECT
+          LTRIM(RTRIM(d.NumberPrint)) as NumberPrint,
+          d.DateDelect,
+          d.NameCustomer,
+          d.TotalPrice,
+          d.NameUser,
+          ROW_NUMBER() OVER (
+            PARTITION BY LTRIM(RTRIM(d.NumberPrint))
+            ORDER BY d.DateDelect DESC
+          ) as RowNum
+        FROM dbo.MasterPrintDelect d
+        WHERE ISNULL(LTRIM(RTRIM(d.NumberPrint)), N'') <> N''
+      )
       INSERT INTO dbo.${quoteIdentifier(reviewTableName)} (
         NumberPrintSalePost,
         OriginalDate,
@@ -320,8 +352,8 @@ async function syncCancellationReviews() {
         N'ยกเลิก',
         ISNULL(d.NameUser, N''),
         N'status_cancelled'
-      FROM dbo.MasterPrintDelect d
-      WHERE ISNULL(d.NumberPrint, N'') <> N''
+      FROM deletedBills d
+      WHERE d.RowNum = 1
         AND NOT EXISTS (
           SELECT 1
           FROM dbo.${quoteIdentifier(reviewTableName)} review
