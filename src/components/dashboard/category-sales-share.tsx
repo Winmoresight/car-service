@@ -3,6 +3,7 @@
 import { addDays, format, startOfWeek } from "date-fns";
 import { th } from "date-fns/locale";
 import { ChartPie } from "lucide-react";
+import type { DateRange } from "react-day-picker";
 import { Cell, Pie, PieChart } from "recharts";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,7 +12,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import { DatePicker } from "@/components/ui/date-picker";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { CategorySalesShare } from "@/types/api";
 
@@ -23,8 +24,9 @@ interface CategorySalesShareProps {
   hasError?: boolean;
   period: CategorySharePeriod;
   selectedDate: Date;
+  dateRange?: DateRange;
   onPeriodChange: (period: CategorySharePeriod) => void;
-  onDateChange: (date: Date) => void;
+  onDateRangeChange: (range: DateRange | undefined) => void;
 }
 
 const periodOptions: Array<{
@@ -64,7 +66,15 @@ function formatNumber(value: number) {
   }).format(value || 0);
 }
 
-function getPeriodLabel(period: CategorySharePeriod, selectedDate: Date) {
+function getPeriodLabel(
+  period: CategorySharePeriod,
+  selectedDate: Date,
+  dateRange?: DateRange,
+) {
+  if (dateRange?.from) {
+    return `${format(dateRange.from, "d MMM yyyy", { locale: th })}${dateRange.to ? ` – ${format(dateRange.to, "d MMM yyyy", { locale: th })}` : ""}`;
+  }
+
   if (period === "week") {
     const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
     const weekEnd = addDays(weekStart, 5);
@@ -85,8 +95,9 @@ export function CategorySalesShareCard({
   hasError = false,
   period,
   selectedDate,
+  dateRange,
   onPeriodChange,
-  onDateChange,
+  onDateRangeChange,
 }: CategorySalesShareProps) {
   const categories = data?.categories ?? [];
   const topCategories = categories.slice(0, 5);
@@ -126,35 +137,37 @@ export function CategorySalesShareCard({
               สัดส่วนสินค้าที่ขายตามประเภท
             </h2>
             <p className="text-sm text-muted-foreground">
-              {getPeriodLabel(period, selectedDate)} · เรียงตามจำนวนที่ขาย
+              {getPeriodLabel(period, selectedDate, dateRange)} ·
+              เรียงตามจำนวนที่ขาย
             </p>
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <DatePicker
-            date={selectedDate}
-            onDateChange={(date) => {
-              if (date) {
-                onDateChange(date);
-              }
-            }}
-            className="h-10 w-full rounded-xl sm:w-[190px]"
-          />
-          <div className="flex w-fit rounded-xl border bg-muted/50 p-1">
+        <div className="flex flex-col items-start gap-2 min-[520px]:flex-row min-[520px]:items-center">
+          <div className="flex items-center rounded-lg border bg-secondary p-1">
             {periodOptions.map((option) => (
               <Button
                 key={option.value}
                 type="button"
                 size="sm"
-                variant={period === option.value ? "default" : "ghost"}
-                className="h-8 rounded-lg px-3 text-xs sm:text-sm"
+                variant={
+                  !dateRange?.from && period === option.value
+                    ? "default"
+                    : "ghost"
+                }
+                className="h-8 px-3 text-xs"
                 onClick={() => onPeriodChange(option.value)}
               >
                 {option.label}
               </Button>
             ))}
           </div>
+          <DateRangePicker
+            dateRange={dateRange}
+            onDateRangeChange={onDateRangeChange}
+            placeholder="เลือกช่วงวันที่"
+            className="[&_button]:h-10 [&_button]:w-full [&_button]:rounded-xl [&_button]:px-3 [&_button]:text-xs [&_button]:font-bold min-[520px]:[&_button]:w-[260px]"
+          />
         </div>
       </div>
 

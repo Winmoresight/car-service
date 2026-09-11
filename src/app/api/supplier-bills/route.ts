@@ -93,6 +93,10 @@ interface SupplierBillUpdatePayload {
   items?: unknown;
 }
 
+interface SupplierBillCancelPayload {
+  documentNo?: unknown;
+}
+
 interface SupplierBillUpdateItem {
   rowNo: string;
   orderNo: string;
@@ -1809,6 +1813,7 @@ export async function GET(request: NextRequest) {
       }
 
       const whereClause = [
+        `LTRIM(RTRIM(ISNULL(Status, N''))) NOT IN (N'ยกเลิก', N'ยกเลิกแล้ว')`,
         `
           (
             @q = N''
@@ -2473,6 +2478,160 @@ export async function PATCH(request: NextRequest) {
     }
 
     return handleApiError(error, "Supplier bill update API error");
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const data = await withTimeout(async () => {
+      const body = (await request.json()) as SupplierBillCancelPayload;
+      const documentNo = normalizeText(body.documentNo);
+
+      if (!documentNo) {
+        return errorResponse("กรุณาระบุเลขเอกสารคู่ค้า", 400);
+      }
+
+      const sourceTable = await resolveTable(masterTableCandidates);
+      const detailTable = await resolveTable(detailTableCandidates);
+
+      if (!sourceTable) {
+        return errorResponse("ยังไม่พบตารางบิลคู่ค้าในฐานข้อมูลเดิม", 404);
+      }
+
+      if (!detailTable) {
+        return errorResponse(
+          "ไม่สามารถยกเลิกบิลได้ เพราะไม่พบตารางรายละเอียดบิลคู่ค้า",
+          404,
+        );
+      }
+
+      const detailColumns = await getTableColumns(detailTable);
+      const pool = await getPool();
+      const transaction = new sql.Transaction(pool);
+
+      await transaction.begin();
+
+      try {
+        const masterRequest = new sql.Request(transaction);
+        masterRequest.input("documentNo", sql.NVarChar(30), documentNo);
+        const masterRows = await masterRequest.query<{
+          status: string | null;
+          checkIn: string | null;
+          supplierCode: string | null;
+          supplierName: string | null;
+        }>(`
+          SELECT TOP 1
+            ISNULL(Status, N'') as status,
+            ISNULL(CheckIn, N'') as checkIn,
+            ISNULL(CodeCompany, N'') as supplierCode,
+            ISNULL(NameCompany, N'') as supplierName
+          FROM dbo.${quoteIdentifier(sourceTable)} WITH (UPDLOCK, HOLDLOCK)
+          WHERE NumberPrintPost = @documentNo
+        `);
+        const master = masterRows.recordset[0];
+
+        if (!master) {
+          await transaction.rollback();
+          return errorResponse("ไม่พบเอกสารคู่ค้านี้", 404);
+        }
+
+        const payment = getPaymentState(
+          normalizeText(master.status),
+          normalizeText(master.checkIn),
+        );
+
+        if (payment.paymentState !== "unpaid") {
+          await transaction.rollback();
+          return errorResponse("ยกเลิกได้เฉพาะบิลคู่ค้าที่มีสถานะค้างชำระเท่านั้น", 409);
+        }
+
+        const detailRequest = new sql.Request(transaction);
+        detailRequest.input("documentNo", sql.NVarChar(30), documentNo);
+        const detailRows =
+          await detailRequest.query<SupplierBillDetailIdentityRow>(`
+            SELECT
+              AddRows as rowNo,
+              AddOder as orderNo,
+              ISNULL(BarCode, N'') as barcode,
+              ISNULL(NameProduct, N'') as name,
+              ${getSafeMoneyExpression("NumProduct")} as quantity,
+              ISNULL(MeterProduct, N'') as unit,
+              ${getSafeMoneyExpression("SalePrice")} as unitPrice
+            FROM dbo.${quoteIdentifier(detailTable)} WITH (UPDLOCK, HOLDLOCK)
+            WHERE NumberPrintPost = @documentNo
+          `);
+        const stockBalanceByBarcode = new Map<string, number>();
+        let stockAdjustmentCount = 0;
+
+        for (const item of detailRows.recordset) {
+          const quantity = normalizeMoney(item.quantity);
+
+          if (quantity <= 0) {
+            continue;
+          }
+
+          const adjustedStock = await adjustSupplierStock(transaction, {
+            documentNo,
+            barcode: normalizeText(item.barcode),
+            name: normalizeText(item.name),
+            unit: normalizeText(item.unit),
+            quantityDelta: -quantity,
+            unitPrice: normalizeMoney(item.unitPrice),
+            supplierCode: normalizeText(master.supplierCode),
+            supplierName: normalizeText(master.supplierName),
+            stockBalanceByBarcode,
+            requireProduct: false,
+          });
+
+          if (adjustedStock !== null) {
+            stockAdjustmentCount += 1;
+          }
+        }
+
+        const cancelMasterRequest = new sql.Request(transaction);
+        cancelMasterRequest.input("documentNo", sql.NVarChar(30), documentNo);
+        const cancelMasterResult = await cancelMasterRequest.query(`
+          UPDATE dbo.${quoteIdentifier(sourceTable)}
+          SET Status = N'ยกเลิก'
+          WHERE NumberPrintPost = @documentNo
+        `);
+
+        if ((cancelMasterResult.rowsAffected[0] ?? 0) === 0) {
+          await transaction.rollback();
+          return errorResponse("ไม่พบเอกสารคู่ค้านี้", 404);
+        }
+
+        if (detailColumns.has("Status")) {
+          const cancelDetailRequest = new sql.Request(transaction);
+          cancelDetailRequest.input("documentNo", sql.NVarChar(30), documentNo);
+          await cancelDetailRequest.query(`
+            UPDATE dbo.${quoteIdentifier(detailTable)}
+            SET Status = N'ยกเลิก'
+            WHERE NumberPrintPost = @documentNo
+          `);
+        }
+
+        await transaction.commit();
+
+        return successResponse({
+          documentNo,
+          status: "ยกเลิก",
+          stockAdjustmentCount,
+        });
+      } catch (error) {
+        try {
+          await transaction.rollback();
+        } catch (rollbackError) {
+          console.warn("Supplier bill cancel rollback failed:", rollbackError);
+        }
+
+        throw error;
+      }
+    }, 60000);
+
+    return data;
+  } catch (error) {
+    return handleApiError(error, "Supplier bill cancel API error");
   }
 }
 

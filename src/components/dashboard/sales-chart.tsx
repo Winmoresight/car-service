@@ -9,6 +9,7 @@ import { addDays, format, startOfWeek } from "date-fns";
 import { th } from "date-fns/locale";
 import { TrendingUp } from "lucide-react";
 import { useState } from "react";
+import type { DateRange } from "react-day-picker";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,7 +25,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import { DatePicker } from "@/components/ui/date-picker";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import type { DailySales } from "@/types/api";
 
 export type SalesChartPeriod = "day" | "week" | "month";
@@ -33,8 +34,9 @@ interface SalesChartProps {
   data: DailySales[];
   period: SalesChartPeriod;
   selectedDate: Date;
+  dateRange?: DateRange;
   onPeriodChange: (period: SalesChartPeriod) => void;
-  onSelectedDateChange?: (date: Date | undefined) => void;
+  onDateRangeChange: (range: DateRange | undefined) => void;
 }
 
 type SalesChartSeries = "sales" | "profit" | "grossMargin";
@@ -58,8 +60,9 @@ export function SalesChart({
   data,
   period,
   selectedDate,
+  dateRange,
   onPeriodChange,
-  onSelectedDateChange,
+  onDateRangeChange,
 }: SalesChartProps) {
   const [visibleSeries, setVisibleSeries] = useState<
     Record<SalesChartSeries, boolean>
@@ -70,8 +73,9 @@ export function SalesChart({
   });
   const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
   const weekEnd = addDays(weekStart, 5);
-  const description =
-    period === "week"
+  const description = dateRange?.from
+    ? `${format(dateRange.from, "d MMM yyyy", { locale: th })}${dateRange.to ? ` - ${format(dateRange.to, "d MMM yyyy", { locale: th })}` : ""} · ไม่รวมวันอาทิตย์`
+    : period === "week"
       ? `${format(weekStart, "d MMM", { locale: th })} - ${format(weekEnd, "d MMM yyyy", { locale: th })} · จันทร์–เสาร์`
       : period === "month"
         ? `${format(selectedDate, "MMMM yyyy", { locale: th })} · ไม่รวมวันอาทิตย์`
@@ -138,7 +142,9 @@ export function SalesChart({
                 key={value}
                 type="button"
                 size="sm"
-                variant={period === value ? "default" : "ghost"}
+                variant={
+                  !dateRange?.from && period === value ? "default" : "ghost"
+                }
                 onClick={() => onPeriodChange(value)}
                 className="h-8 px-3 text-xs"
               >
@@ -146,11 +152,11 @@ export function SalesChart({
               </Button>
             ))}
           </div>
-          <DatePicker
-            date={selectedDate}
-            onDateChange={onSelectedDateChange}
-            placeholder="เลือกวันที่อ้างอิง"
-            className="h-10 w-full rounded-xl px-3 text-xs font-bold min-[520px]:w-[210px]"
+          <DateRangePicker
+            dateRange={dateRange}
+            onDateRangeChange={onDateRangeChange}
+            placeholder="เลือกช่วงวันที่"
+            className="[&_button]:h-10 [&_button]:w-full [&_button]:rounded-xl [&_button]:px-3 [&_button]:text-xs [&_button]:font-bold min-[520px]:[&_button]:w-[260px]"
           />
         </div>
       </CardHeader>

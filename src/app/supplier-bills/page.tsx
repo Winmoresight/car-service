@@ -46,6 +46,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   LargeDialog,
@@ -538,6 +546,17 @@ function buildSupplierBillSupplierSummaries(items: SupplierBill[]) {
   });
 }
 
+type SupplierSummaryStatusFilter = "all" | "unpaid" | "paid";
+
+const supplierSummaryStatusOptions: Array<{
+  value: SupplierSummaryStatusFilter;
+  label: string;
+}> = [
+  { value: "unpaid", label: "ค้างชำระ" },
+  { value: "paid", label: "ชำระแล้ว" },
+  { value: "all", label: "ทั้งหมด" },
+];
+
 function getScanFeedbackClassName(type: SupplierScanFeedback["type"]) {
   if (type === "success") {
     return "border-emerald-100 bg-emerald-50 text-main-green dark:border-emerald-500/20 dark:bg-emerald-500/10";
@@ -778,6 +797,8 @@ function SupplierBillEditDialog({
   const [note, setNote] = useState("");
   const [lineItems, setLineItems] = useState<SupplierBillDraftLine[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [lookingUpLineId, setLookingUpLineId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -805,6 +826,8 @@ function SupplierBillEditDialog({
     setNote("");
     setLineItems([]);
     setIsSaving(false);
+    setIsCancelConfirmOpen(false);
+    setIsCancelling(false);
     setLookingUpLineId(null);
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -1013,6 +1036,42 @@ function SupplierBillEditDialog({
     }
   };
 
+  const handleCancelBill = async () => {
+    if (!bill || bill.paymentState !== "unpaid") {
+      return;
+    }
+
+    try {
+      setIsCancelling(true);
+      setErrorMessage(null);
+      setSuccessMessage(null);
+
+      const response = await fetch("/api/supplier-bills", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ documentNo: bill.documentNo }),
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "ยกเลิกบิลคู่ค้าไม่สำเร็จ");
+      }
+
+      await onSaved();
+      setIsCancelConfirmOpen(false);
+      handleOpenChange(false);
+    } catch (error) {
+      setIsCancelConfirmOpen(false);
+      setErrorMessage(
+        error instanceof Error ? error.message : "ยกเลิกบิลคู่ค้าไม่สำเร็จ",
+      );
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   const dateParts = bill ? formatDateParts(bill.date) : { date: "-", time: "" };
   const currentAmount = bill ? getEditableBillAmount(bill) : 0;
   const lineItemsTotal = Number(
@@ -1043,6 +1102,8 @@ function SupplierBillEditDialog({
       : bill
         ? bill.discount + bill.productDiscount
         : 0;
+
+  const canCancelBill = bill?.paymentState === "unpaid";
 
   return (
     <LargeDialog open={open} onOpenChange={handleOpenChange}>
@@ -1572,27 +1633,43 @@ function SupplierBillEditDialog({
                 </div>
               ) : null}
 
-              <div className="sticky -bottom-5 z-10 -mx-5 flex flex-col-reverse gap-2 border-t bg-background/95 px-5 py-4 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] backdrop-blur md:-mx-6 md:px-6 min-[520px]:flex-row min-[520px]:items-center min-[520px]:justify-between">
-                <p className="text-sm font-semibold text-muted-foreground">
-                  ยอดสุทธิใหม่{" "}
-                  <span className="font-bold text-primary">
-                    {formatCurrency(editVatBreakdown.totalPrice, 2)}
-                  </span>
-                </p>
+              <div className="sticky -bottom-5 z-10 -mx-5 flex flex-col-reverse gap-3 border-t bg-background/95 px-5 py-4 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] backdrop-blur md:-mx-6 md:px-6 min-[520px]:flex-row min-[520px]:items-center min-[520px]:justify-between">
+                <div className="flex flex-col gap-2 min-[520px]:items-start">
+                  <p className="text-sm font-semibold text-muted-foreground">
+                    ยอดสุทธิใหม่{" "}
+                    <span className="font-bold text-primary">
+                      {formatCurrency(editVatBreakdown.totalPrice, 2)}
+                    </span>
+                  </p>
+                  {canCancelBill ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 border-red-200 font-bold text-main-red hover:border-red-300 hover:bg-red-50 hover:text-main-red dark:border-red-500/30 dark:hover:bg-red-500/10"
+                      disabled={isSaving || isCancelling}
+                      onClick={() => setIsCancelConfirmOpen(true)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      ยกเลิกบิลคู่ค้า
+                    </Button>
+                  ) : null}
+                </div>
                 <div className="flex flex-col-reverse gap-2 min-[520px]:flex-row">
                   <Button
                     type="button"
                     variant="outline"
                     className="h-10 font-bold"
-                    disabled={isSaving}
+                    disabled={isSaving || isCancelling}
                     onClick={() => handleOpenChange(false)}
                   >
-                    ยกเลิก
+                    ปิด
                   </Button>
                   <Button
                     type="submit"
                     className="h-10 font-bold"
-                    disabled={isSaving || lookingUpLineId !== null}
+                    disabled={
+                      isSaving || isCancelling || lookingUpLineId !== null
+                    }
                   >
                     {isSaving ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -1607,6 +1684,53 @@ function SupplierBillEditDialog({
           ) : null}
         </LargeDialogBody>
       </LargeDialogContent>
+      <Dialog
+        open={isCancelConfirmOpen}
+        onOpenChange={(nextOpen) => {
+          if (!isCancelling) {
+            setIsCancelConfirmOpen(nextOpen);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md" showCloseButton={!isCancelling}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg text-main-red">
+              <AlertCircle className="h-5 w-5" />
+              ยืนยันยกเลิกบิลคู่ค้า
+            </DialogTitle>
+            <DialogDescription className="leading-6">
+              ต้องการยกเลิกบิล {bill?.documentNo || "นี้"} ใช่หรือไม่
+              ระบบจะย้อนจำนวนสินค้าที่รับเข้าจากบิลนี้และนำบิลออกจากยอดสรุป
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-main-red dark:border-red-500/20 dark:bg-red-500/10">
+            รายการนี้ย้อนกลับอัตโนมัติไม่ได้ กรุณาตรวจสอบเลขที่บิลก่อนยืนยัน
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isCancelling}
+              onClick={() => setIsCancelConfirmOpen(false)}
+            >
+              กลับ
+            </Button>
+            <Button
+              type="button"
+              className="bg-main-red text-white hover:bg-main-red/90"
+              disabled={isCancelling}
+              onClick={handleCancelBill}
+            >
+              {isCancelling ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              ยืนยันยกเลิกบิล
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </LargeDialog>
   );
 }
@@ -3207,6 +3331,8 @@ function SupplierBillCreateDialog({
 export default function SupplierBillsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [supplierSummaryStatus, setSupplierSummaryStatus] =
+    useState<SupplierSummaryStatusFilter>("all");
   const [selectedBill, setSelectedBill] = useState<SupplierBill | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const supplierBillsApiUrl = useMemo(() => {
@@ -3240,9 +3366,18 @@ export default function SupplierBillsPage() {
     () => payload.items.filter((bill) => matchesSearch(bill, searchTerm)),
     [payload.items, searchTerm],
   );
+  const statusFilteredBills = useMemo(
+    () =>
+      displayedBills.filter(
+        (bill) =>
+          supplierSummaryStatus === "all" ||
+          bill.paymentState === supplierSummaryStatus,
+      ),
+    [displayedBills, supplierSummaryStatus],
+  );
   const supplierSummaries = useMemo(
-    () => buildSupplierBillSupplierSummaries(displayedBills),
-    [displayedBills],
+    () => buildSupplierBillSupplierSummaries(statusFilteredBills),
+    [statusFilteredBills],
   );
   const displayedTotalAmount = supplierSummaries.reduce(
     (sum, supplier) => sum + supplier.totalAmount,
@@ -3395,7 +3530,7 @@ export default function SupplierBillsPage() {
               ))}
             </div>
           </div>
-        ) : supplierSummaries.length > 0 ? (
+        ) : displayedBills.length > 0 ? (
           <div className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm">
             <div className="mb-4 flex flex-col justify-between gap-4 min-[720px]:flex-row min-[720px]:items-center">
               <div className="flex items-center gap-3">
@@ -3412,173 +3547,205 @@ export default function SupplierBillsPage() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge className="h-8 rounded-full bg-purple-50 px-4 text-sm font-bold text-purple-700 dark:bg-purple-500/10">
-                  {formatNumber(supplierSummaries.length)} คู่ค้า
-                </Badge>
-                <Badge
-                  variant="outline"
-                  className="h-8 rounded-full px-4 text-sm font-bold text-card-foreground shadow-none"
-                >
-                  รวม {formatCurrency(displayedTotalAmount)}
-                </Badge>
+              <div className="flex flex-col items-start gap-2 min-[520px]:items-end">
+                <div className="flex items-center rounded-xl border bg-secondary p-1">
+                  {supplierSummaryStatusOptions.map((option) => (
+                    <Button
+                      key={option.value}
+                      type="button"
+                      size="sm"
+                      variant={
+                        supplierSummaryStatus === option.value
+                          ? "default"
+                          : "ghost"
+                      }
+                      onClick={() => setSupplierSummaryStatus(option.value)}
+                      className="h-8 px-3 text-xs font-bold"
+                    >
+                      {option.label}
+                    </Button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className="h-8 rounded-full bg-purple-50 px-4 text-sm font-bold text-purple-700 dark:bg-purple-500/10">
+                    {formatNumber(supplierSummaries.length)} คู่ค้า
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className="h-8 rounded-full px-4 text-sm font-bold text-card-foreground shadow-none"
+                  >
+                    รวม {formatCurrency(displayedTotalAmount)}
+                  </Badge>
+                </div>
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-2xl border bg-white dark:bg-card">
-              <Table>
-                <TableHeader className="bg-secondary/70">
-                  <TableRow className="border-border/60 hover:bg-transparent">
-                    <TableHead className="px-4 text-base font-bold text-card-foreground min-[500px]:text-lg">
-                      คู่ค้า
-                    </TableHead>
-                    <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[760px]:table-cell">
-                      เอกสาร
-                    </TableHead>
-                    <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[940px]:table-cell">
-                      รายการสินค้า
-                    </TableHead>
-                    <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
-                      ยอดรวม
-                    </TableHead>
-                    <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[860px]:table-cell">
-                      ค้างชำระ
-                    </TableHead>
-                    <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[860px]:table-cell">
-                      ชำระแล้ว
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {supplierSummaries.map((supplier, index) => (
-                    <Fragment key={supplier.key}>
-                      <TableRow className="border-b-0 border-border/60 hover:bg-purple-50/30 min-[860px]:border-b dark:hover:bg-purple-500/5">
-                        <TableCell className="px-4 pt-4 pb-2 min-[860px]:py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-purple-100 bg-purple-50 text-sm font-bold text-purple-700 select-none dark:border-purple-500/20 dark:bg-purple-500/10">
-                              {index + 1}
+            {supplierSummaries.length === 0 ? (
+              <div className="rounded-2xl border bg-white px-4 py-12 text-center dark:bg-card">
+                <Building2 className="mx-auto h-8 w-8 text-muted-foreground" />
+                <p className="mt-3 font-bold text-card-foreground">
+                  ไม่พบยอดคู่ค้าในสถานะที่เลือก
+                </p>
+                <p className="mt-1 text-sm font-medium text-muted-foreground">
+                  ลองเลือกสถานะอื่นเพื่อดูสรุปยอดคู่ค้า
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-2xl border bg-white dark:bg-card">
+                <Table>
+                  <TableHeader className="bg-secondary/70">
+                    <TableRow className="border-border/60 hover:bg-transparent">
+                      <TableHead className="px-4 text-base font-bold text-card-foreground min-[500px]:text-lg">
+                        คู่ค้า
+                      </TableHead>
+                      <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[760px]:table-cell">
+                        เอกสาร
+                      </TableHead>
+                      <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[940px]:table-cell">
+                        รายการสินค้า
+                      </TableHead>
+                      <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
+                        ยอดรวม
+                      </TableHead>
+                      <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[860px]:table-cell">
+                        ค้างชำระ
+                      </TableHead>
+                      <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[860px]:table-cell">
+                        ชำระแล้ว
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {supplierSummaries.map((supplier, index) => (
+                      <Fragment key={supplier.key}>
+                        <TableRow className="border-b-0 border-border/60 hover:bg-purple-50/30 min-[860px]:border-b dark:hover:bg-purple-500/5">
+                          <TableCell className="px-4 pt-4 pb-2 min-[860px]:py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-purple-100 bg-purple-50 text-sm font-bold text-purple-700 select-none dark:border-purple-500/20 dark:bg-purple-500/10">
+                                {index + 1}
+                              </div>
+                              <div className="flex min-w-0 flex-col gap-1">
+                                <span className="max-w-[180px] truncate text-sm font-bold text-card-foreground min-[520px]:max-w-[320px] min-[1180px]:max-w-[520px]">
+                                  {supplier.supplierName}
+                                </span>
+                                <span className="text-xs font-semibold text-muted-foreground">
+                                  {supplier.supplierCode || "ไม่มีรหัสคู่ค้า"}
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex min-w-0 flex-col gap-1">
-                              <span className="max-w-[180px] truncate text-sm font-bold text-card-foreground min-[520px]:max-w-[320px] min-[1180px]:max-w-[520px]">
-                                {supplier.supplierName}
+                          </TableCell>
+
+                          <TableCell className="hidden text-right align-middle min-[760px]:table-cell">
+                            <span className="font-bold text-card-foreground">
+                              {formatNumber(supplier.billCount)} ใบ
+                            </span>
+                          </TableCell>
+
+                          <TableCell className="hidden text-right align-middle min-[940px]:table-cell">
+                            <span className="font-bold text-card-foreground">
+                              {formatNumber(supplier.itemCount)} รายการ
+                            </span>
+                          </TableCell>
+
+                          <TableCell className="px-4 pt-4 pb-2 text-right align-middle min-[860px]:p-2">
+                            <div className="flex flex-col items-end gap-1">
+                              <span
+                                className={cn(
+                                  outfit.className,
+                                  "text-sm font-bold text-card-foreground min-[500px]:text-base",
+                                )}
+                              >
+                                {formatCurrency(supplier.totalAmount)}
                               </span>
-                              <span className="text-xs font-semibold text-muted-foreground">
-                                {supplier.supplierCode || "ไม่มีรหัสคู่ค้า"}
+                              <span className="text-xs font-semibold text-muted-foreground min-[760px]:hidden">
+                                {formatNumber(supplier.billCount)} ใบ
                               </span>
                             </div>
-                          </div>
-                        </TableCell>
+                          </TableCell>
 
-                        <TableCell className="hidden text-right align-middle min-[760px]:table-cell">
-                          <span className="font-bold text-card-foreground">
-                            {formatNumber(supplier.billCount)} ใบ
-                          </span>
-                        </TableCell>
-
-                        <TableCell className="hidden text-right align-middle min-[940px]:table-cell">
-                          <span className="font-bold text-card-foreground">
-                            {formatNumber(supplier.itemCount)} รายการ
-                          </span>
-                        </TableCell>
-
-                        <TableCell className="px-4 pt-4 pb-2 text-right align-middle min-[860px]:p-2">
-                          <div className="flex flex-col items-end gap-1">
+                          <TableCell className="hidden text-right align-middle min-[860px]:table-cell">
                             <span
                               className={cn(
                                 outfit.className,
-                                "text-sm font-bold text-card-foreground min-[500px]:text-base",
-                              )}
-                            >
-                              {formatCurrency(supplier.totalAmount)}
-                            </span>
-                            <span className="text-xs font-semibold text-muted-foreground min-[760px]:hidden">
-                              {formatNumber(supplier.billCount)} ใบ
-                            </span>
-                          </div>
-                        </TableCell>
-
-                        <TableCell className="hidden text-right align-middle min-[860px]:table-cell">
-                          <span
-                            className={cn(
-                              outfit.className,
-                              supplier.unpaidAmount > 0
-                                ? "font-bold text-main-red"
-                                : "font-bold text-muted-foreground",
-                            )}
-                          >
-                            {formatCurrency(supplier.unpaidAmount)}
-                          </span>
-                        </TableCell>
-
-                        <TableCell className="hidden text-right align-middle min-[860px]:table-cell">
-                          <span
-                            className={cn(
-                              outfit.className,
-                              "font-bold text-main-green",
-                            )}
-                          >
-                            {formatCurrency(supplier.paidAmount)}
-                          </span>
-                        </TableCell>
-                      </TableRow>
-
-                      <TableRow className="border-border/60 hover:bg-transparent min-[860px]:hidden">
-                        <TableCell colSpan={6} className="px-4 pt-0 pb-4">
-                          <div className="ml-[52px] grid grid-cols-2 gap-2">
-                            <div
-                              className={cn(
-                                "min-w-0 rounded-xl border px-3 py-2",
                                 supplier.unpaidAmount > 0
-                                  ? "border-red-100 bg-red-50/80 dark:border-red-500/20 dark:bg-red-500/10"
-                                  : "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/40",
+                                  ? "font-bold text-main-red"
+                                  : "font-bold text-muted-foreground",
                               )}
                             >
-                              <span className="block truncate text-[11px] font-semibold text-muted-foreground">
-                                ค้างชำระ
-                              </span>
-                              <span
-                                className={cn(
-                                  outfit.className,
-                                  "mt-0.5 block truncate text-sm font-bold",
-                                  supplier.unpaidAmount > 0
-                                    ? "text-main-red"
-                                    : "text-muted-foreground",
-                                )}
-                              >
-                                {formatCurrency(supplier.unpaidAmount)}
-                              </span>
-                            </div>
-                            <div
+                              {formatCurrency(supplier.unpaidAmount)}
+                            </span>
+                          </TableCell>
+
+                          <TableCell className="hidden text-right align-middle min-[860px]:table-cell">
+                            <span
                               className={cn(
-                                "min-w-0 rounded-xl border px-3 py-2",
-                                supplier.paidAmount > 0
-                                  ? "border-emerald-100 bg-emerald-50/80 dark:border-emerald-500/20 dark:bg-emerald-500/10"
-                                  : "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/40",
+                                outfit.className,
+                                "font-bold text-main-green",
                               )}
                             >
-                              <span className="block truncate text-[11px] font-semibold text-muted-foreground">
-                                ชำระแล้ว
-                              </span>
-                              <span
+                              {formatCurrency(supplier.paidAmount)}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+
+                        <TableRow className="border-border/60 hover:bg-transparent min-[860px]:hidden">
+                          <TableCell colSpan={6} className="px-4 pt-0 pb-4">
+                            <div className="ml-[52px] grid grid-cols-2 gap-2">
+                              <div
                                 className={cn(
-                                  outfit.className,
-                                  "mt-0.5 block truncate text-sm font-bold",
-                                  supplier.paidAmount > 0
-                                    ? "text-main-green"
-                                    : "text-muted-foreground",
+                                  "min-w-0 rounded-xl border px-3 py-2",
+                                  supplier.unpaidAmount > 0
+                                    ? "border-red-100 bg-red-50/80 dark:border-red-500/20 dark:bg-red-500/10"
+                                    : "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/40",
                                 )}
                               >
-                                {formatCurrency(supplier.paidAmount)}
-                              </span>
+                                <span className="block truncate text-[11px] font-semibold text-muted-foreground">
+                                  ค้างชำระ
+                                </span>
+                                <span
+                                  className={cn(
+                                    outfit.className,
+                                    "mt-0.5 block truncate text-sm font-bold",
+                                    supplier.unpaidAmount > 0
+                                      ? "text-main-red"
+                                      : "text-muted-foreground",
+                                  )}
+                                >
+                                  {formatCurrency(supplier.unpaidAmount)}
+                                </span>
+                              </div>
+                              <div
+                                className={cn(
+                                  "min-w-0 rounded-xl border px-3 py-2",
+                                  supplier.paidAmount > 0
+                                    ? "border-emerald-100 bg-emerald-50/80 dark:border-emerald-500/20 dark:bg-emerald-500/10"
+                                    : "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/40",
+                                )}
+                              >
+                                <span className="block truncate text-[11px] font-semibold text-muted-foreground">
+                                  ชำระแล้ว
+                                </span>
+                                <span
+                                  className={cn(
+                                    outfit.className,
+                                    "mt-0.5 block truncate text-sm font-bold",
+                                    supplier.paidAmount > 0
+                                      ? "text-main-green"
+                                      : "text-muted-foreground",
+                                  )}
+                                >
+                                  {formatCurrency(supplier.paidAmount)}
+                                </span>
+                              </div>
                             </div>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    </Fragment>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                          </TableCell>
+                        </TableRow>
+                      </Fragment>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </div>
         ) : null}
 
@@ -3600,16 +3767,36 @@ export default function SupplierBillsPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge className="h-8 rounded-full bg-blue-50 px-4 text-sm font-bold text-main-blue dark:bg-blue-500/10">
-                {formatNumber(displayedBills.length)} รายการ
-              </Badge>
-              <Badge
-                variant="outline"
-                className="h-8 rounded-full px-4 text-sm font-bold text-card-foreground shadow-none"
-              >
-                รวม {formatCurrency(summary.totalAmount)}
-              </Badge>
+            <div className="flex flex-col items-start gap-2 min-[520px]:items-end">
+              <div className="flex items-center rounded-xl border bg-secondary p-1">
+                {supplierSummaryStatusOptions.map((option) => (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    size="sm"
+                    variant={
+                      supplierSummaryStatus === option.value
+                        ? "default"
+                        : "ghost"
+                    }
+                    onClick={() => setSupplierSummaryStatus(option.value)}
+                    className="h-8 px-3 text-xs font-bold"
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className="h-8 rounded-full bg-blue-50 px-4 text-sm font-bold text-main-blue dark:bg-blue-500/10">
+                  {formatNumber(statusFilteredBills.length)} รายการ
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className="h-8 rounded-full px-4 text-sm font-bold text-card-foreground shadow-none"
+                >
+                  รวม {formatCurrency(displayedTotalAmount)}
+                </Badge>
+              </div>
             </div>
           </div>
 
@@ -3640,6 +3827,18 @@ export default function SupplierBillsPage() {
                 ลองเปลี่ยนคำค้นหา ช่วงวันที่ หรือตรวจสอบข้อมูลจากฐานเดิมอีกครั้ง
               </p>
             </div>
+          ) : statusFilteredBills.length === 0 ? (
+            <div className="rounded-2xl border bg-white px-4 py-12 text-center dark:bg-card">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
+                <ReceiptText className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-bold text-card-foreground">
+                ไม่พบบิลในสถานะที่เลือก
+              </h3>
+              <p className="mt-1 text-sm font-medium text-muted-foreground">
+                ลองเลือกสถานะอื่นเพื่อดูรายการบิลคู่ค้า
+              </p>
+            </div>
           ) : (
             <div className="overflow-hidden rounded-2xl border bg-white dark:bg-card">
               <Table>
@@ -3666,7 +3865,7 @@ export default function SupplierBillsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {displayedBills.map((bill, index) => {
+                  {statusFilteredBills.map((bill, index) => {
                     const paymentMeta = getPaymentMeta(bill.paymentState);
                     const PaymentIcon = paymentMeta.icon;
                     const dateParts = formatDateParts(bill.date);

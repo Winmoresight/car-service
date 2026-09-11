@@ -20,6 +20,7 @@ export interface DashboardKPI {
   todaySales: number;
   todayProfit: number;
   todayBills: number;
+  vehicleCount?: number;
   todayCash: number;
   todayTransfer: number;
 

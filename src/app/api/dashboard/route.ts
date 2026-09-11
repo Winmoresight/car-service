@@ -2,7 +2,10 @@
  * Dashboard API
  * GET /api/dashboard - ดึง KPI หลักสำหรับหน้า Dashboard
  * Query params:
- *   - date: วันที่ต้องการดูข้อมูล (YYYY-MM-DD) ถ้าไม่ระบุจะใช้วันนี้
+ *   - startDate: วันเริ่มต้น (YYYY-MM-DD)
+ *   - endDate: วันสิ้นสุด (YYYY-MM-DD)
+ *   - date: รองรับรูปแบบเดิมที่เลือกวันเดียว
+ * ถ้าไม่ระบุวันที่จะใช้วันนี้
  */
 
 import type { NextRequest } from "next/server";
@@ -50,6 +53,12 @@ interface DailySaleMoneyRow {
   province: string;
   cash: number;
   transfer: number;
+}
+
+interface DashboardDateRangeSql {
+  fromExpression: string;
+  toExpression: string;
+  params?: Record<string, unknown>;
 }
 
 interface DashboardMoneyBreakdown {
@@ -158,6 +167,28 @@ function compactDescription(parts: string[]) {
   return parts.map(normalizeText).filter(Boolean).join(" · ");
 }
 
+function normalizeDateParam(value: string | null) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return "";
+  }
+
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+
+  return date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+    ? value
+    : "";
+}
+
+function getDateRangeCondition(
+  columnExpression: string,
+  range: DashboardDateRangeSql,
+) {
+  return `CONVERT(date, ${columnExpression}) BETWEEN ${range.fromExpression} AND ${range.toExpression}`;
+}
+
 function getMoneyExpression(
   columns: Set<string>,
   candidates: string[],
@@ -212,8 +243,7 @@ async function resolveTable(candidates: readonly string[]) {
 }
 
 async function getOtherPaymentSummary(
-  dateCondition: string,
-  params?: Record<string, unknown>,
+  range: DashboardDateRangeSql,
 ): Promise<OtherPaymentSummary> {
   try {
     const [summary] = await executeQuery<OtherPaymentSummary>(
@@ -234,7 +264,7 @@ async function getOtherPaymentSummary(
             END as has_employee,
             ISNULL(NameExpensesORIncome, '') as payment_name
           FROM dbo.Payment
-          WHERE CONVERT(date, Datepayment) = ${dateCondition}
+          WHERE ${getDateRangeCondition("Datepayment", range)}
         ),
         classified AS (
           SELECT
@@ -263,7 +293,7 @@ async function getOtherPaymentSummary(
           ISNULL(SUM(CASE WHEN is_income = 0 THEN money_transfer ELSE 0 END), 0) as expense_transfer
         FROM classified
       `,
-      params,
+      range.params,
       false,
     );
 
@@ -275,8 +305,7 @@ async function getOtherPaymentSummary(
 }
 
 async function getReceivableSummary(
-  dateCondition: string,
-  params?: Record<string, unknown>,
+  range: DashboardDateRangeSql,
 ): Promise<ReceivableSummary> {
   try {
     const [summary] = await executeQuery<ReceivableSummary>(
@@ -289,7 +318,7 @@ async function getReceivableSummary(
             ${getSafeMoneyExpression("Transfer")} as transfer
           FROM dbo.MasterSalePost
           WHERE LTRIM(RTRIM(ISNULL(Status, ''))) = N'ค้างชำระ'
-            AND CONVERT(date, DateSalePost) = ${dateCondition}
+            AND ${getDateRangeCondition("DateSalePost", range)}
         ),
         latest_receivable AS (
           SELECT
@@ -335,7 +364,7 @@ async function getReceivableSummary(
           ) as receivable_total
         FROM normalized
       `,
-      params,
+      range.params,
       false,
     );
 
@@ -347,11 +376,9 @@ async function getReceivableSummary(
 }
 
 async function getSupplierBillSummary({
-  dateCondition,
-  params,
+  range,
 }: {
-  dateCondition: string;
-  params?: Record<string, unknown>;
+  range: DashboardDateRangeSql;
 }): Promise<SupplierBillSummary> {
   try {
     const sourceTable = await resolveTable(supplierBillMasterTableCandidates);
@@ -395,9 +422,9 @@ async function getSupplierBillSummary({
             0 as item_count,
             0 as quantity
           FROM dbo.${quoteIdentifier(sourceTable)}
-          WHERE CONVERT(date, ${displayDateExpression}) = ${dateCondition}
+          WHERE ${getDateRangeCondition(displayDateExpression, range)}
         `,
-        params,
+        range.params,
         false,
       );
 
@@ -411,7 +438,7 @@ async function getSupplierBillSummary({
             ${quoteIdentifier("NumberPrintPost")} as document_no,
             ${totalExpression} as total
           FROM dbo.${quoteIdentifier(sourceTable)}
-          WHERE CONVERT(date, ${displayDateExpression}) = ${dateCondition}
+          WHERE ${getDateRangeCondition(displayDateExpression, range)}
         ),
         detail_summary AS (
           SELECT
@@ -436,7 +463,7 @@ async function getSupplierBillSummary({
         LEFT JOIN detail_summary
           ON detail_summary.document_no = selected_bills.document_no
       `,
-      params,
+      range.params,
       false,
     );
 
@@ -448,14 +475,12 @@ async function getSupplierBillSummary({
 }
 
 async function getReceivablePaymentSummary(
-  dateCondition: string,
-  params?: Record<string, unknown>,
+  range: DashboardDateRangeSql,
 ): Promise<OptionalDailyMoneySummary> {
   try {
     const sourceConfig = await getReceivablePaymentSourceConfig();
-    const cte = buildReceivablePaymentCte(
-      sourceConfig,
-      (dateExpression) => `CONVERT(date, ${dateExpression}) = ${dateCondition}`,
+    const cte = buildReceivablePaymentCte(sourceConfig, (dateExpression) =>
+      getDateRangeCondition(dateExpression, range),
     );
     const [summary] = await executeQuery<OptionalDailyMoneySummary>(
       `
@@ -478,7 +503,7 @@ async function getReceivablePaymentSummary(
         FROM combined
         WHERE amount > 0
       `,
-      params,
+      range.params,
       false,
     );
 
@@ -490,8 +515,7 @@ async function getReceivablePaymentSummary(
 }
 
 async function getDailySaleMoneyItems(
-  dateCondition: string,
-  params?: Record<string, unknown>,
+  range: DashboardDateRangeSql,
 ): Promise<DashboardMoneyBreakdownItem[]> {
   try {
     const cashExpression = getSafeMoneyExpression("m.Cash");
@@ -507,11 +531,11 @@ async function getDailySaleMoneyItems(
           ${cashExpression} as cash,
           ${transferExpression} as transfer
         FROM dbo.MasterSalePost m
-        WHERE CONVERT(date, m.DateSalePost) = ${dateCondition}
+        WHERE ${getDateRangeCondition("m.DateSalePost", range)}
           AND (${cashExpression} > 0 OR ${transferExpression} > 0)
         ORDER BY m.DateSalePost DESC, m.NumberPrintSalePost DESC
       `,
-      params,
+      range.params,
       false,
     );
 
@@ -558,11 +582,10 @@ async function getDailySaleMoneyItems(
 }
 
 async function getMoneyBreakdown(
-  dateCondition: string,
-  params?: Record<string, unknown>,
+  range: DashboardDateRangeSql,
 ): Promise<DashboardMoneyBreakdown> {
   try {
-    const items = (await getDailySaleMoneyItems(dateCondition, params)).sort(
+    const items = (await getDailySaleMoneyItems(range)).sort(
       (first, second) => {
         const firstTime = first.occurredAt
           ? new Date(first.occurredAt).getTime()
@@ -587,18 +610,34 @@ async function getMoneyBreakdown(
 
 export async function GET(request: NextRequest) {
   try {
-    // อ่าน query parameter สำหรับวันที่
     const searchParams = request.nextUrl.searchParams;
-    const dateParam = searchParams.get("date");
+    const legacyDate = normalizeDateParam(searchParams.get("date"));
+    let dateFrom =
+      normalizeDateParam(searchParams.get("startDate")) || legacyDate;
+    let dateTo = normalizeDateParam(searchParams.get("endDate")) || dateFrom;
+
+    if (!dateFrom && dateTo) {
+      dateFrom = dateTo;
+    }
+
+    if (dateFrom && dateTo && dateFrom > dateTo) {
+      [dateFrom, dateTo] = [dateTo, dateFrom];
+    }
+
+    const range: DashboardDateRangeSql = dateFrom
+      ? {
+          fromExpression: "CONVERT(date, @dateFrom)",
+          toExpression: "CONVERT(date, @dateTo)",
+          params: { dateFrom, dateTo },
+        }
+      : {
+          fromExpression: "CONVERT(date, GETDATE())",
+          toExpression: "CONVERT(date, GETDATE())",
+        };
 
     // Wrap ด้วย timeout (60 วินาที)
     const data = await withTimeout(async () => {
-      // ถ้ามีการระบุวันที่ ให้ใช้วันที่นั้น ถ้าไม่มีใช้วันนี้
-      const dateParams = dateParam ? { selectedDate: dateParam } : undefined;
-      const dateExpression = dateParam
-        ? "@selectedDate"
-        : "CONVERT(date, GETDATE())";
-      const dateCondition = `CONVERT(date, DateSalePost) = ${dateExpression}`;
+      const saleDateCondition = getDateRangeCondition("DateSalePost", range);
       const analyticsSql = await getProductAnalyticsSqlConfig(
         "analyticsSale",
         "dashboard",
@@ -610,9 +649,14 @@ export async function GET(request: NextRequest) {
           COUNT(*) as bill_count,
           ISNULL(SUM(TotalPrice), 0) as total_sales,
           ISNULL(SUM(Cash), 0) as total_cash,
-          ISNULL(SUM(Transfer), 0) as total_transfer
+          ISNULL(SUM(Transfer), 0) as total_transfer,
+          COUNT(DISTINCT CASE
+            WHEN LTRIM(RTRIM(ISNULL(NameCar, ''))) NOT IN ('', '-', '0')
+              THEN LTRIM(RTRIM(NameCar))
+            ELSE NULL
+          END) as vehicle_count
         FROM dbo.MasterSalePost
-        WHERE ${dateCondition}
+        WHERE ${saleDateCondition}
       `;
 
       // Query สำหรับข้อมูลเดือนนี้
@@ -628,12 +672,12 @@ export async function GET(request: NextRequest) {
       const analyticProfitQuery = `
         SELECT
           ISNULL(SUM(CASE
-            WHEN CONVERT(date, analyticsSale.DateSalePost) = ${dateExpression}
+            WHEN ${getDateRangeCondition("analyticsSale.DateSalePost", range)}
               THEN analyticsSale.SumPrice
             ELSE 0
           END), 0) as today_analytic_sales,
           ISNULL(SUM(CASE
-            WHEN CONVERT(date, analyticsSale.DateSalePost) = ${dateExpression}
+            WHEN ${getDateRangeCondition("analyticsSale.DateSalePost", range)}
               THEN analyticsSale.SumProfit
             ELSE 0
           END), 0) as today_profit,
@@ -647,7 +691,7 @@ export async function GET(request: NextRequest) {
         ${analyticsSql.joins}
         WHERE ${analyticsSql.includeInProfitAnalysisExpression} = 1
           AND (
-            CONVERT(date, analyticsSale.DateSalePost) = ${dateExpression}
+            ${getDateRangeCondition("analyticsSale.DateSalePost", range)}
             OR (
               YEAR(analyticsSale.DateSalePost) = YEAR(GETDATE())
               AND MONTH(analyticsSale.DateSalePost) = MONTH(GETDATE())
@@ -661,7 +705,8 @@ export async function GET(request: NextRequest) {
         total_sales: number;
         total_cash: number;
         total_transfer: number;
-      }>(todayQuery, dateParams);
+        vehicle_count: number;
+      }>(todayQuery, range.params);
 
       const [monthResult] = await executeQuery<{
         bill_count: number;
@@ -672,7 +717,7 @@ export async function GET(request: NextRequest) {
         today_analytic_sales: number;
         today_profit: number;
         month_profit: number;
-      }>(analyticProfitQuery, dateParams);
+      }>(analyticProfitQuery, range.params);
 
       const [
         otherPayment,
@@ -681,14 +726,13 @@ export async function GET(request: NextRequest) {
         supplierBills,
         moneyBreakdown,
       ] = await Promise.all([
-        getOtherPaymentSummary(dateExpression, dateParams),
-        getReceivableSummary(dateExpression, dateParams),
-        getReceivablePaymentSummary(dateExpression, dateParams),
+        getOtherPaymentSummary(range),
+        getReceivableSummary(range),
+        getReceivablePaymentSummary(range),
         getSupplierBillSummary({
-          dateCondition: dateExpression,
-          params: dateParams,
+          range,
         }),
-        getMoneyBreakdown(dateExpression, dateParams),
+        getMoneyBreakdown(range),
       ]);
 
       // คำนวณอัตรากำไรขั้นต้นของวันที่เลือกให้ตรงกับ KPI รายวัน
@@ -707,6 +751,7 @@ export async function GET(request: NextRequest) {
         todaySales: todayResult.total_sales,
         todayProfit: analyticProfitResult.today_profit,
         todayBills: todayResult.bill_count,
+        vehicleCount: todayResult.vehicle_count,
         todayCash: todayResult.total_cash,
         todayTransfer: todayResult.total_transfer,
         cashDrawerExpected,

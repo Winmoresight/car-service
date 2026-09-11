@@ -20,6 +20,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { useState } from "react";
+import type { DateRange } from "react-day-picker";
 import useSWR from "swr";
 import {
   CategorySalesShareCard,
@@ -36,7 +37,7 @@ import {
 } from "@/components/dashboard/sales-chart";
 import { TopProductsTable } from "@/components/dashboard/top-products-table";
 import { Button } from "@/components/ui/button";
-import { DatePicker } from "@/components/ui/date-picker";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import {
   LargeDialog,
   LargeDialogBody,
@@ -223,37 +224,51 @@ function MoneyDetailDialog({
 }
 
 export default function DashboardPage() {
-  // State สำหรับวันที่ที่เลือก (default = วันนี้)
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
-    new Date(),
-  );
+  const [summaryDateRange, setSummaryDateRange] = useState<
+    DateRange | undefined
+  >();
   const [moneyDialogType, setMoneyDialogType] = useState<
     "cash" | "transfer" | null
   >(null);
   const [isFinancialSummaryOpen, setIsFinancialSummaryOpen] = useState(false);
   const [salesChartPeriod, setSalesChartPeriod] =
     useState<SalesChartPeriod>("day");
+  const [salesChartDate, setSalesChartDate] = useState<Date | undefined>(
+    new Date(),
+  );
+  const [salesChartDateRange, setSalesChartDateRange] = useState<
+    DateRange | undefined
+  >();
   const [categorySharePeriod, setCategorySharePeriod] =
     useState<CategorySharePeriod>("day");
   const [categoryShareDate, setCategoryShareDate] = useState(new Date());
+  const [categoryShareDateRange, setCategoryShareDateRange] = useState<
+    DateRange | undefined
+  >();
 
-  // สร้าง URL สำหรับ API พร้อม query parameter
-  const dashboardUrl = selectedDate
-    ? `/api/dashboard?date=${format(selectedDate, "yyyy-MM-dd")}`
+  const dashboardUrl = summaryDateRange?.from
+    ? `/api/dashboard?startDate=${format(summaryDateRange.from, "yyyy-MM-dd")}&endDate=${format(summaryDateRange.to ?? summaryDateRange.from, "yyyy-MM-dd")}`
     : "/api/dashboard";
 
   // Fetch dashboard KPI
   const { data: kpiData, error: kpiError } = useSWR<ApiResponse<DashboardKPI>>(
     dashboardUrl,
     fetcher,
-    { refreshInterval: 30000 },
+    {
+      keepPreviousData: true,
+      refreshInterval: 30000,
+    },
   );
 
-  // Fetch sales trend using the selected chart period
+  const salesChartRangeQuery = salesChartDateRange?.from
+    ? `&startDate=${format(salesChartDateRange.from, "yyyy-MM-dd")}&endDate=${format(salesChartDateRange.to ?? salesChartDateRange.from, "yyyy-MM-dd")}`
+    : "";
+
+  // Fetch sales trend using the selected chart period or custom date range
   const { data: salesData, error: salesError } = useSWR<
     ApiResponse<DailySales[]>
   >(
-    `/api/sales/daily?period=${salesChartPeriod}&date=${format(selectedDate ?? new Date(), "yyyy-MM-dd")}`,
+    `/api/sales/daily?period=${salesChartPeriod}&date=${format(salesChartDate ?? new Date(), "yyyy-MM-dd")}${salesChartRangeQuery}`,
     fetcher,
     {
       keepPreviousData: true,
@@ -273,12 +288,16 @@ export default function DashboardPage() {
     ApiResponse<LossProduct[]>
   >("/api/products/loss?limit=5", fetcher, { refreshInterval: 60000 });
 
+  const categoryShareRangeQuery = categoryShareDateRange?.from
+    ? `&startDate=${format(categoryShareDateRange.from, "yyyy-MM-dd")}&endDate=${format(categoryShareDateRange.to ?? categoryShareDateRange.from, "yyyy-MM-dd")}`
+    : "";
+
   const {
     data: categoryShareData,
     error: categoryShareError,
     isLoading: isCategoryShareLoading,
   } = useSWR<ApiResponse<CategorySalesShare>>(
-    `/api/products/category-share?period=${categorySharePeriod}&date=${format(categoryShareDate, "yyyy-MM-dd")}`,
+    `/api/products/category-share?period=${categorySharePeriod}&date=${format(categoryShareDate, "yyyy-MM-dd")}${categoryShareRangeQuery}`,
     fetcher,
     {
       keepPreviousData: true,
@@ -305,16 +324,25 @@ export default function DashboardPage() {
     !kpiData || !salesData || !topProductsData || !lossProductsData;
   const hasError =
     kpiError || salesError || topProductsError || lossProductsError;
-  const isSelectedDateToday =
-    !selectedDate ||
-    format(selectedDate, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
-  const dateLabel = isSelectedDateToday ? "วันนี้" : "วันที่เลือก";
-  const selectedDateKey = format(selectedDate ?? new Date(), "yyyy-MM-dd");
-  const salesHref = `/sales?startDate=${selectedDateKey}&endDate=${selectedDateKey}`;
-  const receivableHref = `/tax-invoices?startDate=${selectedDateKey}&endDate=${selectedDateKey}`;
-  const receivablePaymentsHref = `/tax-invoices/payments?date=${selectedDateKey}`;
-  const otherIncomeHref = `/payments?type=income&date=${selectedDateKey}`;
-  const otherExpenseHref = `/payments?type=expense&date=${selectedDateKey}`;
+  const summaryDateFrom = summaryDateRange?.from ?? new Date();
+  const summaryDateTo = summaryDateRange?.to ?? summaryDateFrom;
+  const summaryDateFromKey = format(summaryDateFrom, "yyyy-MM-dd");
+  const summaryDateToKey = format(summaryDateTo, "yyyy-MM-dd");
+  const isSingleSummaryDate = summaryDateFromKey === summaryDateToKey;
+  const isSummaryToday =
+    !summaryDateRange?.from ||
+    (isSingleSummaryDate &&
+      summaryDateFromKey === format(new Date(), "yyyy-MM-dd"));
+  const dateLabel = isSummaryToday
+    ? "วันนี้"
+    : isSingleSummaryDate
+      ? "วันที่เลือก"
+      : "ช่วงที่เลือก";
+  const salesHref = `/sales?startDate=${summaryDateFromKey}&endDate=${summaryDateToKey}`;
+  const receivableHref = `/tax-invoices?startDate=${summaryDateFromKey}&endDate=${summaryDateToKey}`;
+  const receivablePaymentsHref = `/tax-invoices/payments?startDate=${summaryDateFromKey}&endDate=${summaryDateToKey}`;
+  const otherIncomeHref = `/payments?type=income&date=${summaryDateFromKey}`;
+  const otherExpenseHref = `/payments?type=expense&date=${summaryDateFromKey}`;
   const selectedMoneyDialog =
     moneyDialogType === "cash"
       ? {
@@ -371,7 +399,7 @@ export default function DashboardPage() {
               </div>
               <div className="flex flex-col">
                 <span className="text-primary text-2xl font-bold transition-all duration-1000">
-                  สรุปเงินประจำวัน
+                  สรุปเงินตามช่วงวันที่
                 </span>
                 <p className="text-foreground hidden font-medium min-[798px]:block">
                   ยอดขาย เงินสด เงินโอน ลูกหนี้ และใบวางบิลคู่ค้า
@@ -380,11 +408,11 @@ export default function DashboardPage() {
             </div>
 
             <div className="flex w-full flex-col gap-2 transition-all duration-1000 sm:w-auto sm:flex-row min-[798px]:mt-0">
-              <DatePicker
-                date={selectedDate}
-                onDateChange={setSelectedDate}
-                placeholder="เลือกวันที่"
-                className="h-10 w-full px-3 font-bold sm:w-[240px]"
+              <DateRangePicker
+                dateRange={summaryDateRange}
+                onDateRangeChange={setSummaryDateRange}
+                placeholder="วันนี้"
+                className="[&_button]:h-10 [&_button]:w-full [&_button]:px-3 [&_button]:font-bold sm:[&_button]:w-[300px]"
               />
               <Button
                 type="button"
@@ -403,7 +431,7 @@ export default function DashboardPage() {
             <KPICard
               title={`ยอดขาย${dateLabel}`}
               value={kpi?.todaySales || 0}
-              subtitle={`${formatNumber(kpi?.todayBills || 0)} บิล`}
+              subtitle={`รถเข้าใช้บริการ ${formatNumber(kpi?.vehicleCount || 0)} คัน`}
               icon={Banknote}
               variant="emerald"
               format="currency"
@@ -440,7 +468,7 @@ export default function DashboardPage() {
 
           <div className="mt-4 grid gap-4 min-[600px]:grid-cols-2 min-[1280px]:grid-cols-5">
             <KPICard
-              title="ลูกหนี้จ่ายวันนี้"
+              title={`ลูกหนี้จ่าย${dateLabel}`}
               value={kpi?.receivableCollected || 0}
               subtitle={`${formatNumber(kpi?.receivableCollectedCount || 0)} รายการ`}
               icon={Receipt}
@@ -490,9 +518,14 @@ export default function DashboardPage() {
         <SalesChart
           data={dailySales}
           period={salesChartPeriod}
-          selectedDate={selectedDate ?? new Date()}
-          onPeriodChange={setSalesChartPeriod}
-          onSelectedDateChange={setSelectedDate}
+          selectedDate={salesChartDate ?? new Date()}
+          dateRange={salesChartDateRange}
+          onPeriodChange={(period) => {
+            setSalesChartPeriod(period);
+            setSalesChartDateRange(undefined);
+            setSalesChartDate(new Date());
+          }}
+          onDateRangeChange={setSalesChartDateRange}
         />
 
         <CategorySalesShareCard
@@ -503,8 +536,13 @@ export default function DashboardPage() {
           }
           period={categorySharePeriod}
           selectedDate={categoryShareDate}
-          onPeriodChange={setCategorySharePeriod}
-          onDateChange={setCategoryShareDate}
+          dateRange={categoryShareDateRange}
+          onPeriodChange={(period) => {
+            setCategorySharePeriod(period);
+            setCategoryShareDateRange(undefined);
+            setCategoryShareDate(new Date());
+          }}
+          onDateRangeChange={setCategoryShareDateRange}
         />
 
         {/* Top Products and Loss Alert */}
@@ -533,7 +571,7 @@ export default function DashboardPage() {
         <FinancialSummaryDialog
           open={isFinancialSummaryOpen}
           onOpenChange={setIsFinancialSummaryOpen}
-          initialDate={selectedDate ?? new Date()}
+          initialDate={summaryDateTo}
         />
 
         {/* Footer */}

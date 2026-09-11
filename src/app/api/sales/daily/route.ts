@@ -67,12 +67,33 @@ export async function GET(request: NextRequest) {
     const selectedDateExpression = selectedDate
       ? "CONVERT(date, @selectedDate)"
       : "CONVERT(date, GETDATE())";
+    let customStartDate = normalizeDateParam(searchParams.get("startDate"));
+    let customEndDate =
+      normalizeDateParam(searchParams.get("endDate")) || customStartDate;
+
+    if (!customStartDate && customEndDate) {
+      customStartDate = customEndDate;
+    }
+
+    if (customStartDate && customEndDate && customStartDate > customEndDate) {
+      [customStartDate, customEndDate] = [customEndDate, customStartDate];
+    }
     const requestedDays = Number.parseInt(searchParams.get("days") || "30", 10);
-    const { startDateExpression, endDateExpression } = getPeriodConfig(
-      period,
-      selectedDateExpression,
-      Number.isFinite(requestedDays) ? requestedDays : 30,
-    );
+    const { startDateExpression, endDateExpression } = customStartDate
+      ? {
+          startDateExpression: "CONVERT(date, @startDate)",
+          endDateExpression: "DATEADD(day, 1, CONVERT(date, @endDate))",
+        }
+      : getPeriodConfig(
+          period,
+          selectedDateExpression,
+          Number.isFinite(requestedDays) ? requestedDays : 30,
+        );
+    const queryParams = customStartDate
+      ? { startDate: customStartDate, endDate: customEndDate }
+      : selectedDate
+        ? { selectedDate }
+        : undefined;
     const analyticsSql = await getProductAnalyticsSqlConfig(
       "profitSale",
       "daily",
@@ -122,7 +143,7 @@ export async function GET(request: NextRequest) {
       total_profit: number;
       total_cash: number;
       total_transfer: number;
-    }>(query, selectedDate ? { selectedDate } : undefined);
+    }>(query, queryParams);
 
     // แปลงเป็น format ที่ต้องการ
     const dailySales: DailySales[] = results.map((row) => ({

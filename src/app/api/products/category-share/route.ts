@@ -65,7 +65,26 @@ export async function GET(request: NextRequest) {
     const selectedDateExpression = selectedDate
       ? "CONVERT(date, @selectedDate)"
       : "CONVERT(date, GETDATE())";
-    const dateCondition = getDateCondition(period, selectedDateExpression);
+    let customStartDate = normalizeDateParam(searchParams.get("startDate"));
+    let customEndDate =
+      normalizeDateParam(searchParams.get("endDate")) || customStartDate;
+
+    if (!customStartDate && customEndDate) {
+      customStartDate = customEndDate;
+    }
+
+    if (customStartDate && customEndDate && customStartDate > customEndDate) {
+      [customStartDate, customEndDate] = [customEndDate, customStartDate];
+    }
+
+    const dateCondition = customStartDate
+      ? "d.DateSalePost >= CONVERT(date, @startDate) AND d.DateSalePost < DATEADD(day, 1, CONVERT(date, @endDate))"
+      : getDateCondition(period, selectedDateExpression);
+    const queryParams = customStartDate
+      ? { startDate: customStartDate, endDate: customEndDate }
+      : selectedDate
+        ? { selectedDate }
+        : undefined;
 
     const rows = await executeQuery<{
       name: string;
@@ -100,7 +119,7 @@ export async function GET(request: NextRequest) {
         )
         ORDER BY quantity DESC, name ASC
       `,
-      selectedDate ? { selectedDate } : undefined,
+      queryParams,
     );
 
     const totalAmount = rows.reduce(
