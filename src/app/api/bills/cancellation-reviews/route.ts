@@ -290,7 +290,6 @@ async function syncCancellationReviews() {
         N'status_cancelled'
       FROM dbo.MasterSalePost m
       WHERE ISNULL(m.NumberPrintSalePost, N'') <> N''
-        AND m.NumberPrintSalePost LIKE N'SA%'
         AND LTRIM(RTRIM(ISNULL(m.Status, N''))) LIKE N'%ยกเลิก%'
         AND NOT EXISTS (
           SELECT 1
@@ -323,7 +322,6 @@ async function syncCancellationReviews() {
         N'status_cancelled'
       FROM dbo.MasterPrintDelect d
       WHERE ISNULL(d.NumberPrint, N'') <> N''
-        AND d.NumberPrint LIKE N'SA%'
         AND NOT EXISTS (
           SELECT 1
           FROM dbo.${quoteIdentifier(reviewTableName)} review
@@ -557,7 +555,6 @@ async function approveCancellationReview(payload: CancellationReviewPayload) {
         Note = @note
       OUTPUT inserted.NumberPrintSalePost as numberPrint
       WHERE NumberPrintSalePost = @numberPrint
-        AND NumberPrintSalePost LIKE N'SA%'
     `,
     {
       numberPrint: payload.numberPrint,
