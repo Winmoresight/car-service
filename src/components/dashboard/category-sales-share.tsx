@@ -240,17 +240,18 @@ export function CategorySalesShareCard({
           </div>
 
           <div className="overflow-hidden rounded-2xl border">
-            <div className="grid grid-cols-[36px_minmax(0,1fr)_82px_110px] gap-2 border-b bg-muted/35 px-3 py-2 text-xs font-semibold text-muted-foreground max-[560px]:grid-cols-[32px_minmax(0,1fr)_72px]">
+            <div className="grid grid-cols-[36px_minmax(0,1fr)_82px_110px_110px] gap-2 border-b bg-muted/35 px-3 py-2 text-xs font-semibold text-muted-foreground max-[560px]:grid-cols-[32px_minmax(0,1fr)_72px]">
               <span>#</span>
               <span>ประเภทสินค้า</span>
               <span className="text-right">สัดส่วน</span>
               <span className="text-right max-[560px]:hidden">ยอดขาย</span>
+              <span className="text-right max-[560px]:hidden">กำไร</span>
             </div>
             <div className="max-h-[292px] divide-y overflow-y-auto">
               {categories.map((category, index) => (
                 <div
                   key={category.name}
-                  className="grid grid-cols-[36px_minmax(0,1fr)_82px_110px] items-center gap-2 px-3 py-3 text-sm max-[560px]:grid-cols-[32px_minmax(0,1fr)_72px]"
+                  className="grid grid-cols-[36px_minmax(0,1fr)_82px_110px_110px] items-center gap-2 px-3 py-3 text-sm max-[560px]:grid-cols-[32px_minmax(0,1fr)_72px]"
                 >
                   <span className="text-xs font-semibold tabular-nums text-muted-foreground">
                     {index + 1}
@@ -278,6 +279,18 @@ export function CategorySalesShareCard({
                   <span className="truncate text-right text-xs font-medium tabular-nums text-muted-foreground max-[560px]:hidden">
                     {formatCurrency(category.amount)}
                   </span>
+                  <div className="min-w-0 text-right max-[560px]:hidden">
+                    <p className="truncate text-xs font-semibold tabular-nums">
+                      {category.profit === null
+                        ? "–"
+                        : formatCurrency(category.profit)}
+                    </p>
+                    <p className="text-[10px] tabular-nums text-muted-foreground">
+                      {category.profitPercent === null
+                        ? "ยังไม่กำหนด"
+                        : `${category.profitPercent.toFixed(2)}%`}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>

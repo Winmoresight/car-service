@@ -487,7 +487,7 @@ export default function SalesPage() {
             <div className="flex-1 relative max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="ค้นหาเลขที่บิล หรือชื่อลูกค้า..."
+                placeholder="ค้นหาเลขที่บิล ชื่อลูกค้า หรือทะเบียนรถ..."
                 value={searchTerm}
                 onChange={(e) => handleSearch(e.target.value)}
                 className="pl-10"

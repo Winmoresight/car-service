@@ -98,6 +98,20 @@ export async function GET(request: NextRequest) {
     const analyticsSql = await getProductAnalyticsSqlConfig("s", "top");
     const salesBarcodeExpression = analyticsSql.resolvedBarcodeExpression;
     const salesAnalyticsJoins = analyticsSql.joins;
+    const stockBarcodeExpression = analyticsSql.hasBarcodeAliases
+      ? "COALESCE(NULLIF(stockBarcodeAlias.CanonicalBarcode, ''), NULLIF(stockMovement.BarCode, ''), '')"
+      : "ISNULL(NULLIF(stockMovement.BarCode, ''), '')";
+    const stockBarcodeAliasJoin = analyticsSql.hasBarcodeAliases
+      ? `LEFT JOIN dbo.WebProductBarcodeAliases stockBarcodeAlias
+          ON stockBarcodeAlias.AliasBarcode = stockMovement.BarCode`
+      : "";
+    const masterBarcodeExpression = analyticsSql.hasBarcodeAliases
+      ? "COALESCE(NULLIF(masterBarcodeAlias.CanonicalBarcode, ''), NULLIF(d.BarCode, ''), '')"
+      : "ISNULL(NULLIF(d.BarCode, ''), '')";
+    const masterBarcodeAliasJoin = analyticsSql.hasBarcodeAliases
+      ? `LEFT JOIN dbo.WebProductBarcodeAliases masterBarcodeAlias
+          ON masterBarcodeAlias.AliasBarcode = d.BarCode`
+      : "";
     const salesSearchCondition = search
       ? `
           AND (
@@ -105,8 +119,30 @@ export async function GET(request: NextRequest) {
             OR ${salesBarcodeExpression} LIKE @search
             OR ISNULL(s.NameProduct, '') LIKE @search
           )
-        `
+      `
       : "";
+    const currentStockCte = `
+      StockTimeline AS (
+        SELECT
+          ${stockBarcodeExpression} as barcode,
+          stockMovement.Stock as stock,
+          ROW_NUMBER() OVER (
+            PARTITION BY ${stockBarcodeExpression}
+            ORDER BY
+              stockMovement.DateSave DESC,
+              stockMovement.Times DESC,
+              stockMovement.NumberPrint DESC
+          ) as stock_rank
+        FROM dbo.INOUTStockProduct stockMovement
+        ${stockBarcodeAliasJoin}
+        WHERE ISNULL(stockMovement.BarCode, '') <> ''
+      ),
+      CurrentStock AS (
+        SELECT barcode, stock
+        FROM StockTimeline
+        WHERE stock_rank = 1
+      )
+    `;
     const productDataCte = `
       WITH SourceData AS (
         SELECT
@@ -128,13 +164,14 @@ export async function GET(request: NextRequest) {
 
         SELECT
           COALESCE(NULLIF(m.NameProduct, ''), 'ไม่ระบุสินค้า') as name,
-          ISNULL(NULLIF(d.BarCode, ''), '') as barcode,
+          ${masterBarcodeExpression} as barcode,
           ISNULL(NULLIF(m.CodeProduct, ''), '') as productCode,
           0 as quantity,
           0 as total_sales,
           0 as total_profit
         FROM dbo.MasterProductDetail d
         INNER JOIN dbo.MasterProduct m ON m.CodeProduct = d.CodeProduct
+        ${masterBarcodeAliasJoin}
         WHERE @includeMasterProducts = 1
           ${masterSearchCondition}
       ),
@@ -180,15 +217,18 @@ export async function GET(request: NextRequest) {
 
     const query = `
       ${productDataCte},
+      ${currentStockCte},
       FilteredData AS (
         SELECT
-          name,
-          barcode,
-          productCode,
-          quantity,
-          total_sales,
-          total_profit
+          ProductData.name,
+          ProductData.barcode,
+          ProductData.productCode,
+          ProductData.quantity,
+          ProductData.total_sales,
+          ProductData.total_profit,
+          ISNULL(CurrentStock.stock, 0) as stock
         FROM ProductData
+        LEFT JOIN CurrentStock ON CurrentStock.barcode = ProductData.barcode
         ${filterCondition}
       ),
       PaginatedData AS (
@@ -199,6 +239,7 @@ export async function GET(request: NextRequest) {
           quantity,
           total_sales,
           total_profit,
+          stock,
           ROW_NUMBER() OVER (ORDER BY ${orderByColumn} DESC, name ASC) as RowNum
         FROM FilteredData
       )
@@ -208,7 +249,8 @@ export async function GET(request: NextRequest) {
         productCode,
         quantity,
         total_sales,
-        total_profit
+        total_profit,
+        stock
       FROM PaginatedData
       WHERE RowNum > @offset AND RowNum <= (@offset + @limit)
       ORDER BY RowNum
@@ -221,6 +263,7 @@ export async function GET(request: NextRequest) {
       quantity: number;
       total_sales: number;
       total_profit: number;
+      stock: number;
     }>(query, {
       limit,
       offset,
@@ -289,6 +332,7 @@ export async function GET(request: NextRequest) {
       sales: row.total_sales,
       profit: row.total_profit,
       quantity: row.quantity,
+      stock: Number(row.stock) || 0,
       profitMargin:
         row.total_sales > 0
           ? Number(((row.total_profit / row.total_sales) * 100).toFixed(2))

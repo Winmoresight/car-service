@@ -146,6 +146,7 @@ export interface TopProduct {
   sales: number;
   profit: number;
   quantity: number;
+  stock: number;
   profitMargin: number; // %
 }
 
@@ -153,6 +154,8 @@ export interface CategorySalesShareItem {
   name: string;
   quantity: number;
   amount: number;
+  profit: number | null;
+  profitPercent: number | null;
   percentage: number;
 }
 

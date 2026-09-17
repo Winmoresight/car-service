@@ -24,6 +24,7 @@ import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { outfit } from "@/components/fonts/fonts";
+import { SaleDetailDialog } from "@/components/sales/sale-detail-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -133,6 +134,7 @@ export default function CustomersPage() {
     useState<CustomerDetail | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
+  const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
 
   const params = new URLSearchParams({
     limit: limit.toString(),
@@ -216,6 +218,7 @@ export default function CustomersPage() {
               listCustomer?.daysSinceLastOrder,
           },
         });
+        setSelectedSaleId(null);
         setModalOpen(true);
       }
     } catch (error) {
@@ -340,6 +343,14 @@ export default function CustomersPage() {
     }
 
     return `${daysSinceLastOrder.toLocaleString("th-TH")} วันก่อน`;
+  };
+
+  const handleCustomerModalChange = (open: boolean) => {
+    setModalOpen(open);
+
+    if (!open) {
+      setSelectedSaleId(null);
+    }
   };
 
   if (showInitialLoading) {
@@ -760,7 +771,7 @@ export default function CustomersPage() {
           )}
         </div>
 
-        <LargeDialog open={modalOpen} onOpenChange={setModalOpen}>
+        <LargeDialog open={modalOpen} onOpenChange={handleCustomerModalChange}>
           <LargeDialogContent size="2xl">
             <LargeDialogHeader>
               <LargeDialogTitle>
@@ -919,7 +930,7 @@ export default function CustomersPage() {
                             ประวัติการซื้อ
                           </span>
                           <p className="text-sm font-medium text-muted-foreground">
-                            รายการบิลขายทั้งหมดของลูกค้ารายนี้
+                            คลิกที่บิลเพื่อดูสินค้าและบริการทั้งหมด
                           </p>
                         </div>
                       </div>
@@ -982,7 +993,25 @@ export default function CustomersPage() {
                               (purchase, index) => (
                                 <TableRow
                                   key={`${purchase.numberPrintSalePost}-${index}`}
-                                  className="group border-border/60 transition-colors duration-200 hover:bg-orange-50/30 dark:hover:bg-orange-500/5"
+                                  className="group cursor-pointer border-border/60 transition-colors duration-200 hover:bg-orange-50/30 focus-visible:bg-orange-50/50 focus-visible:outline-none dark:hover:bg-orange-500/5 dark:focus-visible:bg-orange-500/10"
+                                  tabIndex={0}
+                                  aria-label={`ดูรายละเอียดบิล ${purchase.numberPrintSalePost}`}
+                                  onClick={() =>
+                                    setSelectedSaleId(
+                                      purchase.numberPrintSalePost,
+                                    )
+                                  }
+                                  onKeyDown={(event) => {
+                                    if (
+                                      event.key === "Enter" ||
+                                      event.key === " "
+                                    ) {
+                                      event.preventDefault();
+                                      setSelectedSaleId(
+                                        purchase.numberPrintSalePost,
+                                      );
+                                    }
+                                  }}
                                 >
                                   <TableCell className="px-4 py-4 font-medium">
                                     <div className="flex items-center gap-3">
@@ -1083,6 +1112,12 @@ export default function CustomersPage() {
                 </div>
               ) : null}
             </LargeDialogBody>
+
+            <SaleDetailDialog
+              saleId={selectedSaleId}
+              isOpen={selectedSaleId !== null}
+              onClose={() => setSelectedSaleId(null)}
+            />
           </LargeDialogContent>
         </LargeDialog>
       </div>

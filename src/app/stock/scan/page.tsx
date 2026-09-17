@@ -12,8 +12,10 @@ import {
   Trash2,
   Volume2,
   VolumeX,
+  Wrench,
   X,
 } from "lucide-react";
+import Link from "next/link";
 import { type TouchEvent, useEffect, useRef, useState } from "react";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { Button } from "@/components/ui/button";
@@ -37,9 +39,11 @@ type LookupErrorDetails = {
 
 interface ScannedItem {
   barcode: string;
+  productCode: string;
   name: string;
   costPrice: number;
   retailPrice: number;
+  stock: number;
   quantity: number;
   unit: string;
 }
@@ -75,6 +79,65 @@ function normalizeBarcode(value: string) {
 
 function isPlausibleBarcodeValue(value: string) {
   return /^[0-9A-Za-z._-]{4,30}$/.test(value);
+}
+
+function formatStockQuantity(value: number) {
+  return value.toLocaleString("th-TH", {
+    maximumFractionDigits: 2,
+  });
+}
+
+function ScannedItemDetails({
+  item,
+  showManageHint = false,
+}: {
+  item: ScannedItem;
+  showManageHint?: boolean;
+}) {
+  return (
+    <div className="min-w-0 flex-1 space-y-3 text-left">
+      <p className="text-lg font-extrabold leading-snug text-card-foreground">
+        {item.name}
+      </p>
+      <div className="grid gap-2 text-sm font-semibold text-muted-foreground sm:grid-cols-3">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm font-bold tracking-wide">บาร์โค้ด</span>
+          <span className="break-all text-card-foreground">{item.barcode}</span>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm font-bold tracking-wide">ต้นทุน</span>
+          <span className="text-card-foreground">
+            ฿{item.costPrice.toFixed(2)}
+          </span>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm font-bold tracking-wide">ราคาปลีก</span>
+          <span className="text-card-foreground">
+            ฿{item.retailPrice.toFixed(2)}
+          </span>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm font-bold tracking-wide">คงเหลือ</span>
+          <span
+            className={cn(
+              "font-extrabold",
+              item.stock > 0
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-destructive",
+            )}
+          >
+            {formatStockQuantity(item.stock)} {item.unit}
+          </span>
+        </div>
+      </div>
+      {showManageHint ? (
+        <div className="flex items-center gap-1.5 text-sm font-bold text-primary">
+          <Wrench className="h-4 w-4" />
+          แตะเพื่อจัดการสินค้า
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function formatLookupErrorMessage(error: unknown) {
@@ -296,9 +359,11 @@ export default function StockScanPage() {
             ...prevItems,
             {
               barcode: data.barcode,
+              productCode: data.productCode,
               name: data.name,
               costPrice: data.costPrice,
               retailPrice: data.retailPrice,
+              stock: data.stock,
               quantity: 1,
               unit: data.unit || "ชิ้น",
             },
@@ -562,37 +627,17 @@ export default function StockScanPage() {
                       className="rounded-[14px] border bg-muted/15 p-4 sm:p-5"
                     >
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0 flex-1 space-y-3">
-                          <p className="text-lg font-extrabold leading-snug text-card-foreground">
-                            {item.name}
-                          </p>
-                          <div className="grid gap-2 text-sm font-semibold text-muted-foreground sm:grid-cols-3">
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-sm font-bold tracking-wide">
-                                บาร์โค้ด
-                              </span>
-                              <span className="break-all text-card-foreground">
-                                {item.barcode}
-                              </span>
-                            </div>
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-sm font-bold tracking-wide">
-                                ต้นทุน
-                              </span>
-                              <span className="text-card-foreground">
-                                ฿{item.costPrice.toFixed(2)}
-                              </span>
-                            </div>
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-sm font-bold tracking-wide">
-                                ราคาปลีก
-                              </span>
-                              <span className="text-card-foreground">
-                                ฿{item.retailPrice.toFixed(2)}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
+                        {item.productCode ? (
+                          <Link
+                            href={`/products/${encodeURIComponent(item.productCode)}/${encodeURIComponent(item.barcode)}/edit`}
+                            className="min-w-0 flex-1 rounded-xl transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            aria-label={`จัดการสินค้า ${item.name}`}
+                          >
+                            <ScannedItemDetails item={item} showManageHint />
+                          </Link>
+                        ) : (
+                          <ScannedItemDetails item={item} />
+                        )}
 
                         <div className="flex items-center justify-between gap-3 border-t pt-3 sm:w-auto sm:border-t-0 sm:pt-0">
                           <div className="flex h-10 items-center overflow-hidden rounded-lg border bg-background">
@@ -880,6 +925,16 @@ export default function StockScanPage() {
                       <p className="mt-0.5 text-sm font-semibold text-muted-foreground">
                         ต้นทุน ฿{item.costPrice.toFixed(2)} • ปลีก ฿
                         {item.retailPrice.toFixed(2)}
+                      </p>
+                      <p
+                        className={cn(
+                          "mt-1 text-sm font-extrabold",
+                          item.stock > 0
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-destructive",
+                        )}
+                      >
+                        คงเหลือ {formatStockQuantity(item.stock)} {item.unit}
                       </p>
                       <p className="mt-0.5 truncate text-xs font-semibold text-muted-foreground/80">
                         {item.barcode}

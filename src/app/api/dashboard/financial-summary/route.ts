@@ -782,6 +782,8 @@ export async function GET(request: NextRequest) {
           receivablePayments.summary.total -
           paymentData.summary.expenseTotal -
           saleSummary.transfer -
+          paymentData.summary.incomeTransfer -
+          receivablePayments.summary.transfer -
           outstanding.summary.total,
       );
 

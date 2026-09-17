@@ -7,13 +7,17 @@
 
 import {
   AlertTriangle,
+  Camera,
   Package,
+  Percent,
   Search,
+  ShieldAlert,
   TrendingDown,
   TrendingUp,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { KPICard } from "@/components/dashboard/kpi-card";
@@ -40,6 +44,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  type BarcodeScannerEngine,
+  type BrowserBarcodeScanner,
+  createBrowserBarcodeScanner,
+} from "@/lib/browser-barcode-scanner";
 import { cn } from "@/lib/utils";
 import type { ApiResponse, PaginatedPayload, TopProduct } from "@/types/api";
 
@@ -56,6 +65,13 @@ interface ProductSummary {
   highProfitCount: number;
 }
 
+const cameraVideoConstraints: MediaTrackConstraints = {
+  facingMode: { ideal: "environment" },
+  width: { ideal: 1920 },
+  height: { ideal: 1080 },
+  frameRate: { ideal: 30 },
+};
+
 export default function ProductsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<ProductTab>("all");
@@ -64,6 +80,129 @@ export default function ProductsPage() {
   const [selectedProduct, setSelectedProduct] = useState<TopProduct | null>(
     null,
   );
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [scannerEngine, setScannerEngine] =
+    useState<BarcodeScannerEngine | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const scanTimerRef = useRef<number | null>(null);
+  const barcodeScannerRef = useRef<BrowserBarcodeScanner | null>(null);
+  const isScanActiveRef = useRef(false);
+
+  const releaseCameraResources = useCallback(() => {
+    isScanActiveRef.current = false;
+
+    if (scanTimerRef.current) {
+      window.clearTimeout(scanTimerRef.current);
+      scanTimerRef.current = null;
+    }
+
+    for (const track of streamRef.current?.getTracks() || []) {
+      track.stop();
+    }
+
+    streamRef.current = null;
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => releaseCameraResources();
+  }, [releaseCameraResources]);
+
+  const closeScanner = () => {
+    releaseCameraResources();
+    setIsScannerOpen(false);
+    setScannerEngine(null);
+    setCameraError(null);
+  };
+
+  const startScanner = async () => {
+    releaseCameraResources();
+    setIsScannerOpen(true);
+    setScannerEngine(null);
+    setCameraError(null);
+
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("เบราว์เซอร์นี้ไม่รองรับการเปิดกล้อง");
+      }
+
+      const scanner =
+        barcodeScannerRef.current ?? (await createBrowserBarcodeScanner());
+      barcodeScannerRef.current = scanner;
+      setScannerEngine(scanner.engine);
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: cameraVideoConstraints,
+        audio: false,
+      });
+      streamRef.current = stream;
+
+      const [cameraTrack] = stream.getVideoTracks();
+      try {
+        await cameraTrack?.applyConstraints({
+          advanced: [
+            {
+              focusMode: "continuous",
+            } as MediaTrackConstraintSet,
+          ],
+        });
+      } catch {
+        // Some mobile browsers do not expose focus controls.
+      }
+
+      const video = videoRef.current;
+      if (!video) {
+        throw new Error("ไม่พบพื้นที่แสดงภาพจากกล้อง");
+      }
+
+      video.srcObject = stream;
+      await video.play();
+      isScanActiveRef.current = true;
+
+      const scanFrame = async () => {
+        if (!isScanActiveRef.current || !streamRef.current) {
+          return;
+        }
+
+        try {
+          if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+            const detections = await scanner.detect(video);
+            const barcode = detections[0]?.rawValue.trim();
+
+            if (barcode) {
+              if (navigator.vibrate) {
+                navigator.vibrate(80);
+              }
+              setSearchTerm(barcode.replace(/\s+/g, ""));
+              setPage(0);
+              closeScanner();
+              return;
+            }
+          }
+        } catch {
+          // A frame can fail while the camera is focusing; keep scanning.
+        }
+
+        if (isScanActiveRef.current) {
+          scanTimerRef.current = window.setTimeout(scanFrame, 350);
+        }
+      };
+
+      void scanFrame();
+    } catch (scannerError) {
+      releaseCameraResources();
+      setCameraError(
+        scannerError instanceof Error
+          ? scannerError.message
+          : "เปิดกล้องสแกนไม่สำเร็จ",
+      );
+    }
+  };
 
   const buildApiUrl = () => {
     const params = new URLSearchParams({
@@ -197,6 +336,12 @@ export default function ProductsPage() {
                 </p>
               </div>
             </div>
+            <Button asChild variant="outline">
+              <Link href="/products/categories">
+                <Percent className="h-4 w-4" />
+                ตั้งค่า % กำไรตามประเภท
+              </Link>
+            </Button>
           </div>
 
           {/* Summary Cards */}
@@ -250,6 +395,16 @@ export default function ProductsPage() {
                   className="h-11 rounded-2xl pl-10 font-medium"
                 />
               </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 gap-2 rounded-2xl font-bold"
+                onClick={() => void startScanner()}
+              >
+                <Camera className="h-4 w-4" />
+                สแกนบาร์โค้ด
+              </Button>
 
               {searchTerm ? (
                 <Button
@@ -415,7 +570,10 @@ export default function ProductsPage() {
                             กำไร
                           </TableHead>
                           <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[620px]:table-cell">
-                            จำนวน
+                            ขายแล้ว
+                          </TableHead>
+                          <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[760px]:table-cell">
+                            สต็อกคงเหลือ
                           </TableHead>
                           <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
                             Margin
@@ -482,7 +640,17 @@ export default function ProductsPage() {
                                         : "กดเพื่อดูรายละเอียดสินค้า"}
                                     </span>
                                     <span className="text-xs font-semibold text-muted-foreground min-[620px]:hidden">
-                                      {formatNumber(product.quantity)} ชิ้น
+                                      ขายแล้ว {formatNumber(product.quantity)} ชิ้น
+                                    </span>
+                                    <span
+                                      className={cn(
+                                        "text-xs font-bold min-[760px]:hidden",
+                                        product.stock > 0
+                                          ? "text-main-green"
+                                          : "text-main-red",
+                                      )}
+                                    >
+                                      คงเหลือ {formatNumber(product.stock)} ชิ้น
                                     </span>
                                   </div>
                                 </div>
@@ -532,6 +700,20 @@ export default function ProductsPage() {
                                 )}
                               >
                                 {formatNumber(product.quantity)}
+                              </TableCell>
+
+                              <TableCell className="hidden text-right align-middle min-[760px]:table-cell">
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    "h-7 min-w-16 justify-center rounded-full px-3 text-xs font-bold shadow-none",
+                                    product.stock > 0
+                                      ? "border-emerald-100 bg-emerald-50 text-main-green dark:border-emerald-500/20 dark:bg-emerald-500/10"
+                                      : "border-red-100 bg-red-50 text-main-red dark:border-red-500/20 dark:bg-red-500/10",
+                                  )}
+                                >
+                                  {formatNumber(product.stock)}
+                                </Badge>
                               </TableCell>
 
                               <TableCell className="text-right align-middle">
@@ -647,6 +829,88 @@ export default function ProductsPage() {
         isOpen={selectedProduct !== null}
         onClose={() => setSelectedProduct(null)}
       />
+
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="สแกนบาร์โค้ดสินค้า"
+        className={cn(
+          "fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-0 backdrop-blur-sm transition-all sm:p-6",
+          isScannerOpen
+            ? "visible opacity-100"
+            : "pointer-events-none invisible opacity-0",
+        )}
+      >
+        <div className="relative flex h-full w-full max-w-2xl flex-col overflow-hidden bg-zinc-950 shadow-2xl sm:h-[min(760px,90dvh)] sm:rounded-[28px] sm:border sm:border-white/10">
+          <video
+            ref={videoRef}
+            className="absolute inset-0 h-full w-full object-cover"
+            muted
+            playsInline
+          />
+
+          <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between bg-gradient-to-b from-black/70 to-transparent p-5 pb-12 text-white">
+            <div>
+              <p className="text-lg font-extrabold">สแกนบาร์โค้ดสินค้า</p>
+              <p className="text-xs font-semibold text-white/70">
+                {scannerEngine === "zxing"
+                  ? "โหมดสำรองสำหรับ iPhone (ZXing)"
+                  : scannerEngine === "native"
+                    ? "โหมดตรวจจับบาร์โค้ดของเบราว์เซอร์"
+                    : "กำลังเตรียมกล้อง..."}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={closeScanner}
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/45 text-white backdrop-blur-md transition-colors hover:bg-black/65"
+              aria-label="ปิดกล้อง"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+            <div className="relative h-48 w-[min(78vw,360px)] rounded-2xl border-2 border-dashed border-white/35">
+              <div className="absolute -top-0.5 -left-0.5 h-10 w-10 rounded-tl-xl border-t-[5px] border-l-[5px] border-emerald-400" />
+              <div className="absolute -top-0.5 -right-0.5 h-10 w-10 rounded-tr-xl border-t-[5px] border-r-[5px] border-emerald-400" />
+              <div className="absolute -bottom-0.5 -left-0.5 h-10 w-10 rounded-bl-xl border-b-[5px] border-l-[5px] border-emerald-400" />
+              <div className="absolute -right-0.5 -bottom-0.5 h-10 w-10 rounded-br-xl border-r-[5px] border-b-[5px] border-emerald-400" />
+            </div>
+          </div>
+
+          <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/80 to-transparent p-6 pt-16 text-center">
+            <p className="text-sm font-bold text-white">
+              เล็งบาร์โค้ดให้อยู่กลางกรอบ ระบบจะค้นหาให้อัตโนมัติ
+            </p>
+          </div>
+
+          {cameraError ? (
+            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-zinc-950 p-8 text-center">
+              <ShieldAlert className="mb-4 h-12 w-12 text-zinc-500" />
+              <p className="text-lg font-extrabold text-white">
+                เปิดกล้องสแกนไม่สำเร็จ
+              </p>
+              <p className="mt-2 max-w-sm text-sm font-medium text-zinc-400">
+                {cameraError}
+              </p>
+              <div className="mt-6 flex gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={closeScanner}
+                  className="border-zinc-700 bg-zinc-900 text-white hover:bg-zinc-800 hover:text-white"
+                >
+                  ปิด
+                </Button>
+                <Button type="button" onClick={() => void startScanner()}>
+                  ลองอีกครั้ง
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }

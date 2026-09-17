@@ -55,7 +55,7 @@ function buildSalesConditions({
 
   if (search) {
     conditions.push(
-      `(m.NumberPrintSalePost LIKE @search OR m.NameCustomer LIKE @search)`,
+      `(m.NumberPrintSalePost LIKE @search OR m.NameCustomer LIKE @search OR m.NameCar LIKE @search)`,
     );
   }
 

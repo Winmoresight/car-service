@@ -4,6 +4,10 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
+import {
+  categoryProfitMarginTable,
+  ensureCategoryProfitMarginTable,
+} from "@/lib/category-profit-margin";
 import { executeQuery } from "@/lib/db";
 import type {
   ApiResponse,
@@ -55,6 +59,8 @@ function getDateCondition(
 
 export async function GET(request: NextRequest) {
   try {
+    await ensureCategoryProfitMarginTable();
+
     const searchParams = request.nextUrl.searchParams;
     const requestedPeriod = searchParams.get("period");
     const period: CategorySharePeriod =
@@ -90,6 +96,7 @@ export async function GET(request: NextRequest) {
       name: string;
       quantity: number;
       amount: number;
+      profitPercent: number | null;
     }>(
       `
         SELECT
@@ -99,16 +106,31 @@ export async function GET(request: NextRequest) {
             N'ไม่ระบุประเภท'
           ) as name,
           ISNULL(SUM(ISNULL(d.NumProduct, 0)), 0) as quantity,
-          ISNULL(SUM(${getSafeMoneyExpression("d.SumPrice")}), 0) as amount
+          ISNULL(SUM(${getSafeMoneyExpression("d.SumPrice")}), 0) as amount,
+          MAX(margin.ProfitPercent) as profitPercent
         FROM dbo.DetailSalePost d
         OUTER APPLY (
           SELECT TOP 1
+            p.CaseProduct as category_code,
             ISNULL(cp.CaseProduct, '') as category_name
           FROM dbo.MasterProductDetail pd
           INNER JOIN dbo.MasterProduct p ON p.CodeProduct = pd.CodeProduct
           LEFT JOIN dbo.CaseProduct cp ON cp.Code = p.CaseProduct
           WHERE pd.BarCode = d.BarCode
         ) category
+        OUTER APPLY (
+          SELECT TOP 1 cp.Code as category_code
+          FROM dbo.CaseProduct cp
+          WHERE category.category_code IS NULL
+            AND LTRIM(RTRIM(ISNULL(cp.CaseProduct, ''))) =
+              LTRIM(RTRIM(ISNULL(d.TypeSale, '')))
+          ORDER BY cp.Code ASC
+        ) fallback_category
+        LEFT JOIN dbo.${categoryProfitMarginTable} margin
+          ON margin.CategoryCode = COALESCE(
+            category.category_code,
+            fallback_category.category_code
+          )
         WHERE ${dateCondition}
           AND DATEDIFF(day, '19000107', CONVERT(date, d.DateSalePost)) % 7 <> 0
           AND ${getSafeMoneyExpression("d.SumPrice")} > 0
@@ -132,11 +154,18 @@ export async function GET(request: NextRequest) {
     );
     const categories: CategorySalesShareItem[] = rows.map((row) => {
       const amount = Number(row.amount) || 0;
+      const profitPercent =
+        row.profitPercent === null ? null : Number(row.profitPercent);
 
       return {
         name: row.name?.trim() || "ไม่ระบุประเภท",
         quantity: Number(row.quantity) || 0,
         amount,
+        profit:
+          profitPercent === null
+            ? null
+            : Number(((amount * profitPercent) / 100).toFixed(2)),
+        profitPercent,
         percentage:
           totalQuantity > 0
             ? Number(

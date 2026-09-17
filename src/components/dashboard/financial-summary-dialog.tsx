@@ -500,7 +500,7 @@ export function FinancialSummaryDialog({
                         </p>
                         <p className="mt-3 text-xs font-semibold leading-5 text-muted-foreground">
                           ยอดขาย + ยอดมัดจำ + รายรับ + รับชำระลูกหนี้ − รายจ่าย −
-                          เงินโอนจากยอดขาย − ลูกหนี้ค้างชำระ
+                          เงินโอนทั้งหมด − ลูกหนี้ค้างชำระ
                         </p>
                       </div>
 
@@ -579,6 +579,17 @@ export function FinancialSummaryDialog({
                             {
                               label: "เงินโอนจากยอดขาย",
                               value: summary.metrics.salesTransfer,
+                              sign: "−",
+                            },
+                            {
+                              label: "เงินโอนจากรายรับอื่น",
+                              value: summary.metrics.incomeTransfer,
+                              sign: "−",
+                            },
+                            {
+                              label: "เงินโอนจากรับชำระลูกหนี้",
+                              value:
+                                summary.metrics.receivableCollectedTransfer,
                               sign: "−",
                             },
                             {
