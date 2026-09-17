@@ -9,6 +9,7 @@ import { format } from "date-fns";
 import {
   Banknote,
   Calculator,
+  CarFront,
   CreditCard,
   FileText,
   LayoutDashboard,
@@ -427,14 +428,23 @@ export default function DashboardPage() {
           </div>
 
           {/* Daily Close KPIs */}
-          <div className="grid gap-4 min-[600px]:grid-cols-2 min-[1280px]:grid-cols-4">
+          <div className="grid gap-4 min-[600px]:grid-cols-2 min-[1280px]:grid-cols-5">
             <KPICard
               title={`ยอดขาย${dateLabel}`}
               value={kpi?.todaySales || 0}
-              subtitle={`รถเข้าใช้บริการ ${formatNumber(kpi?.vehicleCount || 0)} คัน`}
+              subtitle={`${formatNumber(kpi?.todayBills || 0)} บิล`}
               icon={Banknote}
               variant="emerald"
               format="currency"
+              href={salesHref}
+            />
+            <KPICard
+              title={`รถเข้าใช้บริการ${dateLabel}`}
+              value={kpi?.vehicleCount || 0}
+              subtitle={`นับทะเบียนไม่ซ้ำจาก ${formatNumber(kpi?.todayBills || 0)} บิล`}
+              unit="คัน"
+              icon={CarFront}
+              variant="blue"
               href={salesHref}
             />
             <KPICard
