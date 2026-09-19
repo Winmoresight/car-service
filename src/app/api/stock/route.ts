@@ -910,6 +910,7 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get("type") || "summary"; // 'summary' or 'movements'
     const limit = getLimit(searchParams.get("limit"));
     const offset = getOffset(searchParams.get("offset"));
+    const search = truncateText(normalizeText(searchParams.get("search")), 100);
 
     if (type === "catalog") {
       const categoryId =
@@ -1023,6 +1024,11 @@ export async function GET(request: NextRequest) {
           ROW_NUMBER() OVER (ORDER BY name, barCode) as RowNum
         FROM RankedMovements
         WHERE LatestRow = 1
+          AND (
+            @search = N''
+            OR CHARINDEX(@search, barCode) > 0
+            OR CHARINDEX(@search, name) > 0
+          )
       )
       SELECT
         barCode,
@@ -1041,12 +1047,29 @@ export async function GET(request: NextRequest) {
       currentStock: number;
       lastUpdate: Date;
       movements: number;
-    }>(query, { limit, offset });
-    const [countResult] = await executeQuery<{ total: number }>(`
-      SELECT COUNT(DISTINCT BarCode) as total
-      FROM dbo.INOUTStockProduct
-      WHERE ISNULL(BarCode, N'') <> N''
-    `);
+    }>(query, { limit, offset, search });
+    const [countResult] = await executeQuery<{ total: number }>(
+      `WITH RankedMovements AS (
+        SELECT
+          BarCode as barCode,
+          NameProduct as name,
+          ROW_NUMBER() OVER (
+            PARTITION BY BarCode
+            ORDER BY DateSave DESC, Times DESC, NumberPrint DESC
+          ) as LatestRow
+        FROM dbo.INOUTStockProduct
+        WHERE ISNULL(BarCode, N'') <> N''
+      )
+      SELECT COUNT(*) as total
+      FROM RankedMovements
+      WHERE LatestRow = 1
+        AND (
+          @search = N''
+          OR CHARINDEX(@search, barCode) > 0
+          OR CHARINDEX(@search, name) > 0
+        )`,
+      { search },
+    );
 
     const stockItems: StockItem[] = results.map((row) => ({
       barCode: row.barCode,

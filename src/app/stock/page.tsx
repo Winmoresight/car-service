@@ -15,9 +15,11 @@ import {
   Package,
   Plus,
   Save,
+  Search,
   SlidersHorizontal,
   TrendingDown,
   TrendingUp,
+  X,
 } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import useSWR from "swr";
@@ -51,6 +53,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import type {
   ApiResponse,
+  BarcodeScanResult,
   PaginatedPayload,
   StockCatalogOption,
   StockProductCatalogPayload,
@@ -166,6 +169,11 @@ export default function StockPage() {
   const [activeTab, setActiveTab] = useState("summary");
   const [isCreateProductOpen, setIsCreateProductOpen] = useState(false);
   const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
+  const [isStockSearchScannerOpen, setIsStockSearchScannerOpen] =
+    useState(false);
+  const [stockSearchInput, setStockSearchInput] = useState("");
+  const [stockSearch, setStockSearch] = useState("");
+  const [stockSearchOffset, setStockSearchOffset] = useState(0);
   const [productDraft, setProductDraft] = useState<ProductDraft>(() =>
     createEmptyProductDraft(),
   );
@@ -201,6 +209,17 @@ export default function StockPage() {
     fetcher,
     { refreshInterval: 30000 },
   );
+  const {
+    data: searchedSummaryData,
+    isLoading: searchedSummaryLoading,
+    mutate: mutateSearchedSummary,
+  } = useSWR<ApiResponse<PaginatedPayload<StockItem>>>(
+    stockSearch
+      ? `/api/stock?type=summary&limit=${STOCK_LIST_LIMIT}&offset=${stockSearchOffset}&search=${encodeURIComponent(stockSearch)}`
+      : null,
+    fetcher,
+    { refreshInterval: 30000 },
+  );
 
   // Fetch recent movements
   const {
@@ -229,10 +248,22 @@ export default function StockPage() {
     fetcher,
   );
 
-  const stockItems =
+  const summaryItems =
     summaryData?.success && summaryData.data?.items
       ? summaryData.data.items
       : [];
+  const activeSummaryData = stockSearch ? searchedSummaryData : summaryData;
+  const stockItems =
+    activeSummaryData?.success && activeSummaryData.data?.items
+      ? activeSummaryData.data.items
+      : [];
+  const stockItemsTotal =
+    activeSummaryData?.success && activeSummaryData.data
+      ? activeSummaryData.data.total
+      : 0;
+  const stockItemsLoading = stockSearch
+    ? searchedSummaryLoading
+    : summaryLoading;
   const movements =
     movementsData?.success && movementsData.data?.items
       ? movementsData.data.items
@@ -284,6 +315,16 @@ export default function StockPage() {
   );
 
   useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const nextSearch = stockSearchInput.trim();
+      setStockSearchOffset(0);
+      setStockSearch(nextSearch);
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [stockSearchInput]);
+
+  useEffect(() => {
     if (!isCreateProductOpen || !productCatalog) {
       return;
     }
@@ -315,10 +356,10 @@ export default function StockPage() {
   }, [isCreateProductOpen, productCatalog]);
 
   // Calculate stats
-  const totalItems = stockItems.length;
+  const totalItems = summaryData?.success ? summaryData.data.total : 0;
   const stockIn = movements.filter((m) => m.type === "in").length;
   const stockOut = movements.filter((m) => m.type === "out").length;
-  const lowStock = stockItems.filter((item) => item.currentStock < 5).length;
+  const lowStock = summaryItems.filter((item) => item.currentStock < 5).length;
 
   const formatNumber = (value: number) => {
     return new Intl.NumberFormat("th-TH").format(value || 0);
@@ -493,6 +534,7 @@ export default function StockPage() {
 
       await Promise.all([
         mutateSummary(),
+        mutateSearchedSummary(),
         mutateMovements(),
         mutateProductCatalog(),
       ]);
@@ -512,6 +554,28 @@ export default function StockPage() {
     setAdjustmentReason("");
     setAdjustmentNote("");
     setAdjustmentError(null);
+  };
+
+  const handleStockSearchScan = async (barcode: string) => {
+    const scannedBarcode = barcode.trim();
+    setActiveTab("summary");
+    setStockSearchOffset(0);
+    setStockSearchInput(scannedBarcode);
+    setStockSearch(scannedBarcode);
+
+    try {
+      const response = await fetch(
+        `/api/products/lookup?barcode=${encodeURIComponent(scannedBarcode)}`,
+      );
+      const result = (await response.json()) as ApiResponse<BarcodeScanResult>;
+
+      if (response.ok && result.success && result.data.barcode) {
+        setStockSearchInput(result.data.barcode);
+        setStockSearch(result.data.barcode);
+      }
+    } catch {
+      // Keep searching by the scanned barcode if lookup is unavailable.
+    }
   };
 
   const handleStockAdjustmentOpenChange = (open: boolean) => {
@@ -557,7 +621,11 @@ export default function StockPage() {
         `${result.data.productName}: ${formatNumber(result.data.beforeStock)} → ${formatNumber(result.data.afterStock)} (${result.data.referenceNo})`,
       );
       setSelectedAdjustmentItem(null);
-      await Promise.all([mutateSummary(), mutateMovements()]);
+      await Promise.all([
+        mutateSummary(),
+        mutateSearchedSummary(),
+        mutateMovements(),
+      ]);
     } catch (error) {
       setAdjustmentError(
         error instanceof Error ? error.message : "ปรับสต๊อกไม่สำเร็จ",
@@ -682,7 +750,7 @@ export default function StockPage() {
 
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge className="h-8 rounded-full bg-blue-50 px-4 text-sm font-bold text-main-blue dark:bg-blue-500/10">
-                    {formatNumber(stockItems.length)} รายการ
+                    {formatNumber(stockItemsTotal)} รายการ
                   </Badge>
                   <Badge
                     variant="outline"
@@ -693,11 +761,54 @@ export default function StockPage() {
                 </div>
               </div>
 
-              {summaryLoading ? (
+              <div className="mb-4 flex flex-col gap-2 min-[560px]:flex-row">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    type="search"
+                    aria-label="ค้นหาสินค้าในสต็อก"
+                    value={stockSearchInput}
+                    onChange={(event) =>
+                      setStockSearchInput(event.target.value)
+                    }
+                    placeholder="ค้นหาชื่อสินค้าหรือบาร์โค้ด"
+                    className="h-11 rounded-[8px] pr-10 pl-10"
+                  />
+                  {stockSearchInput ? (
+                    <button
+                      type="button"
+                      aria-label="ล้างคำค้นหา"
+                      className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      onClick={() => {
+                        setStockSearchInput("");
+                        setStockSearch("");
+                        setStockSearchOffset(0);
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  ) : null}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 rounded-[8px] font-bold"
+                  onClick={() => setIsStockSearchScannerOpen(true)}
+                >
+                  <Camera className="h-4 w-4" />
+                  สแกนบาร์โค้ด
+                </Button>
+              </div>
+
+              {stockItemsLoading ? (
                 <div className="space-y-3 rounded-2xl border bg-white p-4 dark:bg-card">
                   {[1, 2, 3, 4, 5, 6, 7, 8].map((row) => (
                     <Skeleton key={row} className="h-14 w-full rounded-xl" />
                   ))}
+                </div>
+              ) : activeSummaryData && !activeSummaryData.success ? (
+                <div className="rounded-2xl border bg-white px-4 py-12 text-center text-main-red dark:bg-card">
+                  ค้นหาสต็อกไม่สำเร็จ กรุณาลองอีกครั้ง
                 </div>
               ) : stockItems.length === 0 ? (
                 <div className="rounded-2xl border bg-white px-4 py-12 text-center dark:bg-card">
@@ -705,10 +816,12 @@ export default function StockPage() {
                     <Package className="h-5 w-5 text-muted-foreground" />
                   </div>
                   <h3 className="text-lg font-bold text-card-foreground">
-                    ไม่พบข้อมูลสต็อก
+                    {stockSearch ? "ไม่พบสินค้าที่ค้นหา" : "ไม่พบข้อมูลสต็อก"}
                   </h3>
                   <p className="mt-1 text-sm font-medium text-muted-foreground">
-                    ยังไม่มีรายการสินค้าให้แสดงในช่วงนี้
+                    {stockSearch
+                      ? `ไม่มีสินค้าชื่อหรือบาร์โค้ดที่ตรงกับ “${stockSearch}”`
+                      : "ยังไม่มีรายการสินค้าให้แสดงในช่วงนี้"}
                   </p>
                 </div>
               ) : (
@@ -901,6 +1014,48 @@ export default function StockPage() {
                   </Table>
                 </div>
               )}
+              {stockSearch && stockItemsTotal > STOCK_LIST_LIMIT ? (
+                <div className="mt-4 flex items-center justify-between gap-3 text-sm font-medium text-muted-foreground">
+                  <span>
+                    แสดง {formatNumber(stockSearchOffset + 1)}–
+                    {formatNumber(
+                      Math.min(
+                        stockSearchOffset + STOCK_LIST_LIMIT,
+                        stockItemsTotal,
+                      ),
+                    )}{" "}
+                    จาก {formatNumber(stockItemsTotal)} รายการ
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={stockSearchOffset === 0}
+                      onClick={() =>
+                        setStockSearchOffset((offset) =>
+                          Math.max(0, offset - STOCK_LIST_LIMIT),
+                        )
+                      }
+                    >
+                      ก่อนหน้า
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={
+                        stockSearchOffset + STOCK_LIST_LIMIT >= stockItemsTotal
+                      }
+                      onClick={() =>
+                        setStockSearchOffset(
+                          (offset) => offset + STOCK_LIST_LIMIT,
+                        )
+                      }
+                    >
+                      ถัดไป
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </TabsContent>
 
@@ -1600,6 +1755,12 @@ export default function StockPage() {
         open={isBarcodeScannerOpen}
         onOpenChange={setIsBarcodeScannerOpen}
         onDetected={(barcode) => updateProductDraft({ barcode })}
+      />
+      <BarcodeCameraDialog
+        open={isStockSearchScannerOpen}
+        onOpenChange={setIsStockSearchScannerOpen}
+        onDetected={handleStockSearchScan}
+        description="สแกนเพื่อค้นหาสินค้าและดูจำนวนคงเหลือในสต็อก"
       />
     </div>
   );
