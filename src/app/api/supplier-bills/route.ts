@@ -651,9 +651,10 @@ async function receiveSupplierStock(
     }
 
     currentStock =
-      currentRow?.stock !== null && currentRow?.stock !== undefined
-        ? parseLegacyNumber(currentRow.stock)
-        : parseLegacyNumber(currentRow?.productStock);
+      currentRow?.productStock !== null &&
+      currentRow?.productStock !== undefined
+        ? parseLegacyNumber(currentRow.productStock)
+        : parseLegacyNumber(currentRow?.stock);
   }
 
   const nextStock = Number((currentStock + params.item.quantity).toFixed(2));
@@ -796,9 +797,10 @@ async function adjustSupplierStock(
     const currentRow = currentStockRows.recordset[0];
     productExists = Number(currentRow?.productCount || 0) > 0;
     currentStock =
-      currentRow?.stock !== null && currentRow?.stock !== undefined
-        ? parseLegacyNumber(currentRow.stock)
-        : parseLegacyNumber(currentRow?.productStock);
+      currentRow?.productStock !== null &&
+      currentRow?.productStock !== undefined
+        ? parseLegacyNumber(currentRow.productStock)
+        : parseLegacyNumber(currentRow?.stock);
   } else if (params.requireProduct) {
     const productRequest = new sql.Request(transaction);
     productRequest.input("barcode", sql.NVarChar(30), barcode);

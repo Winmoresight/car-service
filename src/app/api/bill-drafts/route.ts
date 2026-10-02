@@ -797,18 +797,41 @@ async function createLegacySaleBill(params: {
       currentStockRequest.input("barCode", sql.NVarChar(30), barCode);
 
       const currentStockRows = await currentStockRequest.query<{
-        Stock: string | null;
+        movementStock: string | number | null;
+        productStock: string | number | null;
       }>(`
-        SELECT TOP 1 Stock
-        FROM dbo.INOUTStockProduct WITH (UPDLOCK, HOLDLOCK)
-        WHERE BarCode = @barCode
-        ORDER BY DateSave DESC, Times DESC, NumberPrint DESC
+        SELECT
+          (
+            SELECT TOP 1 Stock
+            FROM dbo.INOUTStockProduct WITH (UPDLOCK, HOLDLOCK)
+            WHERE BarCode = @barCode
+            ORDER BY DateSave DESC, Times DESC, NumberPrint DESC
+          ) as movementStock,
+          (
+            SELECT TOP 1 NProduct
+            FROM dbo.MasterProductDetail WITH (UPDLOCK, HOLDLOCK)
+            WHERE BarCode = @barCode
+          ) as productStock
       `);
 
-      const currentStock = parseLegacyNumber(
-        currentStockRows.recordset[0]?.Stock,
-      );
-      const nextStock = currentStock - item.quantity;
+      const currentStockRow = currentStockRows.recordset[0];
+      const currentStock =
+        currentStockRow?.productStock !== null &&
+        currentStockRow?.productStock !== undefined
+          ? parseLegacyNumber(currentStockRow.productStock)
+          : parseLegacyNumber(currentStockRow?.movementStock);
+      const nextStock = Number((currentStock - item.quantity).toFixed(2));
+      const masterStockRequest = new sql.Request(transaction);
+
+      masterStockRequest.input("barCode", sql.NVarChar(30), barCode);
+      masterStockRequest.input("stock", sql.Real, nextStock);
+
+      await masterStockRequest.query(`
+        UPDATE dbo.MasterProductDetail
+        SET NProduct = @stock
+        WHERE BarCode = @barCode
+      `);
+
       const stockRequest = new sql.Request(transaction);
 
       stockRequest.input("dateSave", sql.DateTime, createdAt);
