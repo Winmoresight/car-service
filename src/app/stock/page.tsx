@@ -186,6 +186,8 @@ export default function StockPage() {
   const [isCreatingProduct, setIsCreatingProduct] = useState(false);
   const [selectedAdjustmentItem, setSelectedAdjustmentItem] =
     useState<StockItem | null>(null);
+  const [selectedMovementItem, setSelectedMovementItem] =
+    useState<StockItem | null>(null);
   const [adjustmentMode, setAdjustmentMode] =
     useState<StockAdjustmentMode>("increase");
   const [adjustmentQuantity, setAdjustmentQuantity] = useState("");
@@ -233,6 +235,14 @@ export default function StockPage() {
       refreshInterval: 30000,
     },
   );
+  const { data: movementDetailData, isLoading: movementDetailLoading } = useSWR<
+    ApiResponse<PaginatedPayload<StockMovement>>
+  >(
+    selectedMovementItem
+      ? `/api/stock?type=movements&limit=200&barcode=${encodeURIComponent(selectedMovementItem.barCode)}`
+      : null,
+    fetcher,
+  );
   const {
     data: productCatalogData,
     isLoading: productCatalogLoading,
@@ -268,6 +278,13 @@ export default function StockPage() {
     movementsData?.success && movementsData.data?.items
       ? movementsData.data.items
       : [];
+  const movementDetails =
+    movementDetailData?.success && movementDetailData.data?.items
+      ? movementDetailData.data.items
+      : [];
+  const movementDetailTotal = movementDetailData?.success
+    ? movementDetailData.data.total
+    : 0;
   const productCatalog =
     productCatalogData?.success && productCatalogData.data
       ? productCatalogData.data
@@ -554,6 +571,10 @@ export default function StockPage() {
     setAdjustmentReason("");
     setAdjustmentNote("");
     setAdjustmentError(null);
+  };
+
+  const openMovementDetails = (item: StockItem) => {
+    setSelectedMovementItem(item);
   };
 
   const handleStockSearchScan = async (barcode: string) => {
@@ -864,16 +885,16 @@ export default function StockPage() {
                             key={`${item.barCode}-${item.name}-${index}`}
                             role="button"
                             tabIndex={0}
-                            aria-label={`ปรับสต๊อก ${item.name || item.barCode}`}
+                            aria-label={`ดูประวัติการเคลื่อนไหว ${item.name || item.barCode}`}
                             className={cn(
                               "group cursor-pointer border-border/60 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
                               stockMeta.rowClassName,
                             )}
-                            onClick={() => openStockAdjustment(item)}
+                            onClick={() => openMovementDetails(item)}
                             onKeyDown={(event) => {
                               if (event.key === "Enter" || event.key === " ") {
                                 event.preventDefault();
-                                openStockAdjustment(item);
+                                openMovementDetails(item);
                               }
                             }}
                           >
@@ -899,9 +920,16 @@ export default function StockPage() {
                                   >
                                     {item.barCode || "-"}
                                   </span>
-                                  <p className="text-xs font-semibold text-muted-foreground min-[760px]:hidden">
+                                  <button
+                                    type="button"
+                                    className="w-fit text-left text-xs font-semibold text-main-blue hover:underline min-[760px]:hidden"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      openMovementDetails(item);
+                                    }}
+                                  >
                                     เคลื่อนไหว {formatNumber(item.movements)} ครั้ง
-                                  </p>
+                                  </button>
                                   <Button
                                     type="button"
                                     variant="outline"
@@ -941,13 +969,20 @@ export default function StockPage() {
                               </div>
                             </TableCell>
 
-                            <TableCell
-                              className={cn(
-                                outfit.className,
-                                "hidden text-right text-sm font-bold text-muted-foreground min-[760px]:table-cell",
-                              )}
-                            >
-                              {formatNumber(item.movements)} ครั้ง
+                            <TableCell className="hidden text-right min-[760px]:table-cell">
+                              <button
+                                type="button"
+                                className={cn(
+                                  outfit.className,
+                                  "text-sm font-bold text-main-blue hover:underline",
+                                )}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openMovementDetails(item);
+                                }}
+                              >
+                                {formatNumber(item.movements)} ครั้ง
+                              </button>
                             </TableCell>
 
                             <TableCell className="hidden align-middle min-[1024px]:table-cell">
@@ -1271,6 +1306,157 @@ export default function StockPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <LargeDialog
+        open={selectedMovementItem !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedMovementItem(null);
+          }
+        }}
+      >
+        <LargeDialogContent size="lg">
+          <LargeDialogHeader className="pr-16">
+            <div className="flex items-start gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] border border-blue-100 bg-blue-50 text-main-blue dark:border-blue-500/20 dark:bg-blue-500/10">
+                <Clock className="h-6 w-6" />
+              </div>
+              <div className="min-w-0">
+                <LargeDialogTitle>ประวัติการเคลื่อนไหว</LargeDialogTitle>
+                <LargeDialogDescription>
+                  รายการรับเข้าและจ่ายออกของสินค้าที่เลือก
+                </LargeDialogDescription>
+              </div>
+            </div>
+          </LargeDialogHeader>
+
+          <LargeDialogBody className="space-y-4">
+            <div className="flex items-center justify-between gap-4 rounded-[8px] border bg-secondary/40 p-4">
+              <div className="min-w-0">
+                <p className="truncate font-bold text-card-foreground">
+                  {selectedMovementItem?.name || "ไม่ระบุสินค้า"}
+                </p>
+                <p
+                  className={cn(
+                    outfit.className,
+                    "text-sm text-muted-foreground",
+                  )}
+                >
+                  {selectedMovementItem?.barCode || "-"}
+                </p>
+              </div>
+              <Badge
+                variant="outline"
+                className="h-8 shrink-0 rounded-full bg-white px-3 font-bold text-main-blue shadow-none dark:bg-background"
+              >
+                {formatNumber(
+                  movementDetailLoading
+                    ? (selectedMovementItem?.movements ?? 0)
+                    : movementDetailTotal,
+                )}{" "}
+                ครั้ง
+              </Badge>
+            </div>
+
+            {movementDetailLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3, 4].map((row) => (
+                  <Skeleton key={row} className="h-24 w-full rounded-xl" />
+                ))}
+              </div>
+            ) : movementDetailData && !movementDetailData.success ? (
+              <div className="rounded-[8px] border border-red-100 bg-red-50 px-4 py-10 text-center font-bold text-main-red dark:border-red-500/20 dark:bg-red-500/10">
+                โหลดประวัติการเคลื่อนไหวไม่สำเร็จ กรุณาลองอีกครั้ง
+              </div>
+            ) : movementDetails.length === 0 ? (
+              <div className="rounded-[8px] border px-4 py-10 text-center text-sm font-semibold text-muted-foreground">
+                ไม่พบประวัติการเคลื่อนไหวของสินค้านี้
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {movementDetails.map((movement, index) => {
+                  const movementMeta = getMovementMeta(movement.type);
+                  const MovementIcon = movementMeta.icon;
+                  const movementDate = formatDateParts(movement.date);
+
+                  return (
+                    <div
+                      key={`${movement.barCode}-${movement.date}-${index}`}
+                      className="flex items-start gap-3 rounded-[8px] border bg-card p-4"
+                    >
+                      <div
+                        className={cn(
+                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border",
+                          movementMeta.iconClassName,
+                        )}
+                      >
+                        <MovementIcon className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "h-7 rounded-full px-3 text-xs font-bold shadow-none",
+                                movementMeta.className,
+                              )}
+                            >
+                              {movementMeta.label}
+                            </Badge>
+                            <p className="mt-2 text-sm font-bold text-card-foreground">
+                              {movementDate.date} {movementDate.time}
+                            </p>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <p
+                              className={cn(
+                                outfit.className,
+                                "text-lg font-bold",
+                                movement.type === "in"
+                                  ? "text-main-green"
+                                  : "text-main-blue",
+                              )}
+                            >
+                              {movement.type === "in" ? "+" : "-"}
+                              {formatNumber(movement.quantity)}
+                            </p>
+                            <p className="text-xs font-semibold text-muted-foreground">
+                              คงเหลือ {formatNumber(movement.stock)}
+                            </p>
+                          </div>
+                        </div>
+                        {movement.company ? (
+                          <p className="mt-2 truncate text-xs font-semibold text-muted-foreground">
+                            {movement.company}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+                {movementDetailTotal > movementDetails.length ? (
+                  <p className="text-center text-xs font-semibold text-muted-foreground">
+                    แสดง {formatNumber(movementDetails.length)} รายการล่าสุด จาก{" "}
+                    {formatNumber(movementDetailTotal)} รายการ
+                  </p>
+                ) : null}
+              </div>
+            )}
+          </LargeDialogBody>
+
+          <LargeDialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 rounded-[8px] font-bold"
+              onClick={() => setSelectedMovementItem(null)}
+            >
+              ปิด
+            </Button>
+          </LargeDialogFooter>
+        </LargeDialogContent>
+      </LargeDialog>
 
       <LargeDialog
         open={isCreateProductOpen}

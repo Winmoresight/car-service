@@ -863,6 +863,17 @@ function SupplierBillEditDialog({
     setErrorMessage(null);
   };
 
+  const selectLineProduct = (
+    item: SupplierBillDraftLine,
+    product: SupplierCatalogProduct,
+  ) => {
+    updateLineItem(item.id, {
+      ...getLineProductUpdates(item, product),
+      unitPrice: getMoneyInputValue(product.cost || product.unitPrice),
+    });
+    setErrorMessage(null);
+  };
+
   const lookupLineProduct = async (
     item: SupplierBillDraftLine,
     barcodeInput = item.barcode,
@@ -1393,9 +1404,9 @@ function SupplierBillEditDialog({
                       return (
                         <div
                           key={item.id || `${bill.id}-${index}`}
-                          className="overflow-hidden rounded-xl border border-slate-200 bg-background shadow-[0_4px_16px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_8px_24px_rgba(15,23,42,0.09)] dark:border-border"
+                          className="overflow-visible rounded-xl border border-slate-200 bg-background shadow-[0_4px_16px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_8px_24px_rgba(15,23,42,0.09)] dark:border-border"
                         >
-                          <div className="flex flex-col gap-3 border-b border-blue-100 bg-gradient-to-r from-blue-50/90 via-white to-white px-4 py-3 dark:border-blue-500/20 dark:from-blue-500/10 dark:via-card dark:to-card min-[680px]:flex-row min-[680px]:items-center min-[680px]:justify-between">
+                          <div className="flex flex-col gap-3 rounded-t-xl border-b border-blue-100 bg-gradient-to-r from-blue-50/90 via-white to-white px-4 py-3 dark:border-blue-500/20 dark:from-blue-500/10 dark:via-card dark:to-card min-[680px]:flex-row min-[680px]:items-center min-[680px]:justify-between">
                             <div className="flex min-w-0 items-center gap-3">
                               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-main-blue text-sm font-bold text-white shadow-sm">
                                 {index + 1}
@@ -1450,22 +1461,55 @@ function SupplierBillEditDialog({
                               </div>
                               <div className="grid gap-3 min-[760px]:grid-cols-[minmax(0,1.3fr)_minmax(150px,0.7fr)]">
                                 <div className="space-y-1.5">
-                                  <label
-                                    htmlFor={`supplier-edit-name-${item.id}`}
-                                    className="block text-xs font-bold text-muted-foreground"
-                                  >
-                                    รายการสินค้า
-                                  </label>
-                                  <Input
-                                    id={`supplier-edit-name-${item.id}`}
-                                    value={item.name}
-                                    onChange={(event) =>
-                                      updateLineItem(item.id, {
-                                        name: event.target.value,
-                                      })
-                                    }
-                                    className="h-10 rounded-[8px] font-semibold"
-                                  />
+                                  {!item.rowNo && !item.orderNo ? (
+                                    <span className="block text-xs font-bold text-muted-foreground">
+                                      รายการสินค้า
+                                    </span>
+                                  ) : (
+                                    <label
+                                      htmlFor={`supplier-edit-name-${item.id}`}
+                                      className="block text-xs font-bold text-muted-foreground"
+                                    >
+                                      รายการสินค้า
+                                    </label>
+                                  )}
+                                  {!item.rowNo && !item.orderNo ? (
+                                    <AsyncSearchableSelect<SupplierCatalogProduct>
+                                      selectedLabel={item.name || undefined}
+                                      placeholder="เลือกสินค้าในคลัง"
+                                      searchPlaceholder="ค้นหาชื่อสินค้าหรือบาร์โค้ด..."
+                                      emptyMessage="ไม่พบสินค้าในคลัง"
+                                      fetchOptions={fetchSupplierProductOptions}
+                                      getOptionKey={(product) =>
+                                        product.barcode || product.productCode
+                                      }
+                                      getOptionLabel={(product) => product.name}
+                                      getOptionDescription={(product) =>
+                                        [product.barcode, product.unit]
+                                          .filter(Boolean)
+                                          .join(" · ")
+                                      }
+                                      isOptionSelected={(product) =>
+                                        !!item.barcode &&
+                                        product.barcode === item.barcode
+                                      }
+                                      onSelect={(product) =>
+                                        selectLineProduct(item, product)
+                                      }
+                                      triggerClassName="h-10 rounded-[8px] font-semibold"
+                                    />
+                                  ) : (
+                                    <Input
+                                      id={`supplier-edit-name-${item.id}`}
+                                      value={item.name}
+                                      onChange={(event) =>
+                                        updateLineItem(item.id, {
+                                          name: event.target.value,
+                                        })
+                                      }
+                                      className="h-10 rounded-[8px] font-semibold"
+                                    />
+                                  )}
                                 </div>
 
                                 <div className="space-y-1.5">

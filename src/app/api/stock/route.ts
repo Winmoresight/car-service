@@ -311,19 +311,12 @@ async function adjustStock(payload: StockAdjustmentPayload) {
       unit: string | null;
       costPrice: number | string | null;
       productStock: number | string | null;
-      movementStock: number | string | null;
     }>(`
       SELECT TOP 1
         ISNULL(m.NameProduct, N'') as name,
         ISNULL(d.MeterProduct, N'') as unit,
         ISNULL(d.CostPrice, 0) as costPrice,
-        ISNULL(d.NProduct, 0) as productStock,
-        (
-          SELECT TOP 1 Stock
-          FROM dbo.INOUTStockProduct WITH (UPDLOCK, HOLDLOCK)
-          WHERE BarCode = @barcode
-          ORDER BY DateSave DESC, Times DESC, NumberPrint DESC
-        ) as movementStock
+        ISNULL(d.NProduct, 0) as productStock
       FROM dbo.MasterProductDetail d WITH (UPDLOCK, HOLDLOCK)
       LEFT JOIN dbo.MasterProduct m WITH (UPDLOCK, HOLDLOCK)
         ON m.CodeProduct = d.CodeProduct
@@ -337,10 +330,7 @@ async function adjustStock(payload: StockAdjustmentPayload) {
       );
     }
 
-    const beforeStock =
-      product.movementStock !== null && product.movementStock !== undefined
-        ? Number(product.movementStock) || 0
-        : Number(product.productStock) || 0;
+    const beforeStock = Number(product.productStock) || 0;
     const afterStock = Number(
       (payload.mode === "set"
         ? payload.quantity
@@ -911,6 +901,10 @@ export async function GET(request: NextRequest) {
     const limit = getLimit(searchParams.get("limit"));
     const offset = getOffset(searchParams.get("offset"));
     const search = truncateText(normalizeText(searchParams.get("search")), 100);
+    const barcode = truncateText(
+      normalizeText(searchParams.get("barcode")).replace(/\s+/g, ""),
+      30,
+    );
 
     if (type === "catalog") {
       const categoryId =
@@ -925,28 +919,66 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(response);
     }
 
+    const [barcodeAliasTableState] = await executeQuery<{ total: number }>(
+      `SELECT CASE
+        WHEN OBJECT_ID(N'dbo.${productBarcodeAliasTableName}', N'U') IS NULL
+          THEN 0
+        ELSE 1
+      END as total`,
+      undefined,
+      false,
+    );
+    const hasBarcodeAliases = Number(barcodeAliasTableState?.total || 0) > 0;
+    const barcodeAliasJoin = hasBarcodeAliases
+      ? `LEFT JOIN dbo.${productBarcodeAliasTableName} barcodeAlias
+          ON barcodeAlias.AliasBarcode = movement.BarCode`
+      : "";
+    const resolvedBarcode = hasBarcodeAliases
+      ? "COALESCE(NULLIF(barcodeAlias.CanonicalBarcode, N''), movement.BarCode)"
+      : "movement.BarCode";
+    const currentProductLookup = `
+      OUTER APPLY (
+        SELECT TOP 1
+          detail.NProduct as currentStock,
+          master.NameProduct as currentName
+        FROM dbo.MasterProductDetail detail
+        LEFT JOIN dbo.MasterProduct master
+          ON master.CodeProduct = detail.CodeProduct
+        WHERE detail.BarCode = ${resolvedBarcode}
+        ORDER BY detail.CodeProduct
+      ) product
+    `;
+
     if (type === "movements") {
       // Get recent stock movements
       const query = `
         WITH MovementData AS (
           SELECT
-            BarCode as barCode,
-            NameProduct as name,
-            DateSave as date,
+            ${resolvedBarcode} as barCode,
+            COALESCE(NULLIF(product.currentName, N''), movement.NameProduct) as name,
+            movement.DateSave as date,
             CASE
-              WHEN Debit > 0 THEN 'in'
-              WHEN Credit > 0 THEN 'out'
+              WHEN movement.Debit > 0 THEN 'in'
+              WHEN movement.Credit > 0 THEN 'out'
               ELSE 'in'
             END as type,
             CASE
-              WHEN Debit > 0 THEN Debit
-              WHEN Credit > 0 THEN Credit
+              WHEN movement.Debit > 0 THEN movement.Debit
+              WHEN movement.Credit > 0 THEN movement.Credit
               ELSE 0
             END as quantity,
-            Stock as stock,
-            NameCompany as company,
-            ROW_NUMBER() OVER (ORDER BY DateSave DESC, Times DESC, NumberPrint DESC) as RowNum
-          FROM dbo.INOUTStockProduct
+            movement.Stock as stock,
+            movement.NameCompany as company,
+            ROW_NUMBER() OVER (
+              ORDER BY
+                movement.DateSave DESC,
+                movement.Times DESC,
+                movement.NumberPrint DESC
+            ) as RowNum
+          FROM dbo.INOUTStockProduct movement
+          ${barcodeAliasJoin}
+          ${currentProductLookup}
+          WHERE @barcode = N'' OR ${resolvedBarcode} = @barcode
         )
         SELECT
           barCode,
@@ -969,9 +1001,13 @@ export async function GET(request: NextRequest) {
         quantity: number;
         stock: number;
         company: string;
-      }>(query, { limit, offset });
+      }>(query, { limit, offset, barcode });
       const [countResult] = await executeQuery<{ total: number }>(
-        "SELECT COUNT(*) as total FROM dbo.INOUTStockProduct",
+        `SELECT COUNT(*) as total
+        FROM dbo.INOUTStockProduct movement
+        ${barcodeAliasJoin}
+        WHERE @barcode = N'' OR ${resolvedBarcode} = @barcode`,
+        { barcode },
       );
 
       const stockMovements: StockMovement[] = movements.map((row) => ({
@@ -998,22 +1034,52 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(response);
     }
 
-    // Get stock summary
-    const query = `
+    // Build the summary from the current product catalog. Movement rows are
+    // historical and can retain old names or barcodes after a product update.
+    const stockSummaryCte = `
       WITH RankedMovements AS (
         SELECT
-          BarCode as barCode,
-          NameProduct as name,
-          Stock as currentStock,
-          DateSave as lastUpdate,
-          COUNT(*) OVER (PARTITION BY BarCode) as movements,
+          ${resolvedBarcode} as barCode,
+          movement.NameProduct as movementName,
+          movement.DateSave as lastUpdate,
+          COUNT(*) OVER (PARTITION BY ${resolvedBarcode}) as movements,
           ROW_NUMBER() OVER (
-            PARTITION BY BarCode
-            ORDER BY DateSave DESC, Times DESC, NumberPrint DESC
+            PARTITION BY ${resolvedBarcode}
+            ORDER BY
+              movement.DateSave DESC,
+              movement.Times DESC,
+              movement.NumberPrint DESC
           ) as LatestRow
-        FROM dbo.INOUTStockProduct
-        WHERE ISNULL(BarCode, N'') <> N''
+        FROM dbo.INOUTStockProduct movement
+        ${barcodeAliasJoin}
+        WHERE ISNULL(movement.BarCode, N'') <> N''
       ),
+      CurrentProducts AS (
+        SELECT
+          detail.BarCode as barCode,
+          COALESCE(
+            NULLIF(master.NameProduct, N''),
+            NULLIF(latestMovement.movementName, N''),
+            N'ไม่ระบุสินค้า'
+          ) as name,
+          ISNULL(detail.NProduct, 0) as currentStock,
+          latestMovement.lastUpdate,
+          ISNULL(latestMovement.movements, 0) as movements,
+          ROW_NUMBER() OVER (
+            PARTITION BY detail.BarCode
+            ORDER BY detail.CodeProduct
+          ) as ProductRow
+        FROM dbo.MasterProductDetail detail
+        LEFT JOIN dbo.MasterProduct master
+          ON master.CodeProduct = detail.CodeProduct
+        LEFT JOIN RankedMovements latestMovement
+          ON latestMovement.barCode = detail.BarCode
+          AND latestMovement.LatestRow = 1
+        WHERE ISNULL(detail.BarCode, N'') <> N''
+      )
+    `;
+    const query = `
+      ${stockSummaryCte},
       PaginatedData AS (
         SELECT
           barCode,
@@ -1022,8 +1088,8 @@ export async function GET(request: NextRequest) {
           lastUpdate,
           movements,
           ROW_NUMBER() OVER (ORDER BY name, barCode) as RowNum
-        FROM RankedMovements
-        WHERE LatestRow = 1
+        FROM CurrentProducts
+        WHERE ProductRow = 1
           AND (
             @search = N''
             OR CHARINDEX(@search, barCode) > 0
@@ -1045,24 +1111,14 @@ export async function GET(request: NextRequest) {
       barCode: string;
       name: string;
       currentStock: number;
-      lastUpdate: Date;
+      lastUpdate: Date | null;
       movements: number;
     }>(query, { limit, offset, search });
     const [countResult] = await executeQuery<{ total: number }>(
-      `WITH RankedMovements AS (
-        SELECT
-          BarCode as barCode,
-          NameProduct as name,
-          ROW_NUMBER() OVER (
-            PARTITION BY BarCode
-            ORDER BY DateSave DESC, Times DESC, NumberPrint DESC
-          ) as LatestRow
-        FROM dbo.INOUTStockProduct
-        WHERE ISNULL(BarCode, N'') <> N''
-      )
+      `${stockSummaryCte}
       SELECT COUNT(*) as total
-      FROM RankedMovements
-      WHERE LatestRow = 1
+      FROM CurrentProducts
+      WHERE ProductRow = 1
         AND (
           @search = N''
           OR CHARINDEX(@search, barCode) > 0
@@ -1075,7 +1131,7 @@ export async function GET(request: NextRequest) {
       barCode: row.barCode,
       name: row.name,
       currentStock: Number(row.currentStock) || 0,
-      lastUpdate: new Date(row.lastUpdate).toISOString(),
+      lastUpdate: row.lastUpdate ? new Date(row.lastUpdate).toISOString() : "",
       movements: Number(row.movements) || 0,
     }));
 
