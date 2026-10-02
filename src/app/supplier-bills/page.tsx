@@ -1481,7 +1481,9 @@ function SupplierBillEditDialog({
                                       emptyMessage="ไม่พบสินค้าในคลัง"
                                       fetchOptions={fetchSupplierProductOptions}
                                       getOptionKey={(product) =>
-                                        product.barcode || product.productCode
+                                        product.barcode ||
+                                        product.productCode ||
+                                        product.name
                                       }
                                       getOptionLabel={(product) => product.name}
                                       getOptionDescription={(product) =>
