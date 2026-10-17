@@ -858,13 +858,12 @@ export async function GET(request: NextRequest) {
         getOutstandingReceivables(params),
       ]);
 
-      const categorySales = normalizeMoney(
-        categories.reduce((sum, category) => sum + category.amount, 0),
-      );
       const soldQuantity = normalizeMoney(
         categories.reduce((sum, category) => sum + category.quantity, 0),
       );
-      const salesTotal = categorySales || saleSummary.total;
+      // The closing total must include every sale document, including POCV
+      // documents whose product details are stored outside DetailSalePost.
+      const salesTotal = saleSummary.total;
       const netAmount = normalizeMoney(
         salesTotal +
           saleSummary.deposits +

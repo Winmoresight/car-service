@@ -277,6 +277,14 @@ export function FinancialSummaryDialog({
     { keepPreviousData: true, refreshInterval: 30000 },
   );
   const summary = data?.success ? data.data : undefined;
+  const categorizedSalesTotal = useMemo(
+    () =>
+      summary?.categories.reduce(
+        (total, category) => total + category.amount,
+        0,
+      ) ?? 0,
+    [summary],
+  );
   const periodLabel = useMemo(() => {
     const from = dateRange.from ?? initialDate;
     const to = dateRange.to ?? from;
@@ -790,8 +798,7 @@ export function FinancialSummaryDialog({
                           </span>
                           <span className="font-bold text-card-foreground">
                             {formatQuantity(summary.metrics.soldQuantity)}{" "}
-                            รายการ ·{" "}
-                            {formatCurrency(summary.metrics.salesTotal)} บาท
+                            รายการ · {formatCurrency(categorizedSalesTotal)} บาท
                           </span>
                         </div>
                       </div>
