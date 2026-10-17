@@ -5,6 +5,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
+import { getPocvDateExpression } from "@/lib/legacy-pocv";
 import { getProductAnalyticsSqlConfig } from "@/lib/product-analytics-policy";
 import type { ApiResponse, DailySales } from "@/types/api";
 
@@ -79,6 +80,7 @@ export async function GET(request: NextRequest) {
       [customStartDate, customEndDate] = [customEndDate, customStartDate];
     }
     const requestedDays = Number.parseInt(searchParams.get("days") || "30", 10);
+    const pocvDateExpression = getPocvDateExpression("p");
     const { startDateExpression, endDateExpression } = customStartDate
       ? {
           startDateExpression: "CONVERT(date, @startDate)",
@@ -115,20 +117,21 @@ export async function GET(request: NextRequest) {
         UNION ALL
 
         SELECT
-          CONVERT(date, p.DatePost) as sale_date,
-          p.NumberPrintPost as document_no,
+          CONVERT(date, ${pocvDateExpression}) as sale_date,
+          p.NumberPrintCash as document_no,
           ISNULL(p.TotalPrice, 0) as total_sales,
           ISNULL(p.PayCash, 0) as total_cash,
           ISNULL(p.PayTransfer, 0) as total_transfer
-        FROM dbo.MasterPrintPost p
-        WHERE p.DatePost >= ${startDateExpression}
-          AND p.DatePost < ${endDateExpression}
-          AND DATEDIFF(day, '19000107', CONVERT(date, p.DatePost)) % 7 <> 0
-          AND UPPER(LTRIM(RTRIM(ISNULL(p.NumberPrintPost, '')))) LIKE N'POCV%'
+        FROM dbo.MasterPrintCashVate p
+        WHERE ${pocvDateExpression} >= ${startDateExpression}
+          AND ${pocvDateExpression} < ${endDateExpression}
+          AND DATEDIFF(day, '19000107', CONVERT(date, ${pocvDateExpression})) % 7 <> 0
+          AND UPPER(LTRIM(RTRIM(ISNULL(p.NumberPrintCash, '')))) LIKE N'POCV%'
           AND NOT EXISTS (
             SELECT 1
             FROM dbo.MasterSalePost existing_sale
-            WHERE existing_sale.NumberPrintSalePost = p.NumberPrintPost
+            WHERE existing_sale.NumberPrintSalePost = p.NumberPrintCash
+              OR existing_sale.NumberPrintCash = p.NumberPrintCash
           )
       ),
       TransactionDaily AS (

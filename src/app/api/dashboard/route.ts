@@ -11,6 +11,7 @@
 import type { NextRequest } from "next/server";
 import { handleApiError, successResponse, withTimeout } from "@/lib/api-utils";
 import { executeQuery } from "@/lib/db";
+import { getPocvDateExpression } from "@/lib/legacy-pocv";
 import { getProductAnalyticsSqlConfig } from "@/lib/product-analytics-policy";
 import {
   buildReceivablePaymentCte,
@@ -518,6 +519,7 @@ async function getDailySaleMoneyItems(
   range: DashboardDateRangeSql,
 ): Promise<DashboardMoneyBreakdownItem[]> {
   try {
+    const pocvDateExpression = getPocvDateExpression("p");
     const cashExpression = getSafeMoneyExpression("m.Cash");
     const transferExpression = getSafeMoneyExpression("m.Transfer");
     const pocvCashExpression = getSafeMoneyExpression("p.PayCash");
@@ -539,20 +541,21 @@ async function getDailySaleMoneyItems(
           UNION ALL
 
           SELECT
-            ISNULL(p.NumberPrintPost, '') as number_print,
-            p.DatePost as date_post,
+            ISNULL(p.NumberPrintCash, '') as number_print,
+            ${pocvDateExpression} as date_post,
             ISNULL(p.NameCustomer, N'ไม่ระบุลูกค้า') as customer_name,
             ISNULL(p.NameCar, '') as name_car,
             ISNULL(p.Province, '') as province,
             ${pocvCashExpression} as cash,
             ${pocvTransferExpression} as transfer
-          FROM dbo.MasterPrintPost p
-          WHERE ${getDateRangeCondition("p.DatePost", range)}
-            AND UPPER(LTRIM(RTRIM(ISNULL(p.NumberPrintPost, '')))) LIKE N'POCV%'
+          FROM dbo.MasterPrintCashVate p
+          WHERE ${getDateRangeCondition(pocvDateExpression, range)}
+            AND UPPER(LTRIM(RTRIM(ISNULL(p.NumberPrintCash, '')))) LIKE N'POCV%'
             AND NOT EXISTS (
               SELECT 1
               FROM dbo.MasterSalePost existing_sale
-              WHERE existing_sale.NumberPrintSalePost = p.NumberPrintPost
+              WHERE existing_sale.NumberPrintSalePost = p.NumberPrintCash
+                OR existing_sale.NumberPrintCash = p.NumberPrintCash
             )
         )
         SELECT
@@ -670,7 +673,11 @@ export async function GET(request: NextRequest) {
     // Wrap ด้วย timeout (60 วินาที)
     const data = await withTimeout(async () => {
       const saleDateCondition = getDateRangeCondition("DateSalePost", range);
-      const pocvDateCondition = getDateRangeCondition("p.DatePost", range);
+      const pocvDateExpression = getPocvDateExpression("p");
+      const pocvDateCondition = getDateRangeCondition(
+        pocvDateExpression,
+        range,
+      );
       const analyticsSql = await getProductAnalyticsSqlConfig(
         "analyticsSale",
         "dashboard",
@@ -691,18 +698,19 @@ export async function GET(request: NextRequest) {
           UNION ALL
 
           SELECT
-            p.NumberPrintPost as document_no,
+            p.NumberPrintCash as document_no,
             p.NameCar as name_car,
             ${getSafeMoneyExpression("p.TotalPrice")} as total_price,
             ${getSafeMoneyExpression("p.PayCash")} as cash,
             ${getSafeMoneyExpression("p.PayTransfer")} as transfer
-          FROM dbo.MasterPrintPost p
+          FROM dbo.MasterPrintCashVate p
           WHERE ${pocvDateCondition}
-            AND UPPER(LTRIM(RTRIM(ISNULL(p.NumberPrintPost, '')))) LIKE N'POCV%'
+            AND UPPER(LTRIM(RTRIM(ISNULL(p.NumberPrintCash, '')))) LIKE N'POCV%'
             AND NOT EXISTS (
               SELECT 1
               FROM dbo.MasterSalePost existing_sale
-              WHERE existing_sale.NumberPrintSalePost = p.NumberPrintPost
+              WHERE existing_sale.NumberPrintSalePost = p.NumberPrintCash
+                OR existing_sale.NumberPrintCash = p.NumberPrintCash
             )
         )
         SELECT 
@@ -731,16 +739,17 @@ export async function GET(request: NextRequest) {
           UNION ALL
 
           SELECT
-            p.NumberPrintPost as document_no,
+            p.NumberPrintCash as document_no,
             ${getSafeMoneyExpression("p.TotalPrice")} as total_price
-          FROM dbo.MasterPrintPost p
-          WHERE YEAR(p.DatePost) = YEAR(GETDATE())
-            AND MONTH(p.DatePost) = MONTH(GETDATE())
-            AND UPPER(LTRIM(RTRIM(ISNULL(p.NumberPrintPost, '')))) LIKE N'POCV%'
+          FROM dbo.MasterPrintCashVate p
+          WHERE YEAR(${pocvDateExpression}) = YEAR(GETDATE())
+            AND MONTH(${pocvDateExpression}) = MONTH(GETDATE())
+            AND UPPER(LTRIM(RTRIM(ISNULL(p.NumberPrintCash, '')))) LIKE N'POCV%'
             AND NOT EXISTS (
               SELECT 1
               FROM dbo.MasterSalePost existing_sale
-              WHERE existing_sale.NumberPrintSalePost = p.NumberPrintPost
+              WHERE existing_sale.NumberPrintSalePost = p.NumberPrintCash
+                OR existing_sale.NumberPrintCash = p.NumberPrintCash
             )
         )
         SELECT 

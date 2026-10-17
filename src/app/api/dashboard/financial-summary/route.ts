@@ -6,6 +6,7 @@
 import type { NextRequest } from "next/server";
 import { handleApiError, successResponse, withTimeout } from "@/lib/api-utils";
 import { executeQuery } from "@/lib/db";
+import { getPocvDateExpression } from "@/lib/legacy-pocv";
 import {
   buildReceivablePaymentCte as buildSharedReceivablePaymentCte,
   getReceivablePaymentSourceConfig,
@@ -287,6 +288,7 @@ function buildPaidSalesCte() {
   const pocvTotal = getSafeMoneyExpression("p.TotalPrice");
   const pocvCash = getSafeMoneyExpression("p.PayCash");
   const pocvTransfer = getSafeMoneyExpression("p.PayTransfer");
+  const pocvDateExpression = getPocvDateExpression("p");
 
   return `
     WITH paid_sales AS (
@@ -319,8 +321,8 @@ function buildPaidSalesCte() {
       UNION ALL
 
       SELECT
-        ISNULL(p.NumberPrintPost, '') as document_no,
-        p.DatePost as occurred_at,
+        ISNULL(p.NumberPrintCash, '') as document_no,
+        ${pocvDateExpression} as occurred_at,
         ISNULL(p.NameCustomer, N'ไม่ระบุลูกค้า') as customer_name,
         ISNULL(p.NameCar, '') as name_car,
         ISNULL(p.Province, '') as province,
@@ -329,14 +331,15 @@ function buildPaidSalesCte() {
         ${pocvTransfer} as transfer,
         0 as deposits,
         ${pocvTotal} - ${pocvCash} - ${pocvTransfer} as remaining_amount
-      FROM dbo.MasterPrintPost p
-      WHERE CONVERT(date, p.DatePost) BETWEEN @dateFrom AND @dateTo
+      FROM dbo.MasterPrintCashVate p
+      WHERE CONVERT(date, ${pocvDateExpression}) BETWEEN @dateFrom AND @dateTo
         AND ${pocvTotal} > 0
-        AND UPPER(LTRIM(RTRIM(ISNULL(p.NumberPrintPost, '')))) LIKE N'POCV%'
+        AND UPPER(LTRIM(RTRIM(ISNULL(p.NumberPrintCash, '')))) LIKE N'POCV%'
         AND NOT EXISTS (
           SELECT 1
           FROM dbo.MasterSalePost existing_sale
-          WHERE existing_sale.NumberPrintSalePost = p.NumberPrintPost
+          WHERE existing_sale.NumberPrintSalePost = p.NumberPrintCash
+            OR existing_sale.NumberPrintCash = p.NumberPrintCash
         )
     )
   `;
@@ -381,6 +384,7 @@ async function getCategories(params: Record<string, unknown>) {
 }
 
 async function getSaleSummary(params: Record<string, unknown>) {
+  const pocvDateExpression = getPocvDateExpression("p");
   const [row] = await executeQuery<SaleSummaryRow>(
     `
       WITH selected_sales AS (
@@ -396,18 +400,19 @@ async function getSaleSummary(params: Record<string, unknown>) {
         UNION ALL
 
         SELECT
-          p.NumberPrintPost as document_no,
+          p.NumberPrintCash as document_no,
           ${getSafeMoneyExpression("p.TotalPrice")} as total,
           ${getSafeMoneyExpression("p.PayCash")} as cash,
           ${getSafeMoneyExpression("p.PayTransfer")} as transfer,
           0 as deposits
-        FROM dbo.MasterPrintPost p
-        WHERE CONVERT(date, p.DatePost) BETWEEN @dateFrom AND @dateTo
-          AND UPPER(LTRIM(RTRIM(ISNULL(p.NumberPrintPost, '')))) LIKE N'POCV%'
+        FROM dbo.MasterPrintCashVate p
+        WHERE CONVERT(date, ${pocvDateExpression}) BETWEEN @dateFrom AND @dateTo
+          AND UPPER(LTRIM(RTRIM(ISNULL(p.NumberPrintCash, '')))) LIKE N'POCV%'
           AND NOT EXISTS (
             SELECT 1
             FROM dbo.MasterSalePost existing_sale
-            WHERE existing_sale.NumberPrintSalePost = p.NumberPrintPost
+            WHERE existing_sale.NumberPrintSalePost = p.NumberPrintCash
+              OR existing_sale.NumberPrintCash = p.NumberPrintCash
           )
       )
       SELECT
@@ -631,6 +636,7 @@ async function getReceivablePayments(params: Record<string, unknown>) {
 async function getTransfers(params: Record<string, unknown>) {
   const transferExpression = getSafeMoneyExpression("Transfer");
   const pocvTransferExpression = getSafeMoneyExpression("p.PayTransfer");
+  const pocvDateExpression = getPocvDateExpression("p");
   const rows = await executeQuery<TransferRow>(
     `
       WITH transfer_sales AS (
@@ -648,20 +654,21 @@ async function getTransfers(params: Record<string, unknown>) {
         UNION ALL
 
         SELECT
-          ISNULL(p.NumberPrintPost, '') as document_no,
-          p.DatePost as occurred_at,
+          ISNULL(p.NumberPrintCash, '') as document_no,
+          ${pocvDateExpression} as occurred_at,
           ISNULL(p.NameCustomer, N'ไม่ระบุลูกค้า') as customer_name,
           ISNULL(p.NameCar, '') as name_car,
           ISNULL(p.Province, '') as province,
           ${pocvTransferExpression} as amount,
           ISNULL(p.NameBank, '') as bank_name
-        FROM dbo.MasterPrintPost p
-        WHERE CONVERT(date, p.DatePost) BETWEEN @dateFrom AND @dateTo
-          AND UPPER(LTRIM(RTRIM(ISNULL(p.NumberPrintPost, '')))) LIKE N'POCV%'
+        FROM dbo.MasterPrintCashVate p
+        WHERE CONVERT(date, ${pocvDateExpression}) BETWEEN @dateFrom AND @dateTo
+          AND UPPER(LTRIM(RTRIM(ISNULL(p.NumberPrintCash, '')))) LIKE N'POCV%'
           AND NOT EXISTS (
             SELECT 1
             FROM dbo.MasterSalePost existing_sale
-            WHERE existing_sale.NumberPrintSalePost = p.NumberPrintPost
+            WHERE existing_sale.NumberPrintSalePost = p.NumberPrintCash
+              OR existing_sale.NumberPrintCash = p.NumberPrintCash
           )
       )
       SELECT TOP (@listLimit)
