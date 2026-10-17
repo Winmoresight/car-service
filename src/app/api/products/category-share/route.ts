@@ -1,6 +1,7 @@
 /**
  * Product Category Sales Share API
  * GET /api/products/category-share - สัดส่วนยอดขายแยกตามประเภทและช่วงเวลา
+ * Query param excludeCategoryIds รองรับรหัสประเภทคั่นด้วย comma
  */
 
 import { type NextRequest, NextResponse } from "next/server";
@@ -38,6 +39,21 @@ function normalizeDateParam(value: string | null) {
     : "";
 }
 
+function normalizeExcludedCategoryIds(value: string | null) {
+  if (!value) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .split(",")
+        .map((item) => Number.parseInt(item, 10))
+        .filter((item) => Number.isInteger(item) && item > 0),
+    ),
+  ).slice(0, 100);
+}
+
 function getDateCondition(
   period: CategorySharePeriod,
   selectedDateExpression: string,
@@ -68,6 +84,9 @@ export async function GET(request: NextRequest) {
         ? requestedPeriod
         : "day";
     const selectedDate = normalizeDateParam(searchParams.get("date"));
+    const excludedCategoryIds = normalizeExcludedCategoryIds(
+      searchParams.get("excludeCategoryIds"),
+    );
     const selectedDateExpression = selectedDate
       ? "CONVERT(date, @selectedDate)"
       : "CONVERT(date, GETDATE())";
@@ -86,11 +105,24 @@ export async function GET(request: NextRequest) {
     const dateCondition = customStartDate
       ? "d.DateSalePost >= CONVERT(date, @startDate) AND d.DateSalePost < DATEADD(day, 1, CONVERT(date, @endDate))"
       : getDateCondition(period, selectedDateExpression);
-    const queryParams = customStartDate
+    const queryParams: Record<string, unknown> = customStartDate
       ? { startDate: customStartDate, endDate: customEndDate }
       : selectedDate
         ? { selectedDate }
-        : undefined;
+        : {};
+    const excludedCategoryPlaceholders = excludedCategoryIds.map(
+      (categoryId, index) => {
+        const parameterName = `excludedCategory${index}`;
+        queryParams[parameterName] = categoryId;
+        return `@${parameterName}`;
+      },
+    );
+    const categoryCodeExpression =
+      "COALESCE(category.category_code, fallback_category.category_code)";
+    const excludedCategoryCondition =
+      excludedCategoryPlaceholders.length > 0
+        ? `AND (${categoryCodeExpression} IS NULL OR ${categoryCodeExpression} NOT IN (${excludedCategoryPlaceholders.join(", ")}))`
+        : "";
 
     const rows = await executeQuery<{
       name: string;
@@ -134,6 +166,7 @@ export async function GET(request: NextRequest) {
         WHERE ${dateCondition}
           AND DATEDIFF(day, '19000107', CONVERT(date, d.DateSalePost)) % 7 <> 0
           AND ${getSafeMoneyExpression("d.SumPrice")} > 0
+          ${excludedCategoryCondition}
         GROUP BY COALESCE(
           NULLIF(LTRIM(RTRIM(category.category_name)), ''),
           NULLIF(LTRIM(RTRIM(ISNULL(d.TypeSale, ''))), ''),

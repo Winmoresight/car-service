@@ -24,8 +24,9 @@ export interface DashboardKPI {
   todayCash: number;
   todayTransfer: number;
 
-  // เงินสด/เงินโอนสำหรับปิดยอดรายวัน
+  // เงินสดในลิ้นชัก = ขายสด - จ่ายสด + รับอื่นเงินสด + รับชำระลูกหนี้เงินสด
   cashDrawerExpected: number;
+  // ยอดขายเงินโอน
   transferNet: number;
 
   // รายรับรายจ่ายอื่น

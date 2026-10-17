@@ -100,18 +100,46 @@ export async function GET(request: NextRequest) {
     );
 
     const query = `
-      WITH TransactionDaily AS (
+      WITH SaleTransactions AS (
         SELECT
           CONVERT(date, DateSalePost) as sale_date,
-          COUNT(*) as bill_count,
-          ISNULL(SUM(TotalPrice), 0) as total_sales,
-          ISNULL(SUM(Cash), 0) as total_cash,
-          ISNULL(SUM(Transfer), 0) as total_transfer
+          NumberPrintSalePost as document_no,
+          ISNULL(TotalPrice, 0) as total_sales,
+          ISNULL(Cash, 0) as total_cash,
+          ISNULL(Transfer, 0) as total_transfer
         FROM dbo.MasterSalePost
         WHERE DateSalePost >= ${startDateExpression}
           AND DateSalePost < ${endDateExpression}
           AND DATEDIFF(day, '19000107', CONVERT(date, DateSalePost)) % 7 <> 0
-        GROUP BY CONVERT(date, DateSalePost)
+
+        UNION ALL
+
+        SELECT
+          CONVERT(date, p.DatePost) as sale_date,
+          p.NumberPrintPost as document_no,
+          ISNULL(p.TotalPrice, 0) as total_sales,
+          ISNULL(p.PayCash, 0) as total_cash,
+          ISNULL(p.PayTransfer, 0) as total_transfer
+        FROM dbo.MasterPrintPost p
+        WHERE p.DatePost >= ${startDateExpression}
+          AND p.DatePost < ${endDateExpression}
+          AND DATEDIFF(day, '19000107', CONVERT(date, p.DatePost)) % 7 <> 0
+          AND UPPER(LTRIM(RTRIM(ISNULL(p.NumberPrintPost, '')))) LIKE N'POCV%'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM dbo.MasterSalePost existing_sale
+            WHERE existing_sale.NumberPrintSalePost = p.NumberPrintPost
+          )
+      ),
+      TransactionDaily AS (
+        SELECT
+          sale_date,
+          COUNT(*) as bill_count,
+          ISNULL(SUM(total_sales), 0) as total_sales,
+          ISNULL(SUM(total_cash), 0) as total_cash,
+          ISNULL(SUM(total_transfer), 0) as total_transfer
+        FROM SaleTransactions
+        GROUP BY sale_date
       ),
       ProfitDaily AS (
         SELECT

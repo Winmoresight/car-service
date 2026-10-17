@@ -2,7 +2,7 @@
 
 import { addDays, format, startOfWeek } from "date-fns";
 import { th } from "date-fns/locale";
-import { ChartPie } from "lucide-react";
+import { ChartPie, Check, ListFilter } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { Cell, Pie, PieChart } from "recharts";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,14 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { CategorySalesShare } from "@/types/api";
 
@@ -25,8 +33,11 @@ interface CategorySalesShareProps {
   period: CategorySharePeriod;
   selectedDate: Date;
   dateRange?: DateRange;
+  categoryOptions: Array<{ id: number; name: string }>;
+  excludedCategoryIds: number[];
   onPeriodChange: (period: CategorySharePeriod) => void;
   onDateRangeChange: (range: DateRange | undefined) => void;
+  onExcludedCategoryIdsChange: (categoryIds: number[]) => void;
 }
 
 const periodOptions: Array<{
@@ -96,8 +107,11 @@ export function CategorySalesShareCard({
   period,
   selectedDate,
   dateRange,
+  categoryOptions,
+  excludedCategoryIds,
   onPeriodChange,
   onDateRangeChange,
+  onExcludedCategoryIdsChange,
 }: CategorySalesShareProps) {
   const categories = data?.categories ?? [];
   const topCategories = categories.slice(0, 5);
@@ -124,6 +138,19 @@ export function CategorySalesShareCard({
         ]
       : []),
   ];
+  const excludedCategoryIdSet = new Set(excludedCategoryIds);
+  const includedCategoryCount = Math.max(
+    categoryOptions.length - excludedCategoryIds.length,
+    0,
+  );
+
+  const toggleCategory = (categoryId: number) => {
+    onExcludedCategoryIdsChange(
+      excludedCategoryIdSet.has(categoryId)
+        ? excludedCategoryIds.filter((id) => id !== categoryId)
+        : [...excludedCategoryIds, categoryId],
+    );
+  };
 
   return (
     <section className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm sm:p-5">
@@ -144,6 +171,71 @@ export function CategorySalesShareCard({
         </div>
 
         <div className="flex flex-col items-start gap-2 min-[520px]:flex-row min-[520px]:items-center">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 gap-2 rounded-xl px-3 text-xs font-bold"
+              >
+                <ListFilter className="h-4 w-4" />
+                {excludedCategoryIds.length === 0
+                  ? "ทุกประเภท"
+                  : `เลือก ${includedCategoryCount} ประเภท`}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80 p-3">
+              <PopoverHeader className="px-1 pb-2">
+                <PopoverTitle className="font-bold">
+                  ประเภทที่นำมาวิเคราะห์
+                </PopoverTitle>
+                <PopoverDescription>
+                  เอาเครื่องหมายออกจากประเภทที่ไม่ต้องการรวมในกราฟนี้
+                </PopoverDescription>
+              </PopoverHeader>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full justify-start font-bold"
+                onClick={() => onExcludedCategoryIdsChange([])}
+              >
+                <span className="flex h-4 w-4 items-center justify-center rounded border">
+                  {excludedCategoryIds.length === 0 ? (
+                    <Check className="h-3 w-3" />
+                  ) : null}
+                </span>
+                เลือกทุกประเภท
+              </Button>
+
+              <div className="max-h-64 space-y-1 overflow-y-auto pr-1">
+                {categoryOptions.map((category) => {
+                  const isIncluded = !excludedCategoryIdSet.has(category.id);
+
+                  return (
+                    <button
+                      key={category.id}
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm font-semibold hover:bg-muted"
+                      aria-pressed={isIncluded}
+                      onClick={() => toggleCategory(category.id)}
+                    >
+                      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded border">
+                        {isIncluded ? <Check className="h-3 w-3" /> : null}
+                      </span>
+                      <span className="truncate">{category.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <p className="border-t px-1 pt-2 text-xs font-semibold text-muted-foreground">
+                แสดง {includedCategoryCount} จาก {categoryOptions.length} ประเภท
+              </p>
+            </PopoverContent>
+          </Popover>
+
           <div className="flex items-center rounded-lg border bg-secondary p-1">
             {periodOptions.map((option) => (
               <Button

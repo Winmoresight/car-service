@@ -58,6 +58,12 @@ import type {
   TopProduct,
 } from "@/types/api";
 
+interface DashboardCategoryOption {
+  id: number;
+  name: string;
+  profitPercent: number | null;
+}
+
 // Fetcher function for SWR
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -246,6 +252,7 @@ export default function DashboardPage() {
   const [categoryShareDateRange, setCategoryShareDateRange] = useState<
     DateRange | undefined
   >();
+  const [excludedCategoryIds, setExcludedCategoryIds] = useState<number[]>([]);
 
   const dashboardUrl = summaryDateRange?.from
     ? `/api/dashboard?startDate=${format(summaryDateRange.from, "yyyy-MM-dd")}&endDate=${format(summaryDateRange.to ?? summaryDateRange.from, "yyyy-MM-dd")}`
@@ -292,13 +299,23 @@ export default function DashboardPage() {
   const categoryShareRangeQuery = categoryShareDateRange?.from
     ? `&startDate=${format(categoryShareDateRange.from, "yyyy-MM-dd")}&endDate=${format(categoryShareDateRange.to ?? categoryShareDateRange.from, "yyyy-MM-dd")}`
     : "";
+  const categoryFilterQuery =
+    excludedCategoryIds.length > 0
+      ? `&excludeCategoryIds=${excludedCategoryIds.join(",")}`
+      : "";
+
+  const { data: categoryOptionsData } = useSWR<
+    ApiResponse<DashboardCategoryOption[]>
+  >("/api/products/category-profit-margins", fetcher, {
+    refreshInterval: 300000,
+  });
 
   const {
     data: categoryShareData,
     error: categoryShareError,
     isLoading: isCategoryShareLoading,
   } = useSWR<ApiResponse<CategorySalesShare>>(
-    `/api/products/category-share?period=${categorySharePeriod}&date=${format(categoryShareDate, "yyyy-MM-dd")}${categoryShareRangeQuery}`,
+    `/api/products/category-share?period=${categorySharePeriod}&date=${format(categoryShareDate, "yyyy-MM-dd")}${categoryShareRangeQuery}${categoryFilterQuery}`,
     fetcher,
     {
       keepPreviousData: true,
@@ -320,6 +337,10 @@ export default function DashboardPage() {
     categoryShareData?.success && categoryShareData.data
       ? categoryShareData.data
       : undefined;
+  const categoryOptions =
+    categoryOptionsData?.success && categoryOptionsData.data
+      ? categoryOptionsData.data
+      : [];
 
   const isLoading =
     !kpiData || !salesData || !topProductsData || !lossProductsData;
@@ -350,7 +371,7 @@ export default function DashboardPage() {
           title: "รายการยอดขายเงินสด",
           subtitle: `บิลขายที่รับเงินสด ${dateLabel}`,
           totalLabel: "ยอดขายเงินสด",
-          totalValue: kpi?.cashDrawerExpected || 0,
+          totalValue: kpi?.todayCash || 0,
           icon: Wallet,
           items: kpi?.cashBreakdownItems || [],
         }
@@ -448,8 +469,8 @@ export default function DashboardPage() {
               href={salesHref}
             />
             <KPICard
-              title="เงินสดในลิ้นชัก"
-              value={kpi?.cashDrawerExpected || 0}
+              title="ยอดขายเงินสด"
+              value={kpi?.todayCash || 0}
               subtitle="เฉพาะยอดขายเงินสด"
               icon={Wallet}
               variant="emerald"
@@ -476,7 +497,15 @@ export default function DashboardPage() {
             />
           </div>
 
-          <div className="mt-4 grid gap-4 min-[600px]:grid-cols-2 min-[1280px]:grid-cols-5">
+          <div className="mt-4 grid gap-4 min-[600px]:grid-cols-2 min-[1280px]:grid-cols-6">
+            <KPICard
+              title="เงินสดในลิ้นชัก"
+              value={kpi?.cashDrawerExpected || 0}
+              subtitle="ขายสด − จ่ายสด + รับอื่น + รับลูกหนี้"
+              icon={Wallet}
+              variant="emerald"
+              format="currency"
+            />
             <KPICard
               title={`ลูกหนี้จ่าย${dateLabel}`}
               value={kpi?.receivableCollected || 0}
@@ -547,6 +576,9 @@ export default function DashboardPage() {
           period={categorySharePeriod}
           selectedDate={categoryShareDate}
           dateRange={categoryShareDateRange}
+          categoryOptions={categoryOptions}
+          excludedCategoryIds={excludedCategoryIds}
+          onExcludedCategoryIdsChange={setExcludedCategoryIds}
           onPeriodChange={(period) => {
             setCategorySharePeriod(period);
             setCategoryShareDateRange(undefined);

@@ -124,6 +124,11 @@ export default function AsyncSearchableSelect<Option>({
               placeholder={searchPlaceholder}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                }
+              }}
             />
             {isLoading ? (
               <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin opacity-50" />

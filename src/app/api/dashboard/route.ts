@@ -520,20 +520,52 @@ async function getDailySaleMoneyItems(
   try {
     const cashExpression = getSafeMoneyExpression("m.Cash");
     const transferExpression = getSafeMoneyExpression("m.Transfer");
+    const pocvCashExpression = getSafeMoneyExpression("p.PayCash");
+    const pocvTransferExpression = getSafeMoneyExpression("p.PayTransfer");
     const rows = await executeQuery<DailySaleMoneyRow>(
       `
+        WITH daily_sales AS (
+          SELECT
+            ISNULL(m.NumberPrintSalePost, '') as number_print,
+            m.DateSalePost as date_post,
+            ISNULL(m.NameCustomer, N'ไม่ระบุลูกค้า') as customer_name,
+            ISNULL(m.NameCar, '') as name_car,
+            ISNULL(m.Province, '') as province,
+            ${cashExpression} as cash,
+            ${transferExpression} as transfer
+          FROM dbo.MasterSalePost m
+          WHERE ${getDateRangeCondition("m.DateSalePost", range)}
+
+          UNION ALL
+
+          SELECT
+            ISNULL(p.NumberPrintPost, '') as number_print,
+            p.DatePost as date_post,
+            ISNULL(p.NameCustomer, N'ไม่ระบุลูกค้า') as customer_name,
+            ISNULL(p.NameCar, '') as name_car,
+            ISNULL(p.Province, '') as province,
+            ${pocvCashExpression} as cash,
+            ${pocvTransferExpression} as transfer
+          FROM dbo.MasterPrintPost p
+          WHERE ${getDateRangeCondition("p.DatePost", range)}
+            AND UPPER(LTRIM(RTRIM(ISNULL(p.NumberPrintPost, '')))) LIKE N'POCV%'
+            AND NOT EXISTS (
+              SELECT 1
+              FROM dbo.MasterSalePost existing_sale
+              WHERE existing_sale.NumberPrintSalePost = p.NumberPrintPost
+            )
+        )
         SELECT
-          ISNULL(m.NumberPrintSalePost, '') as number_print,
-          m.DateSalePost as date_post,
-          ISNULL(m.NameCustomer, N'ไม่ระบุลูกค้า') as customer_name,
-          ISNULL(m.NameCar, '') as name_car,
-          ISNULL(m.Province, '') as province,
-          ${cashExpression} as cash,
-          ${transferExpression} as transfer
-        FROM dbo.MasterSalePost m
-        WHERE ${getDateRangeCondition("m.DateSalePost", range)}
-          AND (${cashExpression} > 0 OR ${transferExpression} > 0)
-        ORDER BY m.DateSalePost DESC, m.NumberPrintSalePost DESC
+          number_print,
+          date_post,
+          customer_name,
+          name_car,
+          province,
+          cash,
+          transfer
+        FROM daily_sales
+        WHERE cash > 0 OR transfer > 0
+        ORDER BY date_post DESC, number_print DESC
       `,
       range.params,
       false,
@@ -638,6 +670,7 @@ export async function GET(request: NextRequest) {
     // Wrap ด้วย timeout (60 วินาที)
     const data = await withTimeout(async () => {
       const saleDateCondition = getDateRangeCondition("DateSalePost", range);
+      const pocvDateCondition = getDateRangeCondition("p.DatePost", range);
       const analyticsSql = await getProductAnalyticsSqlConfig(
         "analyticsSale",
         "dashboard",
@@ -645,28 +678,75 @@ export async function GET(request: NextRequest) {
 
       // Query สำหรับข้อมูลวันที่เลือก
       const todayQuery = `
+        WITH selected_sales AS (
+          SELECT
+            NumberPrintSalePost as document_no,
+            NameCar as name_car,
+            ${getSafeMoneyExpression("TotalPrice")} as total_price,
+            ${getSafeMoneyExpression("Cash")} as cash,
+            ${getSafeMoneyExpression("Transfer")} as transfer
+          FROM dbo.MasterSalePost
+          WHERE ${saleDateCondition}
+
+          UNION ALL
+
+          SELECT
+            p.NumberPrintPost as document_no,
+            p.NameCar as name_car,
+            ${getSafeMoneyExpression("p.TotalPrice")} as total_price,
+            ${getSafeMoneyExpression("p.PayCash")} as cash,
+            ${getSafeMoneyExpression("p.PayTransfer")} as transfer
+          FROM dbo.MasterPrintPost p
+          WHERE ${pocvDateCondition}
+            AND UPPER(LTRIM(RTRIM(ISNULL(p.NumberPrintPost, '')))) LIKE N'POCV%'
+            AND NOT EXISTS (
+              SELECT 1
+              FROM dbo.MasterSalePost existing_sale
+              WHERE existing_sale.NumberPrintSalePost = p.NumberPrintPost
+            )
+        )
         SELECT 
           COUNT(*) as bill_count,
-          ISNULL(SUM(TotalPrice), 0) as total_sales,
-          ISNULL(SUM(Cash), 0) as total_cash,
-          ISNULL(SUM(Transfer), 0) as total_transfer,
+          ISNULL(SUM(total_price), 0) as total_sales,
+          ISNULL(SUM(cash), 0) as total_cash,
+          ISNULL(SUM(transfer), 0) as total_transfer,
           COUNT(DISTINCT CASE
-            WHEN LTRIM(RTRIM(ISNULL(NameCar, ''))) NOT IN ('', '-', '0')
-              THEN LTRIM(RTRIM(NameCar))
+            WHEN LTRIM(RTRIM(ISNULL(name_car, ''))) NOT IN ('', '-', '0')
+              THEN LTRIM(RTRIM(name_car))
             ELSE NULL
           END) as vehicle_count
-        FROM dbo.MasterSalePost
-        WHERE ${saleDateCondition}
+        FROM selected_sales
       `;
 
       // Query สำหรับข้อมูลเดือนนี้
       const monthQuery = `
+        WITH selected_sales AS (
+          SELECT
+            NumberPrintSalePost as document_no,
+            ${getSafeMoneyExpression("TotalPrice")} as total_price
+          FROM dbo.MasterSalePost
+          WHERE YEAR(DateSalePost) = YEAR(GETDATE())
+            AND MONTH(DateSalePost) = MONTH(GETDATE())
+
+          UNION ALL
+
+          SELECT
+            p.NumberPrintPost as document_no,
+            ${getSafeMoneyExpression("p.TotalPrice")} as total_price
+          FROM dbo.MasterPrintPost p
+          WHERE YEAR(p.DatePost) = YEAR(GETDATE())
+            AND MONTH(p.DatePost) = MONTH(GETDATE())
+            AND UPPER(LTRIM(RTRIM(ISNULL(p.NumberPrintPost, '')))) LIKE N'POCV%'
+            AND NOT EXISTS (
+              SELECT 1
+              FROM dbo.MasterSalePost existing_sale
+              WHERE existing_sale.NumberPrintSalePost = p.NumberPrintPost
+            )
+        )
         SELECT 
           COUNT(*) as bill_count,
-          ISNULL(SUM(TotalPrice), 0) as total_sales
-        FROM dbo.MasterSalePost
-        WHERE YEAR(DateSalePost) = YEAR(GETDATE())
-          AND MONTH(DateSalePost) = MONTH(GETDATE())
+          ISNULL(SUM(total_price), 0) as total_sales
+        FROM selected_sales
       `;
 
       const analyticProfitQuery = `
@@ -743,7 +823,14 @@ export async function GET(request: NextRequest) {
             100
           : 0;
 
-      const cashDrawerExpected = todayResult.total_cash;
+      const cashDrawerExpected = Number(
+        (
+          todayResult.total_cash -
+          otherPayment.expense_cash +
+          otherPayment.income_cash +
+          receivableCollected.cash
+        ).toFixed(2),
+      );
       const transferNet = todayResult.total_transfer;
 
       // สร้าง response

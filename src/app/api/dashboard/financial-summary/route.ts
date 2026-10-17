@@ -284,6 +284,9 @@ function buildPaidSalesCte() {
   const cash = getSafeMoneyExpression("m.Cash");
   const transfer = getSafeMoneyExpression("m.Transfer");
   const deposits = getSafeMoneyExpression("m.Deposits");
+  const pocvTotal = getSafeMoneyExpression("p.TotalPrice");
+  const pocvCash = getSafeMoneyExpression("p.PayCash");
+  const pocvTransfer = getSafeMoneyExpression("p.PayTransfer");
 
   return `
     WITH paid_sales AS (
@@ -312,6 +315,29 @@ function buildPaidSalesCte() {
       ) latest_receivable
       WHERE CONVERT(date, m.DateSalePost) BETWEEN @dateFrom AND @dateTo
         AND ${total} > 0
+
+      UNION ALL
+
+      SELECT
+        ISNULL(p.NumberPrintPost, '') as document_no,
+        p.DatePost as occurred_at,
+        ISNULL(p.NameCustomer, N'ไม่ระบุลูกค้า') as customer_name,
+        ISNULL(p.NameCar, '') as name_car,
+        ISNULL(p.Province, '') as province,
+        ${pocvTotal} as amount,
+        ${pocvCash} as cash,
+        ${pocvTransfer} as transfer,
+        0 as deposits,
+        ${pocvTotal} - ${pocvCash} - ${pocvTransfer} as remaining_amount
+      FROM dbo.MasterPrintPost p
+      WHERE CONVERT(date, p.DatePost) BETWEEN @dateFrom AND @dateTo
+        AND ${pocvTotal} > 0
+        AND UPPER(LTRIM(RTRIM(ISNULL(p.NumberPrintPost, '')))) LIKE N'POCV%'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM dbo.MasterSalePost existing_sale
+          WHERE existing_sale.NumberPrintSalePost = p.NumberPrintPost
+        )
     )
   `;
 }
@@ -357,23 +383,49 @@ async function getCategories(params: Record<string, unknown>) {
 async function getSaleSummary(params: Record<string, unknown>) {
   const [row] = await executeQuery<SaleSummaryRow>(
     `
+      WITH selected_sales AS (
+        SELECT
+          NumberPrintSalePost as document_no,
+          ${getSafeMoneyExpression("TotalPrice")} as total,
+          ${getSafeMoneyExpression("Cash")} as cash,
+          ${getSafeMoneyExpression("Transfer")} as transfer,
+          ${getSafeMoneyExpression("Deposits")} as deposits
+        FROM dbo.MasterSalePost
+        WHERE CONVERT(date, DateSalePost) BETWEEN @dateFrom AND @dateTo
+
+        UNION ALL
+
+        SELECT
+          p.NumberPrintPost as document_no,
+          ${getSafeMoneyExpression("p.TotalPrice")} as total,
+          ${getSafeMoneyExpression("p.PayCash")} as cash,
+          ${getSafeMoneyExpression("p.PayTransfer")} as transfer,
+          0 as deposits
+        FROM dbo.MasterPrintPost p
+        WHERE CONVERT(date, p.DatePost) BETWEEN @dateFrom AND @dateTo
+          AND UPPER(LTRIM(RTRIM(ISNULL(p.NumberPrintPost, '')))) LIKE N'POCV%'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM dbo.MasterSalePost existing_sale
+            WHERE existing_sale.NumberPrintSalePost = p.NumberPrintPost
+          )
+      )
       SELECT
         COUNT(*) as bill_count,
-        ISNULL(SUM(${getSafeMoneyExpression("TotalPrice")}), 0) as total,
-        ISNULL(SUM(${getSafeMoneyExpression("Cash")}), 0) as cash,
-        ISNULL(SUM(${getSafeMoneyExpression("Transfer")}), 0) as transfer,
-        ISNULL(SUM(${getSafeMoneyExpression("Deposits")}), 0) as deposits,
+        ISNULL(SUM(total), 0) as total,
+        ISNULL(SUM(cash), 0) as cash,
+        ISNULL(SUM(transfer), 0) as transfer,
+        ISNULL(SUM(deposits), 0) as deposits,
         ISNULL(
           SUM(
             CASE
-              WHEN ${getSafeMoneyExpression("Transfer")} > 0 THEN 1
+              WHEN transfer > 0 THEN 1
               ELSE 0
             END
           ),
           0
         ) as transfer_count
-      FROM dbo.MasterSalePost
-      WHERE CONVERT(date, DateSalePost) BETWEEN @dateFrom AND @dateTo
+      FROM selected_sales
     `,
     params,
   );
@@ -578,20 +630,51 @@ async function getReceivablePayments(params: Record<string, unknown>) {
 
 async function getTransfers(params: Record<string, unknown>) {
   const transferExpression = getSafeMoneyExpression("Transfer");
+  const pocvTransferExpression = getSafeMoneyExpression("p.PayTransfer");
   const rows = await executeQuery<TransferRow>(
     `
+      WITH transfer_sales AS (
+        SELECT
+          ISNULL(NumberPrintSalePost, '') as document_no,
+          DateSalePost as occurred_at,
+          ISNULL(NameCustomer, N'ไม่ระบุลูกค้า') as customer_name,
+          ISNULL(NameCar, '') as name_car,
+          ISNULL(Province, '') as province,
+          ${transferExpression} as amount,
+          ISNULL(NameBank, '') as bank_name
+        FROM dbo.MasterSalePost
+        WHERE CONVERT(date, DateSalePost) BETWEEN @dateFrom AND @dateTo
+
+        UNION ALL
+
+        SELECT
+          ISNULL(p.NumberPrintPost, '') as document_no,
+          p.DatePost as occurred_at,
+          ISNULL(p.NameCustomer, N'ไม่ระบุลูกค้า') as customer_name,
+          ISNULL(p.NameCar, '') as name_car,
+          ISNULL(p.Province, '') as province,
+          ${pocvTransferExpression} as amount,
+          ISNULL(p.NameBank, '') as bank_name
+        FROM dbo.MasterPrintPost p
+        WHERE CONVERT(date, p.DatePost) BETWEEN @dateFrom AND @dateTo
+          AND UPPER(LTRIM(RTRIM(ISNULL(p.NumberPrintPost, '')))) LIKE N'POCV%'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM dbo.MasterSalePost existing_sale
+            WHERE existing_sale.NumberPrintSalePost = p.NumberPrintPost
+          )
+      )
       SELECT TOP (@listLimit)
-        ISNULL(NumberPrintSalePost, '') as document_no,
-        DateSalePost as occurred_at,
-        ISNULL(NameCustomer, N'ไม่ระบุลูกค้า') as customer_name,
-        ISNULL(NameCar, '') as name_car,
-        ISNULL(Province, '') as province,
-        ${transferExpression} as amount,
-        ISNULL(NameBank, '') as bank_name
-      FROM dbo.MasterSalePost
-      WHERE CONVERT(date, DateSalePost) BETWEEN @dateFrom AND @dateTo
-        AND ${transferExpression} > 0
-      ORDER BY DateSalePost DESC, NumberPrintSalePost DESC
+        document_no,
+        occurred_at,
+        customer_name,
+        name_car,
+        province,
+        amount,
+        bank_name
+      FROM transfer_sales
+      WHERE amount > 0
+      ORDER BY occurred_at DESC, document_no DESC
     `,
     { ...params, listLimit: LIST_LIMIT },
     false,
