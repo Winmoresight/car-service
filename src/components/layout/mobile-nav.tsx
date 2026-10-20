@@ -55,7 +55,7 @@ export function MobileNav() {
         href={item.href}
         className={cn(
           "relative flex h-full min-w-0 flex-col items-center justify-center px-1 py-2",
-          "text-[10px] font-bold tracking-wide transition-all duration-300",
+          "text-sm font-medium transition-colors duration-200",
           isActive ? "text-main-blue" : "text-muted-foreground",
         )}
         onClick={() => setIsMenuOpen(false)}
@@ -96,7 +96,7 @@ export function MobileNav() {
               <h2 className="text-lg font-bold text-card-foreground">
                 เมนูทั้งหมด
               </h2>
-              <p className="text-xs font-semibold text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 เลือกหน้าที่ต้องการใช้งานในระบบ
               </p>
             </div>
@@ -115,10 +115,10 @@ export function MobileNav() {
               .filter((section) => section.items.length > 0)
               .map((section) => (
                 <section key={section.title}>
-                  <p className="mb-3 text-[11px] font-bold tracking-widest text-muted-foreground uppercase">
+                  <p className="mb-3 text-sm font-medium text-muted-foreground">
                     {section.title}
                   </p>
-                  <div className="grid grid-cols-4 gap-2.5">
+                  <div className="grid grid-cols-3 gap-2.5 min-[480px]:grid-cols-4">
                     {section.items.map((item) => {
                       const isActive = isActivePath(pathname, item.href);
 
@@ -127,7 +127,7 @@ export function MobileNav() {
                           key={item.href}
                           href={item.href}
                           className={cn(
-                            "group flex min-h-[86px] flex-col items-center justify-start gap-2 rounded-2xl border bg-background px-2 py-3 text-center transition-all duration-200",
+                            "group flex min-h-[88px] flex-col items-center justify-start gap-2 rounded-[12px] border bg-background px-2 py-3 text-center transition-colors duration-200",
                             isActive
                               ? "border-main-blue/40 bg-blue-50 text-main-blue shadow-sm dark:bg-blue-500/10"
                               : "text-muted-foreground hover:border-main-blue/30 hover:text-main-blue",
@@ -144,7 +144,7 @@ export function MobileNav() {
                           >
                             <item.icon className="h-5 w-5" strokeWidth={2.5} />
                           </span>
-                          <span className="line-clamp-2 text-[11px] leading-snug font-bold">
+                          <span className="line-clamp-2 text-sm leading-snug font-medium">
                             {item.name}
                           </span>
                         </Link>
@@ -162,7 +162,7 @@ export function MobileNav() {
       ) : null}
 
       <div className="pointer-events-auto relative z-50 border-t border-border bg-card pb-safe shadow-[0_-10px_30px_rgba(15,23,42,0.08)]">
-        <nav className="grid h-[72px] grid-cols-5 items-stretch">
+        <nav className="grid h-[76px] grid-cols-5 items-stretch">
           {leftNavigation.map(renderPrimaryItem)}
 
           <div className="relative flex h-full items-center justify-center">
@@ -173,7 +173,7 @@ export function MobileNav() {
               aria-label="เปิดเมนูทั้งหมด"
               className={cn(
                 "relative flex h-full w-full min-w-0 flex-col items-center justify-center px-1 py-2",
-                "text-[10px] font-bold tracking-wide transition-all duration-300",
+                "text-sm font-medium transition-colors duration-200",
                 isMenuActive ? "text-main-blue" : "text-muted-foreground",
               )}
               onClick={() => setIsMenuOpen((current) => !current)}
@@ -190,7 +190,7 @@ export function MobileNav() {
                 )}
                 strokeWidth={2.5}
               />
-              <span className="text-[10px] font-bold">เมนู</span>
+              <span className="text-sm font-medium">เมนู</span>
             </button>
           </div>
 

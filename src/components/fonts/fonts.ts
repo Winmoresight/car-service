@@ -1,6 +1,6 @@
-import { Noto_Sans_Thai, Outfit } from "next/font/google";
+import { IBM_Plex_Sans_Thai, Outfit } from "next/font/google";
 
-export const noto = Noto_Sans_Thai({
+export const noto = IBM_Plex_Sans_Thai({
   subsets: ["thai"],
   weight: ["400", "500", "600", "700"],
 });

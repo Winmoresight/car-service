@@ -20,7 +20,7 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <div className="hidden min-[1025px]:flex min-[1025px]:w-64 min-[1025px]:flex-col min-[1025px]:fixed min-[1025px]:inset-y-0 bg-white border-r border-border">
+    <aside className="fixed inset-y-0 hidden w-64 flex-col border-r border-border bg-white min-[1025px]:flex">
       <div className="flex flex-col flex-grow pt-6 pb-4 overflow-y-auto">
         {/* Logo/Title */}
         <div className="flex items-center flex-shrink-0 px-6 mb-8">
@@ -45,7 +45,7 @@ export function Sidebar() {
         <nav className="flex-1 px-3 space-y-8">
           {/* Main Menu */}
           <div>
-            <p className="px-3 mb-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest">
+            <p className="mb-3 px-3 text-sm font-medium text-muted-foreground">
               เมนูหลัก
             </p>
             <div className="space-y-1">
@@ -56,7 +56,7 @@ export function Sidebar() {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "group flex items-center px-4 py-2.5 text-base font-semibold rounded-lg transition-all duration-200",
+                      "group flex items-center rounded-[8px] px-4 py-2.5 text-base font-medium transition-colors",
                       isActive
                         ? "bg-background text-primary"
                         : "text-muted-foreground hover:bg-secondary/50 hover:text-primary",
@@ -79,7 +79,7 @@ export function Sidebar() {
 
           {taxAndReportNavigation.length > 0 ? (
             <div>
-              <p className="px-3 mb-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest">
+              <p className="mb-3 px-3 text-sm font-medium text-muted-foreground">
                 ภาษี & รายงาน
               </p>
               <div className="space-y-1">
@@ -90,7 +90,7 @@ export function Sidebar() {
                       key={item.href}
                       href={item.href}
                       className={cn(
-                        "group flex items-center px-4 py-2.5 text-base font-semibold rounded-lg transition-all duration-200",
+                        "group flex items-center rounded-[8px] px-4 py-2.5 text-base font-medium transition-colors",
                         isActive
                           ? "bg-background text-primary"
                           : "text-muted-foreground hover:bg-secondary/50 hover:text-primary",
@@ -117,6 +117,6 @@ export function Sidebar() {
           <LogoutButton className="w-full" />
         </div>
       </div>
-    </div>
+    </aside>
   );
 }

@@ -437,28 +437,13 @@ export default function PaymentsPage() {
                   icon={CreditCard}
                   variant="blue"
                 />
-                <div className="bg-background dark:bg-secondary rounded-[8px] border p-4">
-                  <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                    <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
-                      <Activity
-                        strokeWidth={2.5}
-                        className="text-main-orange w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
-                      />
-                    </div>
-                    <div className="flex flex-col items-end min-[600px]:items-start gap-1">
-                      <span className="text-primary text-lg font-semibold">
-                        ทั้งหมด
-                      </span>
-                      <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
-                        <span className={`${outfit.className}`}>
-                          {(summary.salaryCount || 0) +
-                            (summary.expenseCount || 0)}
-                        </span>{" "}
-                        รายการ
-                      </h3>
-                    </div>
-                  </div>
-                </div>
+                <KPICard
+                  title="รายการทั้งหมด"
+                  value={payments.length}
+                  unit="รายการ"
+                  icon={Activity}
+                  variant="blue"
+                />
               </div>
 
               {/* แถวล่าง - 4 cards */}
@@ -483,7 +468,6 @@ export default function PaymentsPage() {
                   title="รายการทั่วไป"
                   value={summary.expenseCount || 0}
                   unit="รายการ"
-                  subtitle="รายการ"
                   icon={Receipt}
                   variant="blue"
                 />
@@ -491,7 +475,6 @@ export default function PaymentsPage() {
                   title="รายการมีพนักงาน"
                   value={summary.salaryCount || 0}
                   unit="รายการ"
-                  subtitle="รายการ"
                   icon={Users}
                   variant="orange"
                 />
@@ -522,13 +505,13 @@ export default function PaymentsPage() {
                 date={selectedDate}
                 onDateChange={setSelectedDate}
                 placeholder="เลือกวันที่"
-                className="h-8 w-full rounded-full font-bold min-[520px]:w-[230px]"
+                className="h-10 w-full rounded-[8px] px-3 text-sm font-medium min-[520px]:w-[190px]"
               />
               <Select
                 value={limit.toString()}
                 onValueChange={(value) => setLimit(Number(value))}
               >
-                <SelectTrigger className="h-8 w-full rounded-full px-4 font-bold min-[520px]:w-[150px]">
+                <SelectTrigger className="!h-10 w-full rounded-[8px] border-border bg-background px-3 text-sm font-medium hover:bg-muted aria-expanded:bg-muted min-[520px]:w-[150px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -538,7 +521,10 @@ export default function PaymentsPage() {
                   <SelectItem value="200">200 รายการ</SelectItem>
                 </SelectContent>
               </Select>
-              <Badge className="h-8 rounded-full bg-orange-50 px-4 text-sm font-bold text-main-orange dark:bg-orange-500/10">
+              <Badge
+                variant="secondary"
+                className="h-8 rounded-full px-4 text-sm font-medium"
+              >
                 {payments.length} รายการ
               </Badge>
               <Badge
@@ -594,7 +580,7 @@ export default function PaymentsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {payments.map((payment, index) => {
+                  {payments.map((payment) => {
                     const paymentType = getPaymentType(payment);
                     const paymentMethods = getPaymentMethods(payment);
                     const hasEmployee =
@@ -607,11 +593,8 @@ export default function PaymentsPage() {
                         key={payment.OrderNum}
                         className="group border-border/60 transition-colors duration-200 hover:bg-orange-50/30 dark:hover:bg-orange-500/5"
                       >
-                        <TableCell className="px-4 py-4 font-medium">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-orange-100 bg-orange-50 text-sm font-bold text-main-orange select-none dark:border-orange-500/20 dark:bg-orange-500/10 min-[550px]:h-12 min-[550px]:w-12">
-                              {index + 1}
-                            </div>
+                        <TableCell className="px-4 py-5 font-medium">
+                          <div className="flex items-center">
                             <div className="flex min-w-0 flex-col">
                               <span
                                 className={cn(
@@ -631,7 +614,7 @@ export default function PaymentsPage() {
                           </div>
                         </TableCell>
 
-                        <TableCell className="hidden align-middle min-[640px]:table-cell">
+                        <TableCell className="hidden py-5 align-middle min-[640px]:table-cell">
                           <div className="flex min-w-0 flex-col">
                             <span className="max-w-[180px] truncate text-sm font-bold text-card-foreground min-[900px]:max-w-[260px] min-[1200px]:max-w-[360px]">
                               {payment.NameExpensesORIncome || "ไม่ระบุ"}
@@ -644,13 +627,13 @@ export default function PaymentsPage() {
                           </div>
                         </TableCell>
 
-                        <TableCell className="hidden text-right align-middle min-[760px]:table-cell">
+                        <TableCell className="hidden py-5 text-right align-middle min-[760px]:table-cell">
                           <span className="text-sm font-semibold text-card-foreground">
                             {formatDate(payment.Datepayment)}
                           </span>
                         </TableCell>
 
-                        <TableCell className="hidden text-right align-middle min-[760px]:table-cell">
+                        <TableCell className="hidden py-5 text-right align-middle min-[760px]:table-cell">
                           <Badge
                             variant="outline"
                             className={cn(
@@ -662,7 +645,7 @@ export default function PaymentsPage() {
                           </Badge>
                         </TableCell>
 
-                        <TableCell className="hidden text-right align-middle min-[900px]:table-cell">
+                        <TableCell className="hidden py-5 text-right align-middle min-[900px]:table-cell">
                           <div className="flex flex-col items-end gap-1.5">
                             {payment.Debit > 0 && (
                               <div className="flex items-center gap-1.5">
@@ -698,7 +681,7 @@ export default function PaymentsPage() {
                           </div>
                         </TableCell>
 
-                        <TableCell className="hidden text-right align-middle min-[1020px]:table-cell">
+                        <TableCell className="hidden py-5 text-right align-middle min-[1020px]:table-cell">
                           <div className="flex flex-col items-end gap-1">
                             <span className="max-w-[220px] truncate text-sm font-semibold text-card-foreground">
                               {hasEmployee
@@ -715,7 +698,7 @@ export default function PaymentsPage() {
                           </div>
                         </TableCell>
 
-                        <TableCell className="hidden text-right align-middle min-[1100px]:table-cell">
+                        <TableCell className="hidden py-5 text-right align-middle min-[1100px]:table-cell">
                           <div className="flex flex-wrap justify-end gap-1.5">
                             {paymentMethods.length > 0 ? (
                               paymentMethods.map((method) => (
@@ -741,7 +724,7 @@ export default function PaymentsPage() {
                           </div>
                         </TableCell>
 
-                        <TableCell className="text-right align-middle">
+                        <TableCell className="py-5 text-right align-middle">
                           <div className="flex flex-col items-end gap-1">
                             <span
                               className={cn(

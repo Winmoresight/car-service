@@ -18,22 +18,28 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import type { TopProduct } from "@/types/api";
+import {
+  type DashboardTableRowCount,
+  TableRowCountControl,
+} from "./table-row-count-control";
 
 interface TopProductsTableProps {
   products: TopProduct[];
   title?: string;
   description?: string;
+  rowCount: DashboardTableRowCount;
+  onRowCountChange: (value: DashboardTableRowCount) => void;
 }
 
 export function TopProductsTable({
   products,
   title = "สินค้าขายดี",
-  description = "Top 10 ยอดขายสูงสุด",
+  description = "สินค้าที่มียอดขายสูงสุด",
+  rowCount,
+  onRowCountChange,
 }: TopProductsTableProps) {
-  const formatCurrency = (value: number) => {
+  const formatAmount = (value: number) => {
     return new Intl.NumberFormat("th-TH", {
-      style: "currency",
-      currency: "THB",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value || 0);
@@ -43,84 +49,19 @@ export function TopProductsTable({
     return new Intl.NumberFormat("th-TH").format(value || 0);
   };
 
-  const getRankTone = (rank: number) => {
-    if (rank === 1) {
-      return {
-        className:
-          "border-amber-100 bg-amber-50 text-main-orange dark:border-amber-500/20 dark:bg-amber-500/10",
-        rowClassName:
-          "hover:bg-amber-50/40 dark:hover:bg-amber-500/5 min-[760px]:bg-amber-50/20",
-      };
-    }
-
-    if (rank === 2) {
-      return {
-        className:
-          "border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-500/20 dark:bg-slate-500/10 dark:text-slate-300",
-        rowClassName:
-          "hover:bg-slate-50/60 dark:hover:bg-slate-500/5 min-[760px]:bg-slate-50/30",
-      };
-    }
-
-    if (rank === 3) {
-      return {
-        className:
-          "border-orange-100 bg-orange-50 text-main-orange dark:border-orange-500/20 dark:bg-orange-500/10",
-        rowClassName:
-          "hover:bg-orange-50/30 dark:hover:bg-orange-500/5 min-[760px]:bg-orange-50/20",
-      };
-    }
-
-    return {
-      className:
-        "border-blue-100 bg-blue-50 text-main-blue dark:border-blue-500/20 dark:bg-blue-500/10",
-      rowClassName: "hover:bg-blue-50/30 dark:hover:bg-blue-500/5",
-    };
-  };
-
-  const getProfitMarginMeta = (margin: number) => {
-    if (margin >= 20) {
-      return {
-        className:
-          "border-emerald-100 bg-emerald-50 text-main-green dark:border-emerald-500/20 dark:bg-emerald-500/10",
-        barClassName: "bg-main-green",
-      };
-    }
-
-    if (margin >= 10) {
-      return {
-        className:
-          "border-blue-100 bg-blue-50 text-main-blue dark:border-blue-500/20 dark:bg-blue-500/10",
-        barClassName: "bg-main-blue",
-      };
-    }
-
-    if (margin >= 5) {
-      return {
-        className:
-          "border-orange-100 bg-orange-50 text-main-orange dark:border-orange-500/20 dark:bg-orange-500/10",
-        barClassName: "bg-main-orange",
-      };
-    }
-
-    return {
-      className:
-        "border-red-100 bg-red-50 text-main-red dark:border-red-500/20 dark:bg-red-500/10",
-      barClassName: "bg-main-red",
-    };
-  };
+  const visibleProducts = products.slice(0, rowCount);
 
   return (
-    <div className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm">
+    <section className="overflow-hidden rounded-[16px] border bg-card p-4 sm:p-5">
       <div className="mb-4 flex flex-col justify-between gap-4 min-[720px]:flex-row min-[720px]:items-center">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-100 bg-amber-50 dark:border-amber-500/20 dark:bg-amber-500/10">
-            <Trophy className="h-6 w-6 text-main-orange" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-[#E1F6FE]">
+            <Trophy className="h-5 w-5 text-[#378CEA]" />
           </div>
           <div className="flex flex-col">
-            <span className="text-xl font-bold text-card-foreground">
+            <h2 className="text-xl font-semibold text-card-foreground">
               {title}
-            </span>
+            </h2>
             <p className="text-sm font-medium text-muted-foreground">
               {description}
             </p>
@@ -128,20 +69,19 @@ export function TopProductsTable({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Badge className="h-8 rounded-full bg-amber-50 px-4 text-sm font-bold text-main-orange dark:bg-amber-500/10">
-            Top {formatNumber(products.length)}
-          </Badge>
-          <Badge
-            variant="outline"
-            className="h-8 rounded-full px-4 text-sm font-bold text-card-foreground shadow-none"
-          >
-            30 Days
+          <TableRowCountControl
+            value={rowCount}
+            onValueChange={onRowCountChange}
+            label="เลือกจำนวนรายการที่แสดงในทั้งสองตาราง"
+          />
+          <Badge variant="outline" className="h-8 px-4 text-card-foreground">
+            30 วัน
           </Badge>
         </div>
       </div>
 
       {products.length === 0 ? (
-        <div className="rounded-2xl border bg-white px-4 py-12 text-center dark:bg-card">
+        <div className="rounded-[12px] border bg-white px-4 py-12 text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
             <Trophy className="h-5 w-5 text-muted-foreground" />
           </div>
@@ -153,57 +93,49 @@ export function TopProductsTable({
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border bg-white dark:bg-card">
+        <div className="overflow-hidden rounded-[12px] border bg-white">
           <Table>
             <TableHeader className="bg-secondary/70">
               <TableRow className="border-border/60 hover:bg-transparent">
-                <TableHead className="w-[44%] px-4 text-base font-bold text-card-foreground min-[500px]:text-lg">
+                <TableHead className="w-[44%] px-4 text-sm font-medium text-muted-foreground min-[500px]:text-base">
                   สินค้า
                 </TableHead>
-                <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
+                <TableHead className="text-right text-sm font-medium text-muted-foreground min-[500px]:text-base">
                   ยอดขาย
                 </TableHead>
-                <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[760px]:table-cell">
+                <TableHead className="hidden text-right text-sm font-medium text-muted-foreground min-[760px]:table-cell min-[500px]:text-base">
                   กำไร
                 </TableHead>
-                <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
-                  Margin
+                <TableHead className="text-right text-sm font-medium text-muted-foreground min-[500px]:text-base">
+                  อัตรากำไร
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {products.map((product, index) => {
+              {visibleProducts.map((product, index) => {
                 const rank = index + 1;
-                const rankTone = getRankTone(rank);
-                const marginMeta = getProfitMarginMeta(product.profitMargin);
-                const marginWidth = Math.max(
-                  8,
-                  Math.min(product.profitMargin * 2, 100),
-                );
 
                 return (
                   <TableRow
                     key={`${product.name}-${index}`}
-                    className={cn(
-                      "group border-border/60 transition-colors duration-200",
-                      rankTone.rowClassName,
-                    )}
+                    className="group border-border/60 transition-colors hover:bg-secondary/35"
                   >
                     <TableCell className="px-4 py-4 font-medium">
                       <div className="flex items-center gap-3">
                         <div
                           className={cn(
+                            outfit.className,
                             "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-sm font-bold select-none min-[550px]:h-12 min-[550px]:w-12",
-                            rankTone.className,
+                            "bg-secondary text-primary",
                           )}
                         >
                           {rank}
                         </div>
                         <div className="flex min-w-0 flex-col">
-                          <span className="max-w-[130px] truncate text-base font-bold text-card-foreground transition-colors group-hover:text-main-orange min-[420px]:max-w-[200px] min-[1180px]:max-w-[300px]">
+                          <span className="max-w-[130px] truncate text-base font-semibold text-card-foreground min-[420px]:max-w-[200px] min-[1180px]:max-w-[300px]">
                             {product.name || "ไม่ระบุสินค้า"}
                           </span>
-                          <span className="text-xs font-semibold text-muted-foreground">
+                          <span className="text-sm text-muted-foreground">
                             {formatNumber(product.quantity)} ชิ้น
                           </span>
                         </div>
@@ -215,20 +147,20 @@ export function TopProductsTable({
                         <span
                           className={cn(
                             outfit.className,
-                            "text-sm font-bold text-card-foreground min-[500px]:text-base",
+                            "text-sm font-semibold text-card-foreground min-[500px]:text-base",
                           )}
                         >
-                          {formatCurrency(product.sales)}
+                          {formatAmount(product.sales)}
                         </span>
                         <span
                           className={cn(
-                            "text-xs font-semibold min-[760px]:hidden",
+                            "text-sm font-medium min-[760px]:hidden",
                             product.profit >= 0
-                              ? "text-main-green"
-                              : "text-main-red",
+                              ? "text-[#2E9B57]"
+                              : "text-[#E17658]",
                           )}
                         >
-                          กำไร {formatCurrency(product.profit)}
+                          กำไร {formatAmount(product.profit)}
                         </span>
                       </div>
                     </TableCell>
@@ -237,36 +169,29 @@ export function TopProductsTable({
                       <span
                         className={cn(
                           outfit.className,
-                          "font-bold",
+                          "text-sm font-semibold min-[500px]:text-base",
                           product.profit >= 0
-                            ? "text-main-green"
-                            : "text-main-red",
+                            ? "text-[#2E9B57]"
+                            : "text-[#E17658]",
                         )}
                       >
-                        {formatCurrency(product.profit)}
+                        {formatAmount(product.profit)}
                       </span>
                     </TableCell>
 
                     <TableCell className="text-right align-middle">
-                      <div className="flex flex-col items-end gap-2">
-                        <Badge
-                          variant="outline"
+                      <div className="flex items-center justify-end">
+                        <span
                           className={cn(
-                            "h-7 rounded-full px-3 text-xs font-bold shadow-none",
-                            marginMeta.className,
+                            outfit.className,
+                            "text-sm font-semibold min-[500px]:text-base",
+                            product.profitMargin < 0
+                              ? "text-[#E17658]"
+                              : "text-[#2E9B57]",
                           )}
                         >
                           {product.profitMargin.toFixed(1)}%
-                        </Badge>
-                        <div className="hidden h-1.5 w-20 overflow-hidden rounded-full bg-secondary min-[900px]:block">
-                          <div
-                            className={cn(
-                              "h-full rounded-full transition-all duration-500",
-                              marginMeta.barClassName,
-                            )}
-                            style={{ width: `${marginWidth}%` }}
-                          />
-                        </div>
+                        </span>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -276,6 +201,6 @@ export function TopProductsTable({
           </Table>
         </div>
       )}
-    </div>
+    </section>
   );
 }

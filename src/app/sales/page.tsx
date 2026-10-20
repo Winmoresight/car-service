@@ -20,6 +20,7 @@ import { useEffect, useState } from "react";
 import type { DateRange } from "react-day-picker";
 import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
+import { KPICard } from "@/components/dashboard/kpi-card";
 import { outfit } from "@/components/fonts/fonts";
 import { SaleDetailDialog } from "@/components/sales/sale-detail-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -95,22 +96,6 @@ interface SaleItem {
 type SalesFilter = "all" | "cash" | "transfer" | "unpaid";
 
 const allowedLimits = [20, 50, 100, 200];
-
-function getSalesFilterLabel(value: SalesFilter) {
-  if (value === "cash") {
-    return "เงินสด";
-  }
-
-  if (value === "transfer") {
-    return "เงินโอน";
-  }
-
-  if (value === "unpaid") {
-    return "ค้างชำระ";
-  }
-
-  return "ทั้งหมด";
-}
 
 function getLimitFromParams(params: URLSearchParams) {
   const requestedLimit = Number(params.get("limit"));
@@ -321,208 +306,128 @@ export default function SalesPage() {
       <hr className="my-4 hidden w-full min-[1025px]:block" />
       <div className="space-y-6">
         {/* Main White Box */}
-        <div className="dark:bg-background mt-2 md:mt-6 flex w-full flex-col rounded-2xl border bg-white px-4 py-6 pb-4 shadow-sm">
+        <div className="mt-2 flex w-full flex-col rounded-2xl border bg-card p-4 md:mt-6">
           {/* Header Block inside the white box */}
-          <div className="flex flex-col min-[798px]:flex-row min-[798px]:items-center min-[798px]:justify-between mb-6">
+          <div className="mb-5 flex flex-col gap-4 min-[798px]:flex-row min-[798px]:items-center min-[798px]:justify-between">
             <div className="flex items-center gap-3">
-              <div className="bg-background dark:bg-secondary flex h-12 w-12 items-center justify-center rounded-[8px] border min-[798px]:h-14 min-[798px]:w-14">
-                <Banknote strokeWidth={2.5} className="text-primary" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-[8px] border bg-secondary">
+                <Banknote className="h-6 w-6 text-primary" />
               </div>
               <div className="flex flex-col">
-                <span className="text-primary text-2xl font-bold">ยอดขาย</span>
-                <p className="text-foreground hidden font-medium min-[798px]:block">
-                  {salesListTitle} ({total.toLocaleString()} บิล)
+                <span className="text-2xl font-semibold text-primary">
+                  ยอดขาย
+                </span>
+                <p className="text-sm font-medium text-muted-foreground">
+                  สรุปยอดขายและรายการบิล
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 mt-4 min-[798px]:mt-0">
+            <div className="flex items-center gap-2">
               <Button
                 variant="outline"
-                className="gap-2 text-[#28ab6e] border-[#28ab6e] hover:bg-[#28ab6e] hover:text-white"
+                className="rounded-[8px] border-main-green/40 text-main-green hover:bg-emerald-50 hover:text-main-green"
               >
                 <Download className="h-4 w-4" />
-                ดาวน์โหลดเป็นไฟล์ Excel
+                ดาวน์โหลด Excel
               </Button>
             </div>
           </div>
 
           {/* Summary Cards */}
           <div className="grid gap-4 min-[600px]:grid-cols-2 xl:grid-cols-3">
-            <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
-              <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
-                  <Banknote
-                    strokeWidth={2.5}
-                    className="text-purple-600 w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
-                  />
-                </div>
-                <div className="flex flex-col items-end min-[600px]:items-start gap-1">
-                  <span className="text-primary text-lg font-semibold">
-                    ยอดรวม
-                  </span>
-                  <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
-                    <span className={`${outfit.className}`}>
-                      {(summary?.totalSales || 0).toLocaleString()}
-                    </span>{" "}
-                    บาท
-                  </h3>
-                </div>
-              </div>
-            </div>
-
-            <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
-              <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
-                  <Banknote
-                    strokeWidth={2.5}
-                    className="text-main-green w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
-                  />
-                </div>
-                <div className="flex flex-col items-end min-[600px]:items-start gap-1">
-                  <span className="text-primary text-lg font-semibold">
-                    เงินสด
-                  </span>
-                  <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
-                    <span className={`${outfit.className}`}>
-                      {(summary?.totalCash || 0).toLocaleString()}
-                    </span>{" "}
-                    บาท
-                  </h3>
-                </div>
-              </div>
-            </div>
-
-            <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
-              <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
-                  <CreditCard
-                    strokeWidth={2.5}
-                    className="text-main-blue w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
-                  />
-                </div>
-                <div className="flex flex-col items-end min-[600px]:items-start gap-1">
-                  <span className="text-primary text-lg font-semibold">
-                    เงินโอน
-                  </span>
-                  <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
-                    <span className={`${outfit.className}`}>
-                      {(summary?.totalTransfer || 0).toLocaleString()}
-                    </span>{" "}
-                    บาท
-                  </h3>
-                </div>
-              </div>
-            </div>
-
-            <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
-              <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
-                  <FileText
-                    strokeWidth={2.5}
-                    className="text-main-blue w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
-                  />
-                </div>
-                <div className="flex flex-col items-end min-[600px]:items-start gap-1">
-                  <span className="text-primary text-lg font-semibold">
-                    จำนวนบิล
-                  </span>
-                  <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
-                    <span className={`${outfit.className}`}>
-                      {(total || 0).toLocaleString()}
-                    </span>{" "}
-                    บิล
-                  </h3>
-                </div>
-              </div>
-            </div>
-
-            <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
-              <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
-                  <HandCoins
-                    strokeWidth={2.5}
-                    className="text-violet-600 w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
-                  />
-                </div>
-                <div className="flex flex-col items-end min-[600px]:items-start gap-1">
-                  <span className="text-primary text-lg font-semibold">
-                    เงินค่ามัดจำ
-                  </span>
-                  <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
-                    <span className={`${outfit.className}`}>
-                      {(summary?.totalDeposits || 0).toLocaleString()}
-                    </span>{" "}
-                    บาท
-                  </h3>
-                </div>
-              </div>
-            </div>
-
-            <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
-              <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
-                  <Wallet
-                    strokeWidth={2.5}
-                    className="text-amber-600 w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
-                  />
-                </div>
-                <div className="flex flex-col items-end min-[600px]:items-start gap-1">
-                  <span className="text-primary text-lg font-semibold">
-                    ยอดค้างชำระ
-                  </span>
-                  <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
-                    <span className={`${outfit.className}`}>
-                      {(summary?.totalReceivable || 0).toLocaleString()}
-                    </span>{" "}
-                    บาท
-                  </h3>
-                </div>
-              </div>
-            </div>
+            <KPICard
+              title="ยอดขายรวม"
+              value={summary?.totalSales || 0}
+              format="currency"
+              icon={Banknote}
+            />
+            <KPICard
+              title="ยอดขายเงินสด"
+              value={summary?.totalCash || 0}
+              format="currency"
+              icon={Banknote}
+              variant="emerald"
+            />
+            <KPICard
+              title="ยอดขายเงินโอน"
+              value={summary?.totalTransfer || 0}
+              format="currency"
+              icon={CreditCard}
+              variant="blue"
+            />
+            <KPICard
+              title="จำนวนบิล"
+              value={total}
+              unit="บิล"
+              icon={FileText}
+              variant="blue"
+            />
+            <KPICard
+              title="เงินค่ามัดจำ"
+              value={summary?.totalDeposits || 0}
+              format="currency"
+              icon={HandCoins}
+              variant="orange"
+            />
+            <KPICard
+              title="ยอดค้างชำระ"
+              value={summary?.totalReceivable || 0}
+              format="currency"
+              icon={Wallet}
+              variant="red"
+            />
           </div>
 
           {/* Filters & Actions below the cards */}
-          <div className="mt-6 flex flex-col md:flex-row gap-4 pt-6 border-t border-border/50">
-            <div className="flex-1 relative max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <div className="mt-5 flex flex-col gap-3 border-t border-border/60 pt-5 xl:flex-row xl:items-center">
+            <div className="relative min-w-0 flex-1 xl:max-w-md">
+              <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="ค้นหาเลขที่บิล ชื่อลูกค้า หรือทะเบียนรถ..."
                 value={searchTerm}
                 onChange={(e) => handleSearch(e.target.value)}
-                className="pl-10"
+                className="!h-10 rounded-[8px] bg-background pr-10 pl-10 text-sm"
               />
+              {searchTerm ? (
+                <button
+                  type="button"
+                  aria-label="ล้างคำค้นหา"
+                  onClick={() => handleSearch("")}
+                  className="absolute top-1/2 right-2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-[8px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              ) : null}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex h-10 overflow-hidden rounded-[8px] border bg-secondary">
                 <Button
-                  variant={salesFilter === "all" ? "default" : "outline"}
+                  variant={salesFilter === "all" ? "default" : "ghost"}
                   onClick={() => handleSalesFilterChange("all")}
-                  className="font-bold"
+                  className="h-full rounded-none border-0 px-4 text-sm font-medium"
                 >
                   ทั้งหมด
                 </Button>
                 <Button
-                  variant={salesFilter === "cash" ? "default" : "outline"}
+                  variant={salesFilter === "cash" ? "default" : "ghost"}
                   onClick={() => handleSalesFilterChange("cash")}
-                  className="font-bold"
+                  className="h-full rounded-none border-0 px-4 text-sm font-medium"
                 >
-                  <Banknote className="mr-2 h-4 w-4" />
                   เงินสด
                 </Button>
                 <Button
-                  variant={salesFilter === "transfer" ? "default" : "outline"}
+                  variant={salesFilter === "transfer" ? "default" : "ghost"}
                   onClick={() => handleSalesFilterChange("transfer")}
-                  className="font-bold"
+                  className="h-full rounded-none border-0 px-4 text-sm font-medium"
                 >
-                  <CreditCard className="mr-2 h-4 w-4" />
                   เงินโอน
                 </Button>
                 <Button
-                  variant={salesFilter === "unpaid" ? "default" : "outline"}
+                  variant={salesFilter === "unpaid" ? "default" : "ghost"}
                   onClick={() => handleSalesFilterChange("unpaid")}
-                  className="font-bold"
+                  className="h-full rounded-none border-0 px-4 text-sm font-medium"
                 >
                   ค้างชำระ
                 </Button>
@@ -531,6 +436,8 @@ export default function SalesPage() {
                 dateRange={dateRange}
                 onDateRangeChange={handleDateRangeChange}
                 placeholder="เลือกช่วงวันที่"
+                className="w-full min-[520px]:w-auto"
+                triggerClassName="h-10 w-full rounded-[8px] px-3 text-sm font-medium min-[520px]:w-[240px]"
               />
               <Select
                 value={limit.toString()}
@@ -539,7 +446,7 @@ export default function SalesPage() {
                   setPage(0);
                 }}
               >
-                <SelectTrigger className="h-8 w-full rounded-full px-4 font-bold min-[520px]:w-[150px]">
+                <SelectTrigger className="!h-10 w-full rounded-[8px] border-border bg-background px-3 text-sm font-medium hover:bg-muted aria-expanded:bg-muted min-[520px]:w-[150px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -553,7 +460,7 @@ export default function SalesPage() {
                 <Button
                   variant="ghost"
                   onClick={handleClearFilters}
-                  className="gap-2"
+                  className="h-10 rounded-[8px] text-sm font-medium"
                 >
                   <X className="h-4 w-4" />
                   ล้างตัวกรอง
@@ -561,38 +468,17 @@ export default function SalesPage() {
               )}
             </div>
           </div>
-
-          {/* Active Filters Display */}
-          {hasActiveFilters && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-4">
-              <span>ตัวกรองที่เปิดใช้งาน:</span>
-              {searchTerm && (
-                <Badge variant="secondary">ค้นหา: {searchTerm}</Badge>
-              )}
-              {dateRange?.from && dateRange?.to && !isDefaultTodayRange && (
-                <Badge variant="secondary">
-                  {format(dateRange.from, "d MMM yyyy")}
-                  {dateRange.to && ` - ${format(dateRange.to, "d MMM yyyy")}`}
-                </Badge>
-              )}
-              {salesFilter !== "all" && (
-                <Badge variant="secondary">
-                  ชำระ: {getSalesFilterLabel(salesFilter)}
-                </Badge>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Sales Table */}
-        <div className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm">
+        <div className="overflow-hidden rounded-3xl border bg-card p-4">
           <div className="mb-4 flex flex-col justify-between gap-4 min-[720px]:flex-row min-[720px]:items-center">
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50 dark:border-blue-500/20 dark:bg-blue-500/10">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] border border-blue-100 bg-blue-50 dark:border-blue-500/20 dark:bg-blue-500/10">
                 <FileText className="h-6 w-6 text-main-blue" />
               </div>
               <div className="flex flex-col">
-                <span className="text-xl font-bold text-card-foreground">
+                <span className="text-xl font-semibold text-card-foreground">
                   {salesListTitle}
                 </span>
                 <p className="text-sm font-medium text-muted-foreground">
@@ -601,17 +487,12 @@ export default function SalesPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge className="h-8 rounded-full bg-blue-50 px-4 text-sm font-bold text-main-blue dark:bg-blue-500/10">
-                {sales.length} รายการในหน้านี้
-              </Badge>
-              <Badge
-                variant="outline"
-                className="h-8 rounded-full px-4 text-sm font-bold text-card-foreground"
-              >
-                ทั้งหมด {total.toLocaleString()} บิล
-              </Badge>
-            </div>
+            <Badge
+              variant="secondary"
+              className="h-8 rounded-full px-4 text-sm font-medium"
+            >
+              {sales.length} จาก {total.toLocaleString()} บิล
+            </Badge>
           </div>
 
           {isLoading ? (
@@ -647,37 +528,37 @@ export default function SalesPage() {
                 <Table>
                   <TableHeader className="bg-secondary/70">
                     <TableRow className="border-border/60 hover:bg-transparent">
-                      <TableHead className="w-[24%] px-4 text-base font-bold text-card-foreground">
+                      <TableHead className="w-[24%] px-4 text-base font-semibold text-card-foreground">
                         เลขที่บิล
                       </TableHead>
-                      <TableHead className="hidden text-base font-bold text-card-foreground min-[640px]:table-cell">
+                      <TableHead className="hidden text-base font-semibold text-card-foreground min-[640px]:table-cell">
                         ลูกค้า
                       </TableHead>
-                      <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[760px]:table-cell">
+                      <TableHead className="hidden text-right text-base font-semibold text-card-foreground min-[760px]:table-cell">
                         วันที่
                       </TableHead>
-                      <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[620px]:table-cell">
+                      <TableHead className="hidden text-right text-base font-semibold text-card-foreground min-[620px]:table-cell">
                         รายการ
                       </TableHead>
-                      <TableHead className="text-right text-base font-bold text-card-foreground">
+                      <TableHead className="text-right text-base font-semibold text-card-foreground">
                         ยอดขาย
                       </TableHead>
-                      <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[620px]:table-cell">
+                      <TableHead className="hidden text-right text-base font-semibold text-card-foreground min-[620px]:table-cell">
                         เงินค่ามัดจำ
                       </TableHead>
-                      <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[820px]:table-cell">
+                      <TableHead className="hidden text-right text-base font-semibold text-card-foreground min-[820px]:table-cell">
                         ยอดค้างชำระ
                       </TableHead>
-                      <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[700px]:table-cell">
+                      <TableHead className="hidden text-right text-base font-semibold text-card-foreground min-[700px]:table-cell">
                         กำไร
                       </TableHead>
-                      <TableHead className="text-right text-base font-bold text-card-foreground">
+                      <TableHead className="text-right text-base font-semibold text-card-foreground">
                         การชำระ
                       </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sales.map((sale, index) => {
+                    {sales.map((sale) => {
                       const paymentMethods = getPaymentMethods(sale);
 
                       return (
@@ -686,16 +567,13 @@ export default function SalesPage() {
                           className="group cursor-pointer border-border/60 transition-colors duration-200 hover:bg-blue-50/30 dark:hover:bg-blue-500/5"
                           onClick={() => handleViewSale(sale.id)}
                         >
-                          <TableCell className="px-4 py-4 font-medium">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-sm font-bold text-main-blue select-none dark:border-blue-500/20 dark:bg-blue-500/10 min-[550px]:h-12 min-[550px]:w-12">
-                                {page * limit + index + 1}
-                              </div>
+                          <TableCell className="px-4 py-5 font-medium">
+                            <div className="flex items-center">
                               <div className="flex min-w-0 flex-col">
                                 <span
                                   className={cn(
                                     outfit.className,
-                                    "max-w-[120px] truncate text-sm font-bold text-card-foreground transition-colors group-hover:text-main-blue min-[420px]:max-w-[180px] min-[550px]:max-w-[260px] min-[550px]:text-base min-[1100px]:max-w-[420px]",
+                                    "max-w-[120px] truncate text-sm font-semibold text-card-foreground transition-colors group-hover:text-main-blue min-[420px]:max-w-[180px] min-[550px]:max-w-[260px] min-[550px]:text-base min-[1100px]:max-w-[420px]",
                                   )}
                                 >
                                   {sale.id}
@@ -703,42 +581,39 @@ export default function SalesPage() {
                                 <p className="max-w-[120px] truncate text-sm font-semibold text-muted-foreground min-[420px]:max-w-[180px] min-[550px]:max-w-[260px] min-[640px]:hidden">
                                   {sale.customerName}
                                 </p>
-                                <p className="hidden text-xs font-medium text-muted-foreground min-[560px]:block min-[760px]:hidden">
+                                <p className="hidden text-sm font-medium text-muted-foreground min-[560px]:block min-[760px]:hidden">
                                   {formatDate(sale.date)}
                                 </p>
                               </div>
                             </div>
                           </TableCell>
 
-                          <TableCell className="hidden align-middle min-[640px]:table-cell">
+                          <TableCell className="hidden py-5 align-middle min-[640px]:table-cell">
                             <div className="flex min-w-0 flex-col">
-                              <span className="max-w-[180px] truncate text-base font-bold text-card-foreground min-[900px]:max-w-[260px] min-[1200px]:max-w-[360px]">
+                              <span className="max-w-[180px] truncate text-base font-semibold text-card-foreground min-[900px]:max-w-[260px] min-[1200px]:max-w-[360px]">
                                 {sale.customerName}
                               </span>
                               {sale.customerPhone ? (
                                 <span
                                   className={cn(
                                     outfit.className,
-                                    "text-xs font-semibold text-muted-foreground",
+                                    "text-sm font-medium text-muted-foreground",
                                   )}
                                 >
                                   {sale.customerPhone}
                                 </span>
                               ) : (
-                                <span className="text-xs font-medium text-muted-foreground">
+                                <span className="text-sm font-medium text-muted-foreground">
                                   ไม่ระบุเบอร์โทร
                                 </span>
                               )}
                             </div>
                           </TableCell>
 
-                          <TableCell className="hidden text-right align-middle min-[760px]:table-cell">
+                          <TableCell className="hidden py-5 text-right align-middle min-[760px]:table-cell">
                             <div className="flex flex-col items-end">
                               <span className="text-sm font-semibold text-card-foreground">
                                 {formatDate(sale.date)}
-                              </span>
-                              <span className="text-xs font-medium text-muted-foreground">
-                                คลิกเพื่อดูรายละเอียด
                               </span>
                             </div>
                           </TableCell>
@@ -746,25 +621,25 @@ export default function SalesPage() {
                           <TableCell
                             className={cn(
                               outfit.className,
-                              "hidden text-right font-semibold text-muted-foreground min-[620px]:table-cell",
+                              "hidden py-5 text-right font-semibold text-muted-foreground min-[620px]:table-cell",
                             )}
                           >
                             {sale.itemCount}
                           </TableCell>
 
-                          <TableCell className="text-right align-middle">
+                          <TableCell className="py-5 text-right align-middle">
                             <div className="flex flex-col items-end">
                               <span
                                 className={cn(
                                   outfit.className,
-                                  "text-sm font-bold text-card-foreground min-[500px]:text-base",
+                                  "text-sm font-semibold text-card-foreground min-[500px]:text-base",
                                 )}
                               >
                                 {formatCurrencyCompact(sale.totalPrice)}
                               </span>
                               <span
                                 className={cn(
-                                  "text-xs font-semibold min-[700px]:hidden",
+                                  "text-sm font-medium min-[700px]:hidden",
                                   sale.totalProfit >= 0
                                     ? "text-main-green"
                                     : "text-main-red",
@@ -775,12 +650,12 @@ export default function SalesPage() {
                             </div>
                           </TableCell>
 
-                          <TableCell className="hidden text-right align-middle min-[620px]:table-cell">
+                          <TableCell className="hidden py-5 text-right align-middle min-[620px]:table-cell">
                             <div className="flex flex-col items-end gap-1">
                               <span
                                 className={cn(
                                   outfit.className,
-                                  "text-sm font-bold text-primary min-[500px]:text-base",
+                                  "text-sm font-semibold text-primary min-[500px]:text-base",
                                 )}
                               >
                                 {formatCurrencyCompact(sale.deposits)}
@@ -788,12 +663,12 @@ export default function SalesPage() {
                             </div>
                           </TableCell>
 
-                          <TableCell className="hidden text-right align-middle min-[820px]:table-cell">
+                          <TableCell className="hidden py-5 text-right align-middle min-[820px]:table-cell">
                             <div className="flex flex-col items-end gap-1">
                               <span
                                 className={cn(
                                   outfit.className,
-                                  "text-sm font-bold min-[500px]:text-base",
+                                  "text-sm font-semibold min-[500px]:text-base",
                                   sale.receivableAmount > 0
                                     ? "text-main-red"
                                     : "text-main-green",
@@ -806,12 +681,12 @@ export default function SalesPage() {
                             </div>
                           </TableCell>
 
-                          <TableCell className="hidden text-right align-middle min-[700px]:table-cell">
+                          <TableCell className="hidden py-5 text-right align-middle min-[700px]:table-cell">
                             <div className="flex flex-col items-end gap-1">
                               <span
                                 className={cn(
                                   outfit.className,
-                                  "text-base font-bold",
+                                  "text-base font-semibold",
                                   sale.totalProfit >= 0
                                     ? "text-main-green"
                                     : "text-main-red",
@@ -822,7 +697,7 @@ export default function SalesPage() {
                             </div>
                           </TableCell>
 
-                          <TableCell className="text-right align-middle">
+                          <TableCell className="py-5 text-right align-middle">
                             <div className="flex flex-col items-end gap-1">
                               <div className="flex flex-wrap justify-end gap-1.5">
                                 {paymentMethods.length > 0 ? (
@@ -831,7 +706,7 @@ export default function SalesPage() {
                                       key={method.label}
                                       variant="outline"
                                       className={cn(
-                                        "h-7 rounded-full px-3 text-xs font-bold shadow-none",
+                                        "h-7 rounded-full px-3 text-sm font-medium shadow-none",
                                         method.className,
                                       )}
                                     >
@@ -841,13 +716,13 @@ export default function SalesPage() {
                                 ) : (
                                   <Badge
                                     variant="outline"
-                                    className="h-7 rounded-full px-3 text-xs font-bold text-muted-foreground shadow-none"
+                                    className="h-7 rounded-full px-3 text-sm font-medium text-muted-foreground shadow-none"
                                   >
                                     ไม่ระบุ
                                   </Badge>
                                 )}
                               </div>
-                              <span className="hidden text-xs font-semibold text-muted-foreground min-[900px]:block">
+                              <span className="hidden text-sm font-medium text-muted-foreground min-[900px]:block">
                                 {sale.itemCount} รายการ
                               </span>
                             </div>

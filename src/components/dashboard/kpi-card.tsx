@@ -69,39 +69,34 @@ export function KPICard({
   const displayUnit = unit ?? displayValue.unit;
 
   const cardClassName = cn(
-    "col-span-1 w-full rounded-[8px] border bg-background p-4 dark:bg-secondary",
+    "col-span-1 flex w-full items-start rounded-[12px] border bg-secondary p-3 sm:p-4",
     (href || onClick) &&
-      "cursor-pointer text-left transition-shadow hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
+      "cursor-pointer text-left transition-colors hover:border-primary/25 hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
   );
 
   const content = (
-    <div className="flex min-w-0 justify-between gap-3 min-[600px]:flex-col min-[600px]:justify-start">
+    <div className="flex w-full min-w-0 items-start gap-2.5 sm:gap-3">
       <div
         className={cn(
-          "flex h-[66px] w-[66px] shrink-0 items-center justify-center rounded-[8px] border bg-white min-[450px]:w-[70px] min-[600px]:h-12 min-[600px]:w-12 min-[600px]:rounded-full dark:bg-background/65",
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border bg-card sm:h-10 sm:w-10",
           variantStyles[variant],
         )}
       >
-        {Icon && (
-          <Icon
-            strokeWidth={2.5}
-            className="h-10 w-10 min-[600px]:h-6 min-[600px]:w-6"
-          />
-        )}
+        {Icon && <Icon strokeWidth={2.25} className="h-5 w-5" />}
       </div>
 
-      <div className="flex min-w-0 flex-col items-end gap-1 min-[600px]:items-start">
-        <span className="text-right text-lg leading-tight font-semibold text-primary min-[600px]:text-left">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="text-sm leading-tight font-medium text-primary sm:text-base">
           {title}
         </span>
-        <h3 className="max-w-full text-left text-[20px] font-bold text-primary min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl">
-          <span className={cn(outfit.className, "break-all")}>
+        <h3 className="max-w-full text-xl font-semibold leading-tight text-primary sm:text-2xl min-[1280px]:text-[28px]">
+          <span className={cn(outfit.className, "break-words tabular-nums")}>
             {displayValue.amount}
           </span>
           {displayUnit ? <> {displayUnit}</> : null}
         </h3>
         {subtitle ? (
-          <p className="max-w-full text-right text-sm font-semibold text-muted-foreground min-[600px]:text-left">
+          <p className="hidden max-w-full text-sm leading-snug text-muted-foreground sm:block">
             {subtitle}
           </p>
         ) : null}

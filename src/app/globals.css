@@ -52,25 +52,25 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: hsl(0, 0%, 96%);
-  --foreground: hsl(0, 0%, 54%);
-  --card: hsl(100, 0%, 100%);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: hsl(0, 0%, 14%);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --radius: 0.5rem;
+  --background: #f4f4f4;
+  --foreground: #141414;
+  --card: #ffffff;
+  --card-foreground: #141414;
+  --popover: #ffffff;
+  --popover-foreground: #141414;
+  --primary: #141414;
+  --primary-foreground: #ffffff;
+  --secondary: #f4f4f4;
+  --secondary-foreground: #141414;
+  --muted: #f4f4f4;
+  --muted-foreground: #696969;
+  --accent: #e8e8e8;
+  --accent-foreground: #141414;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: hsl(210, 3%, 89%);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: #e6e6e6;
+  --input: #dedede;
+  --ring: #141414;
   --chart-1: hsl(216, 100%, 58%);
   --chart-2: hsl(175, 100%, 29%);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -190,7 +190,11 @@
   }
 
   body {
-    @apply bg-background dark:bg-secondary text-foreground overflow-x-hidden;
+    @apply overflow-x-hidden bg-background text-base text-foreground;
+  }
+
+  button {
+    @apply cursor-pointer;
   }
 
   input:-webkit-autofill,
@@ -202,11 +206,7 @@
   }
 
   input {
-    font-size: 14px !important;
-  }
-
-  [data-sonner-toaster][data-sonner-theme="dark"] [data-description] {
-    color: var(--foreground) !important;
+    font-size: 16px !important;
   }
 
   img {
@@ -225,11 +225,11 @@
 }
 
 .financial-summary-dialog .text-\[10px\] {
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .financial-summary-dialog .text-\[11px\] {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .financial-summary-dialog .text-\[0\.8rem\] {

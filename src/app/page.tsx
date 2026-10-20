@@ -32,10 +32,8 @@ import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
 import { FinancialSummaryDialog } from "@/components/dashboard/financial-summary-dialog";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { LossAlertTable } from "@/components/dashboard/loss-alert-table";
-import {
-  SalesChart,
-  type SalesChartPeriod,
-} from "@/components/dashboard/sales-chart";
+import { SalesChart } from "@/components/dashboard/sales-chart";
+import type { DashboardTableRowCount } from "@/components/dashboard/table-row-count-control";
 import { TopProductsTable } from "@/components/dashboard/top-products-table";
 import { Button } from "@/components/ui/button";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
@@ -185,7 +183,7 @@ function MoneyDetailDialog({
                         <div className="flex flex-wrap items-center gap-2">
                           <span
                             className={cn(
-                              "rounded-full border px-2.5 py-1 text-xs font-bold",
+                              "rounded-full border px-2.5 py-1 text-sm font-medium",
                               item.source === "sale" &&
                                 "border-blue-100 bg-blue-50 text-main-blue dark:border-blue-500/20 dark:bg-blue-500/10",
                               item.source === "receivable" &&
@@ -238,11 +236,6 @@ export default function DashboardPage() {
     "cash" | "transfer" | null
   >(null);
   const [isFinancialSummaryOpen, setIsFinancialSummaryOpen] = useState(false);
-  const [salesChartPeriod, setSalesChartPeriod] =
-    useState<SalesChartPeriod>("day");
-  const [salesChartDate, setSalesChartDate] = useState<Date | undefined>(
-    new Date(),
-  );
   const [salesChartDateRange, setSalesChartDateRange] = useState<
     DateRange | undefined
   >();
@@ -253,6 +246,8 @@ export default function DashboardPage() {
     DateRange | undefined
   >();
   const [excludedCategoryIds, setExcludedCategoryIds] = useState<number[]>([]);
+  const [dashboardTableRowCount, setDashboardTableRowCount] =
+    useState<DashboardTableRowCount>(5);
 
   const dashboardUrl = summaryDateRange?.from
     ? `/api/dashboard?startDate=${format(summaryDateRange.from, "yyyy-MM-dd")}&endDate=${format(summaryDateRange.to ?? summaryDateRange.from, "yyyy-MM-dd")}`
@@ -272,11 +267,11 @@ export default function DashboardPage() {
     ? `&startDate=${format(salesChartDateRange.from, "yyyy-MM-dd")}&endDate=${format(salesChartDateRange.to ?? salesChartDateRange.from, "yyyy-MM-dd")}`
     : "";
 
-  // Fetch sales trend using the selected chart period or custom date range
+  // Fetch daily sales trend for the latest 30 days or a custom date range
   const { data: salesData, error: salesError } = useSWR<
     ApiResponse<DailySales[]>
   >(
-    `/api/sales/daily?period=${salesChartPeriod}&date=${format(salesChartDate ?? new Date(), "yyyy-MM-dd")}${salesChartRangeQuery}`,
+    `/api/sales/daily?days=30&date=${format(new Date(), "yyyy-MM-dd")}${salesChartRangeQuery}`,
     fetcher,
     {
       keepPreviousData: true,
@@ -294,7 +289,7 @@ export default function DashboardPage() {
   // Fetch loss products
   const { data: lossProductsData, error: lossProductsError } = useSWR<
     ApiResponse<LossProduct[]>
-  >("/api/products/loss?limit=5", fetcher, { refreshInterval: 60000 });
+  >("/api/products/loss?limit=10", fetcher, { refreshInterval: 60000 });
 
   const categoryShareRangeQuery = categoryShareDateRange?.from
     ? `&startDate=${format(categoryShareDateRange.from, "yyyy-MM-dd")}&endDate=${format(categoryShareDateRange.to ?? categoryShareDateRange.from, "yyyy-MM-dd")}`
@@ -389,7 +384,7 @@ export default function DashboardPage() {
   if (hasError) {
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
-        <div className="rounded-3xl border border-red-100 bg-red-50/50 px-6 py-10 text-center dark:border-red-500/20 dark:bg-red-500/10">
+        <div className="rounded-[16px] border border-red-100 bg-red-50/50 px-6 py-10 text-center">
           <h1 className="mb-2 text-2xl font-bold text-main-red">เกิดข้อผิดพลาด</h1>
           <p className="font-medium text-muted-foreground">
             ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้
@@ -407,39 +402,42 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-6 pb-16">
+    <div className="mx-auto w-full max-w-[1600px] px-4 py-6 pb-16 sm:px-6">
       <DashboardBreadcrumb href="/" isMain />
 
       <hr className="my-4 hidden w-full min-[1025px]:block" />
 
       <div className="space-y-6">
-        <div className="dark:bg-background mt-2 flex w-full flex-col rounded-2xl border bg-white px-4 py-6 pb-4 shadow-sm md:mt-6">
-          <div className="mb-6 flex flex-col justify-between gap-6 min-[798px]:flex-row min-[798px]:items-center">
+        <section className="mt-2 flex w-full flex-col rounded-[16px] border bg-card p-4 sm:p-5 md:mt-6">
+          <div className="mb-6 flex flex-col justify-between gap-5 min-[798px]:flex-row min-[798px]:items-center">
             <div className="flex items-center gap-3">
-              <div className="bg-background dark:bg-secondary flex h-12 w-12 items-center justify-center rounded-[8px] border min-[798px]:h-14 min-[798px]:w-14">
-                <LayoutDashboard strokeWidth={2.5} className="text-primary" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-secondary">
+                <LayoutDashboard
+                  strokeWidth={2.25}
+                  className="h-5 w-5 text-primary"
+                />
               </div>
               <div className="flex flex-col">
-                <span className="text-primary text-2xl font-bold transition-all duration-1000">
-                  สรุปเงินตามช่วงวันที่
-                </span>
-                <p className="text-foreground hidden font-medium min-[798px]:block">
-                  ยอดขาย เงินสด เงินโอน ลูกหนี้ และใบวางบิลคู่ค้า
+                <h1 className="text-2xl font-semibold text-primary">
+                  ภาพรวมกิจการ
+                </h1>
+                <p className="text-sm font-medium text-muted-foreground">
+                  ตัวเลขสำคัญสำหรับ{dateLabel}
                 </p>
               </div>
             </div>
 
-            <div className="flex w-full flex-col gap-2 transition-all duration-1000 sm:w-auto sm:flex-row min-[798px]:mt-0">
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
               <DateRangePicker
                 dateRange={summaryDateRange}
                 onDateRangeChange={setSummaryDateRange}
                 placeholder="วันนี้"
-                className="[&_button]:h-10 [&_button]:w-full [&_button]:px-3 [&_button]:font-bold sm:[&_button]:w-[300px]"
+                className="[&_button]:h-10 [&_button]:w-full [&_button]:px-3 sm:[&_button]:w-[300px]"
               />
               <Button
                 type="button"
                 variant="outline"
-                className="h-10 w-full gap-2 px-3 font-bold sm:w-auto"
+                className="h-10 w-full gap-2 px-3 sm:w-auto"
                 onClick={() => setIsFinancialSummaryOpen(true)}
               >
                 <Calculator className="h-4 w-4" />
@@ -448,122 +446,123 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Daily Close KPIs */}
-          <div className="grid gap-4 min-[600px]:grid-cols-2 min-[1280px]:grid-cols-5">
-            <KPICard
-              title={`ยอดขาย${dateLabel}`}
-              value={kpi?.todaySales || 0}
-              subtitle={`${formatNumber(kpi?.todayBills || 0)} บิล`}
-              icon={Banknote}
-              variant="emerald"
-              format="currency"
-              href={salesHref}
-            />
-            <KPICard
-              title={`รถเข้าใช้บริการ${dateLabel}`}
-              value={kpi?.vehicleCount || 0}
-              subtitle={`นับทะเบียนไม่ซ้ำจาก ${formatNumber(kpi?.todayBills || 0)} บิล`}
-              unit="คัน"
-              icon={CarFront}
-              variant="blue"
-              href={salesHref}
-            />
-            <KPICard
-              title="ยอดขายเงินสด"
-              value={kpi?.todayCash || 0}
-              subtitle="เฉพาะยอดขายเงินสด"
-              icon={Wallet}
-              variant="emerald"
-              format="currency"
-              onClick={() => setMoneyDialogType("cash")}
-            />
-            <KPICard
-              title="ยอดขายเงินโอน"
-              value={kpi?.transferNet || 0}
-              subtitle="เฉพาะยอดขายเงินโอน"
-              icon={CreditCard}
-              variant="blue"
-              format="currency"
-              onClick={() => setMoneyDialogType("transfer")}
-            />
-            <KPICard
-              title="ลูกหนี้ค้างชำระ"
-              value={kpi?.receivableTotal || 0}
-              subtitle={`${formatNumber(kpi?.receivableCount || 0)} ใบ`}
-              icon={FileText}
-              variant="orange"
-              format="currency"
-              href={receivableHref}
-            />
+          <div>
+            <h2 className="mb-3 text-base font-medium text-primary">
+              ตัวเลขหลัก
+            </h2>
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 min-[1280px]:grid-cols-4">
+              <KPICard
+                title={`ยอดขาย${dateLabel}`}
+                value={kpi?.todaySales || 0}
+                subtitle={`${formatNumber(kpi?.todayBills || 0)} บิล`}
+                icon={Banknote}
+                variant="emerald"
+                format="currency"
+                href={salesHref}
+              />
+              <KPICard
+                title={`รถเข้าใช้บริการ${dateLabel}`}
+                value={kpi?.vehicleCount || 0}
+                subtitle={`นับทะเบียนไม่ซ้ำจาก ${formatNumber(kpi?.todayBills || 0)} บิล`}
+                unit="คัน"
+                icon={CarFront}
+                variant="blue"
+                href={salesHref}
+              />
+              <KPICard
+                title="ลูกหนี้ค้างชำระ"
+                value={kpi?.receivableTotal || 0}
+                subtitle={`${formatNumber(kpi?.receivableCount || 0)} ใบ`}
+                icon={FileText}
+                variant="orange"
+                format="currency"
+                href={receivableHref}
+              />
+              <KPICard
+                title="อัตรากำไรขั้นต้น"
+                value={kpi?.profitMargin || 0}
+                subtitle={`เฉพาะสินค้าที่รวมในการวิเคราะห์${dateLabel}`}
+                icon={Percent}
+                variant={(kpi?.profitMargin || 0) < 0 ? "red" : "emerald"}
+                format="percent"
+              />
+            </div>
           </div>
 
-          <div className="mt-4 grid gap-4 min-[600px]:grid-cols-2 min-[1280px]:grid-cols-6">
-            <KPICard
-              title="เงินสดในลิ้นชัก"
-              value={kpi?.cashDrawerExpected || 0}
-              subtitle="ขายสด − จ่ายสด + รับอื่น + รับลูกหนี้"
-              icon={Wallet}
-              variant="emerald"
-              format="currency"
-            />
-            <KPICard
-              title={`ลูกหนี้จ่าย${dateLabel}`}
-              value={kpi?.receivableCollected || 0}
-              subtitle={`${formatNumber(kpi?.receivableCollectedCount || 0)} รายการ`}
-              icon={Receipt}
-              variant="emerald"
-              format="currency"
-              href={receivablePaymentsHref}
-            />
-            <KPICard
-              title="รายรับอื่น"
-              value={kpi?.otherIncome || 0}
-              subtitle={`${formatNumber(kpi?.otherPaymentCount || 0)} รายการรับ-จ่าย`}
-              icon={Banknote}
-              variant="emerald"
-              format="currency"
-              href={otherIncomeHref}
-            />
-            <KPICard
-              title="รายจ่ายรวม"
-              value={kpi?.otherExpense || 0}
-              subtitle="รวมค่าใช้จ่ายและพนักงาน"
-              icon={TrendingDown}
-              variant="red"
-              format="currency"
-              href={otherExpenseHref}
-            />
-            <KPICard
-              title="ใบวางบิลคู่ค้า"
-              value={kpi?.supplierBillTotal || 0}
-              subtitle={`${formatNumber(kpi?.supplierBillCount || 0)} ใบ · สินค้าเข้า ${formatNumber(kpi?.stockInCount || 0)} รายการ`}
-              icon={Package}
-              variant="orange"
-              format="currency"
-              href="/supplier-bills"
-            />
-            <KPICard
-              title="Gross Margin"
-              value={kpi?.profitMargin || 0}
-              subtitle={`เฉพาะสินค้าที่รวมในการวิเคราะห์${dateLabel}`}
-              icon={Percent}
-              variant={(kpi?.profitMargin || 0) < 0 ? "red" : "emerald"}
-              format="percent"
-            />
+          <div className="mt-6 border-t pt-5">
+            <h2 className="mb-3 text-base font-medium text-primary">
+              รายละเอียดกระแสเงิน
+            </h2>
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 min-[1280px]:grid-cols-4">
+              <KPICard
+                title="ยอดขายเงินสด"
+                value={kpi?.todayCash || 0}
+                icon={Wallet}
+                variant="emerald"
+                format="currency"
+                onClick={() => setMoneyDialogType("cash")}
+              />
+              <KPICard
+                title="ยอดขายเงินโอน"
+                value={kpi?.transferNet || 0}
+                icon={CreditCard}
+                variant="blue"
+                format="currency"
+                onClick={() => setMoneyDialogType("transfer")}
+              />
+              <KPICard
+                title="เงินสดในลิ้นชัก"
+                value={kpi?.cashDrawerExpected || 0}
+                subtitle="ขายสด − จ่ายสด + รับอื่น + รับลูกหนี้"
+                icon={Wallet}
+                variant="emerald"
+                format="currency"
+              />
+              <KPICard
+                title={`ลูกหนี้จ่าย${dateLabel}`}
+                value={kpi?.receivableCollected || 0}
+                subtitle={`${formatNumber(kpi?.receivableCollectedCount || 0)} รายการ`}
+                icon={Receipt}
+                variant="emerald"
+                format="currency"
+                href={receivablePaymentsHref}
+              />
+              <KPICard
+                title="รายรับอื่น"
+                value={kpi?.otherIncome || 0}
+                subtitle={`${formatNumber(kpi?.otherPaymentCount || 0)} รายการรับ-จ่าย`}
+                icon={Banknote}
+                variant="emerald"
+                format="currency"
+                href={otherIncomeHref}
+              />
+              <KPICard
+                title="รายจ่ายรวม"
+                value={kpi?.otherExpense || 0}
+                subtitle="รวมค่าใช้จ่ายและพนักงาน"
+                icon={TrendingDown}
+                variant="red"
+                format="currency"
+                href={otherExpenseHref}
+              />
+              <KPICard
+                title="ใบวางบิลคู่ค้า"
+                value={kpi?.supplierBillTotal || 0}
+                subtitle={`${formatNumber(kpi?.supplierBillCount || 0)} ใบ · สินค้าเข้า ${formatNumber(kpi?.stockInCount || 0)} รายการ`}
+                icon={Package}
+                variant="orange"
+                format="currency"
+                href="/supplier-bills"
+              />
+            </div>
           </div>
-        </div>
+        </section>
 
         {/* Sales Chart */}
         <SalesChart
           data={dailySales}
-          period={salesChartPeriod}
-          selectedDate={salesChartDate ?? new Date()}
+          selectedDate={new Date()}
           dateRange={salesChartDateRange}
-          onPeriodChange={(period) => {
-            setSalesChartPeriod(period);
-            setSalesChartDateRange(undefined);
-            setSalesChartDate(new Date());
-          }}
           onDateRangeChange={setSalesChartDateRange}
         />
 
@@ -589,8 +588,16 @@ export default function DashboardPage() {
 
         {/* Top Products and Loss Alert */}
         <div className="grid gap-6 lg:grid-cols-2">
-          <TopProductsTable products={topProducts} />
-          <LossAlertTable products={lossProducts} />
+          <TopProductsTable
+            products={topProducts}
+            rowCount={dashboardTableRowCount}
+            onRowCountChange={setDashboardTableRowCount}
+          />
+          <LossAlertTable
+            products={lossProducts}
+            rowCount={dashboardTableRowCount}
+            onRowCountChange={setDashboardTableRowCount}
+          />
         </div>
 
         {selectedMoneyDialog ? (
@@ -619,7 +626,7 @@ export default function DashboardPage() {
         {/* Footer */}
         <div className="mt-8 text-center text-sm text-muted-foreground">
           <p>
-            ข้อมูลอัพเดทอัตโนมัติทุก 30 วินาที · Last updated:{" "}
+            ข้อมูลอัปเดตอัตโนมัติทุก 30 วินาที · อัปเดตล่าสุด{" "}
             {new Date().toLocaleTimeString("th-TH")}
           </p>
         </div>

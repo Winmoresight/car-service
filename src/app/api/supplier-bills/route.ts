@@ -759,7 +759,7 @@ async function adjustSupplierStock(
     throw new Error("สินค้าใหม่ต้องมีบาร์โค้ดที่อยู่ในคลังสินค้า");
   }
 
-  if (!barcode || quantityDelta === 0) {
+  if (!barcode) {
     return null;
   }
 
@@ -829,12 +829,19 @@ async function adjustSupplierStock(
     SET
       NProduct = @stock,
       CostPrice = CASE
-        WHEN @costPrice > 0 AND ${quantityDelta > 0 ? "1" : "0"} = 1
+        WHEN @costPrice > 0 AND ${quantityDelta >= 0 ? "1" : "0"} = 1
           THEN @costPrice
         ELSE CostPrice
       END
     WHERE BarCode = @barcode
   `);
+
+  // A supplier-bill edit can change only the unit price. Keep the product
+  // master cost in sync even when the received quantity has not changed, but
+  // do not create a zero-quantity stock movement for that price-only edit.
+  if (quantityDelta === 0) {
+    return nextStock;
+  }
 
   const movementDate = new Date();
   const stockRequest = new sql.Request(transaction);
@@ -2390,6 +2397,7 @@ export async function PATCH(request: NextRequest) {
                 NumProduct = @quantity,
                 MeterProduct = @unit,
                 SalePrice = @unitPrice,
+                CostPrice = @unitPrice,
                 ReducePrice = @discount,
                 SumPrice = @lineTotal
                 ${realSalePriceUpdate}

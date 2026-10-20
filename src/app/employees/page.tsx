@@ -3,16 +3,19 @@
 import {
   Activity,
   Briefcase,
+  CalendarCheck2,
   DollarSign,
   Phone,
   ReceiptText,
   Users,
 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { outfit } from "@/components/fonts/fonts";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -184,6 +187,12 @@ export default function EmployeesPage() {
                 </p>
               </div>
             </div>
+            <Button asChild className="h-10">
+              <Link href="/employees/attendance">
+                <CalendarCheck2 />
+                บันทึกวันทำงาน
+              </Link>
+            </Button>
           </div>
 
           <div className="grid gap-4 md:grid-cols-4">

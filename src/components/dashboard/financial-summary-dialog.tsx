@@ -1,7 +1,6 @@
 "use client";
 
 import { format, startOfMonth, subDays } from "date-fns";
-import { th } from "date-fns/locale";
 import {
   Banknote,
   CalendarDays,
@@ -29,6 +28,7 @@ import {
   LargeDialogTitle,
 } from "@/components/ui/large-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { formatThaiDate, formatThaiShortDate } from "@/lib/thai-date";
 import { cn } from "@/lib/utils";
 import type {
   ApiResponse,
@@ -290,10 +290,14 @@ export function FinancialSummaryDialog({
     const to = dateRange.to ?? from;
 
     if (format(from, "yyyy-MM-dd") === format(to, "yyyy-MM-dd")) {
-      return format(from, "d MMMM yyyy", { locale: th });
+      return formatThaiDate(from, {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      });
     }
 
-    return `${format(from, "d MMM yyyy", { locale: th })} – ${format(to, "d MMM yyyy", { locale: th })}`;
+    return `${formatThaiShortDate(from)} – ${formatThaiShortDate(to)}`;
   }, [dateRange.from, dateRange.to, initialDate]);
 
   const setPreset = (from: Date, to: Date) => {

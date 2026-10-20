@@ -1,6 +1,6 @@
 "use client";
 
-import { format } from "date-fns";
+import { isSameDay } from "date-fns";
 import { th } from "date-fns/locale";
 import { Calendar as CalendarIcon } from "lucide-react";
 import type { DateRange } from "react-day-picker";
@@ -11,6 +11,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { formatThaiShortDate } from "@/lib/thai-date";
 import { cn } from "@/lib/utils";
 
 interface DateRangePickerProps {
@@ -18,6 +19,7 @@ interface DateRangePickerProps {
   onDateRangeChange?: (range: DateRange | undefined) => void;
   placeholder?: string;
   className?: string;
+  triggerClassName?: string;
 }
 
 export function DateRangePicker({
@@ -25,6 +27,7 @@ export function DateRangePicker({
   onDateRangeChange,
   placeholder = "เลือกช่วงวันที่",
   className,
+  triggerClassName,
 }: DateRangePickerProps) {
   return (
     <div className={cn("grid gap-2", className)}>
@@ -34,23 +37,19 @@ export function DateRangePicker({
             id="date"
             variant={"outline"}
             className={cn(
-              "w-[300px] justify-start text-left font-normal",
+              "w-[300px] justify-start overflow-hidden text-left font-normal",
               !dateRange && "text-muted-foreground",
+              triggerClassName,
             )}
           >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            {dateRange?.from ? (
-              dateRange.to ? (
-                <>
-                  {format(dateRange.from, "d MMM yyyy", { locale: th })} -{" "}
-                  {format(dateRange.to, "d MMM yyyy", { locale: th })}
-                </>
-              ) : (
-                format(dateRange.from, "d MMM yyyy", { locale: th })
-              )
-            ) : (
-              <span>{placeholder}</span>
-            )}
+            <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+            <span className="min-w-0 truncate">
+              {dateRange?.from
+                ? dateRange.to && !isSameDay(dateRange.from, dateRange.to)
+                  ? `${formatThaiShortDate(dateRange.from)} – ${formatThaiShortDate(dateRange.to)}`
+                  : formatThaiShortDate(dateRange.from)
+                : placeholder}
+            </span>
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">

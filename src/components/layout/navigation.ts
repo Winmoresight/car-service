@@ -1,5 +1,6 @@
 import {
   Banknote,
+  CalendarCheck2,
   FileCheck2,
   FilePlus2,
   FileText,
@@ -88,6 +89,11 @@ export const mainNavigation = [
     name: "พนักงาน",
     href: "/employees",
     icon: UserCog,
+  },
+  {
+    name: "วันทำงาน",
+    href: "/employees/attendance",
+    icon: CalendarCheck2,
   },
   {
     name: "ใบกำกับเงินสด",

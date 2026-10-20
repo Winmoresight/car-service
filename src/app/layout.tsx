@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 import { noto } from "@/components/fonts/fonts";
 import { AppShell } from "@/components/layout/app-shell";
+import { Toaster } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
 const siteUrl = "https://car.winmoresight.com";
@@ -39,6 +40,7 @@ const RootLayout = ({ children }: { children: ReactNode }) => {
     <html lang="th" className={cn("h-full antialiased", noto.className)}>
       <body className="min-h-full flex flex-col font-noto">
         <AppShell>{children}</AppShell>
+        <Toaster />
       </body>
     </html>
   );
