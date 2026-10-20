@@ -40,6 +40,13 @@ import {
   LargeDialogHeader,
   LargeDialogTitle,
 } from "@/components/ui/large-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -1827,21 +1834,29 @@ export default function StockPage() {
                   >
                     เหตุผล (ถ้ามี)
                   </label>
-                  <select
-                    id="stock-adjustment-reason"
-                    value={adjustmentReason}
-                    onChange={(event) =>
-                      setAdjustmentReason(event.target.value)
+                  <Select
+                    value={adjustmentReason || "not-specified"}
+                    onValueChange={(value) =>
+                      setAdjustmentReason(
+                        value === "not-specified" ? "" : value,
+                      )
                     }
-                    className="h-11 w-full rounded-[8px] border border-input bg-background px-3 text-sm font-semibold shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                   >
-                    <option value="">ไม่ระบุเหตุผล</option>
-                    {STOCK_ADJUSTMENT_REASONS.map((reason) => (
-                      <option key={reason} value={reason}>
-                        {reason}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger
+                      id="stock-adjustment-reason"
+                      className="!h-11 w-full rounded-[8px] text-sm font-semibold"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="not-specified">ไม่ระบุเหตุผล</SelectItem>
+                      {STOCK_ADJUSTMENT_REASONS.map((reason) => (
+                        <SelectItem key={reason} value={reason}>
+                          {reason}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 

@@ -35,6 +35,7 @@ interface PayrollAdjustmentItem {
   codeStaff: number;
   socialSecurity: number;
   otherDeduction: number;
+  manualAdvance: number;
   note: string;
 }
 
@@ -126,12 +127,14 @@ function normalizeAdjustmentItems(value: unknown) {
     const codeStaff = Number(item.codeStaff);
     const socialSecurity = normalizeMoney(item.socialSecurity);
     const otherDeduction = normalizeMoney(item.otherDeduction);
+    const manualAdvance = normalizeMoney(item.manualAdvance);
 
     if (
       !Number.isInteger(codeStaff) ||
       codeStaff <= 0 ||
       socialSecurity === null ||
       otherDeduction === null ||
+      manualAdvance === null ||
       seenEmployees.has(codeStaff)
     ) {
       return null;
@@ -142,6 +145,7 @@ function normalizeAdjustmentItems(value: unknown) {
       codeStaff,
       socialSecurity,
       otherDeduction,
+      manualAdvance,
       note: normalizeText(item.note).slice(0, 250),
     });
   }
@@ -187,6 +191,8 @@ async function ensurePayrollAdjustmentTable() {
             CONSTRAINT DF_${payrollAdjustmentTable}_Social DEFAULT 0,
           OtherDeduction decimal(18, 2) NOT NULL
             CONSTRAINT DF_${payrollAdjustmentTable}_Other DEFAULT 0,
+          ManualAdvance decimal(18, 2) NOT NULL
+            CONSTRAINT DF_${payrollAdjustmentTable}_Advance DEFAULT 0,
           Note nvarchar(250) NULL,
           UpdatedBy nvarchar(100) NULL,
           CreatedAt datetime NOT NULL
@@ -196,6 +202,13 @@ async function ensurePayrollAdjustmentTable() {
           CONSTRAINT PK_${payrollAdjustmentTable}
             PRIMARY KEY (PeriodStart, CodeStaff)
         )
+      END
+
+      IF COL_LENGTH(N'dbo.${payrollAdjustmentTable}', N'ManualAdvance') IS NULL
+      BEGIN
+        ALTER TABLE dbo.${payrollAdjustmentTable}
+        ADD ManualAdvance decimal(18, 2) NOT NULL
+          CONSTRAINT DF_${payrollAdjustmentTable}_Advance DEFAULT 0
       END
     `,
     undefined,
@@ -275,6 +288,7 @@ export async function GET(request: NextRequest) {
         codeStaff: number;
         socialSecurity: number | string;
         otherDeduction: number | string;
+        manualAdvance: number | string;
         note: string | null;
       }>(
         `
@@ -282,6 +296,7 @@ export async function GET(request: NextRequest) {
             CodeStaff as codeStaff,
             SocialSecurity as socialSecurity,
             OtherDeduction as otherDeduction,
+            ManualAdvance as manualAdvance,
             ISNULL(Note, '') as note
           FROM dbo.${payrollAdjustmentTable}
           WHERE PeriodStart = @startDate
@@ -348,6 +363,7 @@ export async function GET(request: NextRequest) {
           codeStaff: Number(adjustment.codeStaff),
           socialSecurity: Number(adjustment.socialSecurity) || 0,
           otherDeduction: Number(adjustment.otherDeduction) || 0,
+          manualAdvance: Number(adjustment.manualAdvance) || 0,
           note: normalizeText(adjustment.note),
         })),
       },
@@ -380,7 +396,7 @@ export async function PATCH(request: NextRequest) {
 
     if (!periodStart || !periodEnd || periodStart > periodEnd || !items) {
       return NextResponse.json(
-        { success: false, error: "กรุณาระบุรายการหักให้ถูกต้อง" },
+        { success: false, error: "กรุณาระบุรายการหักและยอดเบิกให้ถูกต้อง" },
         { status: 400 },
       );
     }
@@ -422,6 +438,11 @@ export async function PATCH(request: NextRequest) {
         sql.Decimal(18, 2),
         item.otherDeduction,
       );
+      saveRequest.input(
+        "manualAdvance",
+        sql.Decimal(18, 2),
+        item.manualAdvance,
+      );
       saveRequest.input("note", sql.NVarChar(250), item.note || null);
       saveRequest.input("updatedBy", sql.NVarChar(100), updatedBy);
 
@@ -431,6 +452,7 @@ export async function PATCH(request: NextRequest) {
           PeriodEnd = @periodEnd,
           SocialSecurity = @socialSecurity,
           OtherDeduction = @otherDeduction,
+          ManualAdvance = @manualAdvance,
           Note = @note,
           UpdatedBy = @updatedBy,
           UpdatedAt = GETDATE()
@@ -445,6 +467,7 @@ export async function PATCH(request: NextRequest) {
             CodeStaff,
             SocialSecurity,
             OtherDeduction,
+            ManualAdvance,
             Note,
             UpdatedBy
           )
@@ -454,6 +477,7 @@ export async function PATCH(request: NextRequest) {
             @codeStaff,
             @socialSecurity,
             @otherDeduction,
+            @manualAdvance,
             @note,
             @updatedBy
           )
@@ -477,7 +501,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: "ไม่สามารถบันทึกรายการหักของพนักงานได้",
+        error: "ไม่สามารถบันทึกรายการหักและยอดเบิกของพนักงานได้",
         ...(process.env.NODE_ENV !== "production" && {
           details: error instanceof Error ? error.message : String(error),
         }),

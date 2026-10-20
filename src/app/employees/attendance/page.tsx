@@ -76,12 +76,14 @@ interface PayrollAdjustment {
   codeStaff: number;
   socialSecurity: number;
   otherDeduction: number;
+  manualAdvance: number;
   note: string;
 }
 
 interface PayrollAdjustmentDraft {
   socialSecurity: string;
   otherDeduction: string;
+  manualAdvance: string;
   note: string;
 }
 
@@ -90,55 +92,71 @@ const statusOptions: Array<{
   label: string;
   shortLabel: string;
   wageFactor: number;
-  className: string;
+  dotClassName: string;
 }> = [
   {
     value: "full_day",
     label: "ทำงานเต็มวัน",
     shortLabel: "เต็มวัน",
     wageFactor: 1,
-    className: "text-main-green",
+    dotClassName: "bg-main-green",
   },
   {
     value: "half_day",
     label: "ทำงานครึ่งวัน",
     shortLabel: "ครึ่งวัน",
     wageFactor: 0.5,
-    className: "text-main-orange",
+    dotClassName: "bg-main-orange",
   },
   {
     value: "absent",
     label: "ขาดงาน",
     shortLabel: "ขาด",
     wageFactor: 0,
-    className: "text-main-red",
+    dotClassName: "bg-main-red",
   },
   {
     value: "sunday_off",
     label: "หยุดวันอาทิตย์ (ไม่ได้ค่าแรง)",
     shortLabel: "อาทิตย์",
     wageFactor: 0,
-    className: "text-muted-foreground",
+    dotClassName: "bg-muted-foreground",
   },
   {
     value: "special_paid",
     label: "หยุดพิเศษ (ได้ค่าแรง)",
     shortLabel: "หยุดได้ค่าแรง",
     wageFactor: 1,
-    className: "text-main-blue",
+    dotClassName: "bg-main-blue",
   },
   {
     value: "special_unpaid",
     label: "หยุดพิเศษ (ไม่ได้ค่าแรง)",
     shortLabel: "หยุดไม่ได้เงิน",
     wageFactor: 0,
-    className: "text-muted-foreground",
+    dotClassName: "bg-muted-foreground",
   },
 ];
 
 const wageFactorByStatus = new Map(
   statusOptions.map((option) => [option.value, option.wageFactor]),
 );
+
+function StatusOptionLabel({
+  option,
+}: {
+  option: (typeof statusOptions)[number];
+}) {
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      <span
+        aria-hidden="true"
+        className={cn("size-2.5 shrink-0 rounded-full", option.dotClassName)}
+      />
+      <span className="truncate">{option.label}</span>
+    </span>
+  );
+}
 
 function getTodayInputValue() {
   const now = new Date();
@@ -331,6 +349,9 @@ export default function EmployeeAttendancePage() {
             otherDeduction: adjustment?.otherDeduction
               ? String(adjustment.otherDeduction)
               : "",
+            manualAdvance: adjustment?.manualAdvance
+              ? String(adjustment.manualAdvance)
+              : "",
             note: adjustment?.note ?? "",
           };
         }
@@ -338,6 +359,7 @@ export default function EmployeeAttendancePage() {
         setData(nextData);
         setDrafts(nextDrafts);
         setAdjustmentDrafts(nextAdjustmentDrafts);
+        setBulkStatus("");
       } catch (loadError) {
         if (!controller.signal.aborted) {
           toast.add({
@@ -406,10 +428,14 @@ export default function EmployeeAttendancePage() {
         0,
       );
       const grossWage = Number((payableDays * employee.dailyWage).toFixed(2));
-      const advanceAmount = advanceByEmployee.get(employee.code) ?? 0;
+      const recordedAdvanceAmount = advanceByEmployee.get(employee.code) ?? 0;
       const adjustment = adjustmentDrafts[employee.code];
       const socialSecurity = Number(adjustment?.socialSecurity) || 0;
       const otherDeduction = Number(adjustment?.otherDeduction) || 0;
+      const manualAdvance = Number(adjustment?.manualAdvance) || 0;
+      const advanceAmount = Number(
+        (recordedAdvanceAmount + manualAdvance).toFixed(2),
+      );
       const absentDates = records
         .filter((record) => record.status === "absent")
         .map((record) => Number(record.date.slice(8, 10)))
@@ -436,6 +462,8 @@ export default function EmployeeAttendancePage() {
         grossWage,
         socialSecurity,
         otherDeduction,
+        recordedAdvanceAmount,
+        manualAdvance,
         advanceAmount,
         netWage: Number(
           (grossWage - socialSecurity - otherDeduction - advanceAmount).toFixed(
@@ -489,6 +517,10 @@ export default function EmployeeAttendancePage() {
     codeStaff: number,
     updates: Partial<AttendanceDraft>,
   ) => {
+    if (updates.status !== undefined) {
+      setBulkStatus("");
+    }
+
     setDrafts((current) => ({
       ...current,
       [codeStaff]: { ...current[codeStaff], ...updates },
@@ -506,19 +538,24 @@ export default function EmployeeAttendancePage() {
   };
 
   const setBulkStatuses = (status: AttendanceStatus | "") => {
-    setDrafts((current) =>
-      Object.fromEntries(
+    setDrafts((current) => {
+      const hasUnrecordedEmployees = data.employees.some(
+        (employee) => !current[employee.code]?.status,
+      );
+
+      return Object.fromEntries(
         data.employees.map((employee) => [
           employee.code,
           {
             ...current[employee.code],
-            status: !current[employee.code]?.status
-              ? status
-              : current[employee.code].status,
+            status:
+              hasUnrecordedEmployees && current[employee.code]?.status
+                ? current[employee.code].status
+                : status,
           },
         ]),
-      ),
-    );
+      );
+    });
   };
 
   const handleSave = async () => {
@@ -588,6 +625,8 @@ export default function EmployeeAttendancePage() {
               Number(adjustmentDrafts[employee.code]?.socialSecurity) || 0,
             otherDeduction:
               Number(adjustmentDrafts[employee.code]?.otherDeduction) || 0,
+            manualAdvance:
+              Number(adjustmentDrafts[employee.code]?.manualAdvance) || 0,
             note: adjustmentDrafts[employee.code]?.note || "",
           })),
         }),
@@ -602,17 +641,17 @@ export default function EmployeeAttendancePage() {
       }
 
       toast.add({
-        title: "✅ บันทึกรายการหักแล้ว",
-        description: `ประกันสังคมและรายการหักรอบ ${payPeriod.label} ถูกบันทึกเรียบร้อยแล้ว`,
+        title: "✅ บันทึกรายการหักและยอดเบิกแล้ว",
+        description: `ข้อมูลรอบ ${payPeriod.label} ถูกบันทึกเรียบร้อยแล้ว`,
       });
       setRefreshKey((current) => current + 1);
     } catch (saveError) {
       toast.add({
-        title: "❌ บันทึกรายการหักไม่สำเร็จ",
+        title: "❌ บันทึกรายการหักและยอดเบิกไม่สำเร็จ",
         description:
           saveError instanceof Error
             ? saveError.message
-            : "กรุณาลองบันทึกรายการหักอีกครั้ง",
+            : "กรุณาลองบันทึกข้อมูลอีกครั้ง",
       });
     } finally {
       setSavingAdjustments(false);
@@ -902,25 +941,26 @@ export default function EmployeeAttendancePage() {
                     onValueChange={(value) => {
                       setBulkStatus(value);
                       setBulkStatuses(value as AttendanceStatus);
-                      setBulkStatus("");
                     }}
                   >
                     <SelectTrigger
                       className="!h-10 w-full rounded-[8px] border-border bg-background px-3 text-sm font-medium hover:bg-muted sm:w-[280px]"
-                      disabled={dailySummary.unrecorded === 0}
+                      disabled={
+                        loading || saving || data.employees.length === 0
+                      }
                     >
                       <SelectValue
                         placeholder={
                           dailySummary.unrecorded > 0
                             ? `กำหนดสถานะ ${dailySummary.unrecorded} คนที่ยังไม่ลง`
-                            : "ลงสถานะครบแล้ว"
+                            : "เปลี่ยนสถานะทั้งหมด"
                         }
                       />
                     </SelectTrigger>
                     <SelectContent>
                       {statusOptions.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
-                          {option.label}
+                          <StatusOptionLabel option={option} />
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -970,10 +1010,6 @@ export default function EmployeeAttendancePage() {
                           status: "",
                           note: "",
                         };
-                        const selectedOption = statusOptions.find(
-                          (option) => option.value === draft.status,
-                        );
-
                         return (
                           <TableRow key={employee.code} className="[&>td]:py-5">
                             <TableCell className="py-5">
@@ -994,12 +1030,7 @@ export default function EmployeeAttendancePage() {
                                   })
                                 }
                               >
-                                <SelectTrigger
-                                  className={cn(
-                                    "!h-10 w-full max-w-sm rounded-[8px] border-border bg-background px-3 text-sm font-medium",
-                                    selectedOption?.className,
-                                  )}
-                                >
+                                <SelectTrigger className="!h-10 w-full max-w-sm rounded-[8px] border-border bg-background px-3 text-sm font-medium">
                                   <SelectValue placeholder="เลือกสถานะ" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1008,7 +1039,7 @@ export default function EmployeeAttendancePage() {
                                       key={option.value}
                                       value={option.value}
                                     >
-                                      {option.label}
+                                      <StatusOptionLabel option={option} />
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
@@ -1042,7 +1073,7 @@ export default function EmployeeAttendancePage() {
               <div className="mb-4 flex flex-col justify-between gap-3 lg:flex-row lg:items-end">
                 <div>
                   <h2 className="text-xl font-semibold text-card-foreground">
-                    รายการหักและวงเงินเบิก
+                    รายการหักและยอดเบิก
                   </h2>
                   <p className="text-sm font-medium text-muted-foreground">
                     คำนวณถึง {formatThaiDate(selectedDate)}{" "}
@@ -1063,7 +1094,7 @@ export default function EmployeeAttendancePage() {
                   ) : (
                     <Save />
                   )}
-                  {savingAdjustments ? "กำลังบันทึก" : "บันทึกรายการหัก"}
+                  {savingAdjustments ? "กำลังบันทึก" : "บันทึกรายการ"}
                 </Button>
               </div>
 
@@ -1086,8 +1117,8 @@ export default function EmployeeAttendancePage() {
                       <TableHead className="min-w-40 font-semibold">
                         หนี้ค้าง/หักอื่น (บาท)
                       </TableHead>
-                      <TableHead className="min-w-28 text-right font-semibold">
-                        เบิกแล้ว (บาท)
+                      <TableHead className="min-w-40 font-semibold">
+                        กรอกยอดเบิกเพิ่ม (บาท)
                       </TableHead>
                       <TableHead className="min-w-36 text-right font-semibold">
                         วงเงินคงเหลือ (บาท)
@@ -1151,8 +1182,31 @@ export default function EmployeeAttendancePage() {
                             aria-label={`หนี้ค้างหรือรายการหักอื่น ${row.employee.name}`}
                           />
                         </TableCell>
-                        <TableCell className="py-5 text-right text-main-orange">
-                          {formatAmount(row.advanceAmount)}
+                        <TableCell className="py-5">
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            inputMode="decimal"
+                            value={
+                              adjustmentDrafts[row.employee.code]
+                                ?.manualAdvance ?? ""
+                            }
+                            onChange={(event) =>
+                              updateAdjustmentDraft(row.employee.code, {
+                                manualAdvance: event.target.value,
+                              })
+                            }
+                            placeholder="0.00"
+                            className="!h-10 rounded-[8px] border-slate-300 bg-white text-right text-sm focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/15 dark:bg-background"
+                            aria-label={`ยอดเบิกเพิ่ม ${row.employee.name}`}
+                          />
+                          {row.recordedAdvanceAmount > 0 && (
+                            <div className="mt-1.5 text-right text-sm text-muted-foreground">
+                              จากรายการรับจ่าย{" "}
+                              {formatAmount(row.recordedAdvanceAmount)}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell
                           className={cn(

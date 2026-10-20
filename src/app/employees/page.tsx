@@ -4,9 +4,15 @@ import {
   Activity,
   Briefcase,
   CalendarCheck2,
+  CalendarDays,
+  ChevronRight,
   DollarSign,
+  IdCard,
+  LoaderCircle,
+  MapPin,
   Phone,
   ReceiptText,
+  Trash2,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -17,6 +23,16 @@ import { outfit } from "@/components/fonts/fonts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
   Table,
   TableBody,
   TableCell,
@@ -24,6 +40,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
 interface Employee {
@@ -60,6 +77,12 @@ export default function EmployeesPage() {
   const [recentPayments, setRecentPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
+    null,
+  );
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [confirmationCode, setConfirmationCode] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const formatCurrency = (value: number, fractionDigits = 0) => {
     return new Intl.NumberFormat("th-TH", {
@@ -166,24 +189,91 @@ export default function EmployeesPage() {
 
   const employeesWithPhone = employees.filter((emp) => emp.Phone).length;
 
+  const closeEmployeeDetails = () => {
+    if (!deleteDialogOpen && !isDeleting) {
+      setSelectedEmployee(null);
+    }
+  };
+
+  const handleDeleteDialogChange = (open: boolean) => {
+    if (isDeleting) {
+      return;
+    }
+
+    setDeleteDialogOpen(open);
+    if (!open) {
+      setConfirmationCode("");
+    }
+  };
+
+  const deleteEmployee = async () => {
+    if (
+      !selectedEmployee ||
+      confirmationCode !== String(selectedEmployee.Code)
+    ) {
+      return;
+    }
+
+    setIsDeleting(true);
+
+    try {
+      const response = await fetch("/api/employees", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: selectedEmployee.Code,
+          confirmationCode,
+        }),
+      });
+      const result = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+      };
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || result.error || "ลบพนักงานไม่สำเร็จ");
+      }
+
+      setEmployees((current) =>
+        current.filter((employee) => employee.Code !== selectedEmployee.Code),
+      );
+      setDeleteDialogOpen(false);
+      setConfirmationCode("");
+      setSelectedEmployee(null);
+      toast.add({
+        title: "✅ ลบพนักงานแล้ว",
+        description: `${selectedEmployee.NameSure || `รหัส ${selectedEmployee.Code}`} ถูกนำออกจากรายชื่อพนักงาน`,
+      });
+    } catch (deleteError) {
+      toast.add({
+        title: "❌ ลบพนักงานไม่สำเร็จ",
+        description:
+          deleteError instanceof Error
+            ? deleteError.message
+            : "กรุณาลองใหม่อีกครั้ง",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <div className="p-6 pb-16">
       <DashboardBreadcrumb label="พนักงาน" href="/employees" />
       <hr className="my-4 mb-6 hidden w-full min-[1025px]:block" />
 
       <div className="space-y-6 mt-2 sm:mt-0">
-        <div className="dark:bg-background mt-2 flex w-full flex-col rounded-2xl border bg-white px-4 py-6 shadow-sm md:mt-6">
-          <div className="mb-6 flex flex-col justify-between gap-6 min-[798px]:flex-row min-[798px]:items-center">
+        <div className="mt-2 flex w-full flex-col rounded-3xl border bg-card p-4 md:mt-6">
+          <div className="mb-5 flex flex-col justify-between gap-4 min-[798px]:flex-row min-[798px]:items-center">
             <div className="flex items-center gap-3">
               <div className="bg-background dark:bg-secondary flex h-12 w-12 items-center justify-center rounded-[8px] border min-[798px]:h-14 min-[798px]:w-14">
                 <Users className="h-6 w-6 text-primary" strokeWidth={2.5} />
               </div>
               <div className="flex flex-col">
-                <span className="text-2xl font-bold text-primary">
-                  จัดการข้อมูลพนักงาน
-                </span>
+                <span className="text-2xl font-bold text-primary">พนักงาน</span>
                 <p className="hidden font-medium text-foreground min-[798px]:block">
-                  ข้อมูลพนักงาน ตำแหน่งงาน และการจ่ายเงินเดือน
+                  รายชื่อ ตำแหน่ง และค่าแรงของทีม
                 </p>
               </div>
             </div>
@@ -208,9 +298,8 @@ export default function EmployeesPage() {
               title="ตำแหน่งงาน"
               value={positions.length}
               unit="ตำแหน่ง"
-              subtitle="ตำแหน่ง"
               icon={Briefcase}
-              variant="purple"
+              variant="blue"
             />
             <KPICard
               title="ค่าแรงเฉลี่ย/วัน"
@@ -220,17 +309,17 @@ export default function EmployeesPage() {
               variant="emerald"
             />
             <KPICard
-              title="จ่ายเงินล่าสุด"
+              title="ยอดจ่ายล่าสุด"
               value={totalSalary}
               format="currency"
-              subtitle="20 ครั้งล่าสุด"
+              subtitle={`${recentPayments.length.toLocaleString("th-TH")} รายการล่าสุด`}
               icon={ReceiptText}
-              variant="orange"
+              variant="red"
             />
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm">
+        <div className="overflow-hidden rounded-3xl border bg-card p-4">
           <div className="mb-4 flex flex-col justify-between gap-4 min-[720px]:flex-row min-[720px]:items-center">
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50 dark:border-blue-500/20 dark:bg-blue-500/10">
@@ -294,18 +383,30 @@ export default function EmployeesPage() {
                     <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
                       ค่าแรง/วัน
                     </TableHead>
+                    <TableHead className="w-12 px-3">
+                      <span className="sr-only">ดูรายละเอียด</span>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {employees.map((emp, index) => (
+                  {employees.map((emp) => (
                     <TableRow
                       key={emp.Code}
-                      className="group border-border/60 transition-colors duration-200 hover:bg-blue-50/30 dark:hover:bg-blue-500/5"
+                      className="group cursor-pointer border-border/60 transition-colors duration-200 hover:bg-blue-50/30 focus-visible:bg-blue-50/30 focus-visible:outline-2 focus-visible:outline-primary dark:hover:bg-blue-500/5"
+                      tabIndex={0}
+                      aria-label={`ดูรายละเอียด ${emp.NameSure || `พนักงานรหัส ${emp.Code}`}`}
+                      onClick={() => setSelectedEmployee(emp)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setSelectedEmployee(emp);
+                        }
+                      }}
                     >
-                      <TableCell className="px-4 py-4 font-medium">
+                      <TableCell className="px-4 py-5 font-medium">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-sm font-bold text-main-blue select-none dark:border-blue-500/20 dark:bg-blue-500/10 min-[550px]:h-12 min-[550px]:w-12">
-                            {index + 1}
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border bg-secondary text-main-blue select-none">
+                            <Users className="h-5 w-5" />
                           </div>
                           <div className="flex min-w-0 flex-col">
                             <span className="max-w-[130px] truncate text-base font-bold text-card-foreground transition-colors group-hover:text-main-blue min-[420px]:max-w-[190px] min-[550px]:max-w-[280px] min-[1100px]:max-w-[420px]">
@@ -317,13 +418,13 @@ export default function EmployeesPage() {
                             <p
                               className={cn(
                                 outfit.className,
-                                "text-xs font-semibold text-muted-foreground min-[760px]:hidden",
+                                "text-sm font-semibold text-muted-foreground min-[760px]:hidden",
                               )}
                             >
                               {emp.Phone || "ไม่ระบุเบอร์โทร"}
                             </p>
                             {emp.Address ? (
-                              <p className="hidden max-w-[280px] truncate text-xs font-medium text-muted-foreground min-[560px]:block min-[1180px]:hidden">
+                              <p className="hidden max-w-[280px] truncate text-sm font-medium text-muted-foreground min-[560px]:block min-[1180px]:hidden">
                                 {emp.Address}
                               </p>
                             ) : null}
@@ -334,7 +435,7 @@ export default function EmployeesPage() {
                       <TableCell className="hidden align-middle min-[640px]:table-cell">
                         <Badge
                           variant="outline"
-                          className="h-7 rounded-full border-blue-100 bg-blue-50 px-3 text-xs font-bold text-main-blue shadow-none dark:border-blue-500/20 dark:bg-blue-500/10"
+                          className="h-7 rounded-full border-blue-100 bg-blue-50 px-3 text-sm font-bold text-main-blue shadow-none dark:border-blue-500/20 dark:bg-blue-500/10"
                         >
                           {emp.Positions || "ไม่ระบุตำแหน่ง"}
                         </Badge>
@@ -370,7 +471,7 @@ export default function EmployeesPage() {
                       </TableCell>
 
                       <TableCell className="hidden max-w-xs text-right align-middle min-[1180px]:table-cell">
-                        <span className="line-clamp-2 text-xs font-medium text-muted-foreground">
+                        <span className="line-clamp-2 text-sm font-medium text-muted-foreground">
                           {emp.Address || "-"}
                         </span>
                       </TableCell>
@@ -390,12 +491,15 @@ export default function EmployeesPage() {
                           <span
                             className={cn(
                               outfit.className,
-                              "text-xs font-semibold text-muted-foreground",
+                              "text-sm font-semibold text-muted-foreground",
                             )}
                           >
                             รหัส {emp.Code}
                           </span>
                         </div>
+                      </TableCell>
+                      <TableCell className="px-3 text-right align-middle">
+                        <ChevronRight className="ml-auto h-5 w-5 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-main-blue" />
                       </TableCell>
                     </TableRow>
                   ))}
@@ -405,11 +509,11 @@ export default function EmployeesPage() {
           )}
         </div>
 
-        <div className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm">
+        <div className="overflow-hidden rounded-3xl border bg-card p-4">
           <div className="mb-4 flex flex-col justify-between gap-4 min-[720px]:flex-row min-[720px]:items-center">
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-purple-100 bg-purple-50 dark:border-purple-500/20 dark:bg-purple-500/10">
-                <Briefcase className="h-6 w-6 text-purple-600" />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] border border-blue-100 bg-blue-50 dark:border-blue-500/20 dark:bg-blue-500/10">
+                <Briefcase className="h-6 w-6 text-main-blue" />
               </div>
               <div className="flex flex-col">
                 <span className="text-xl font-bold text-card-foreground">
@@ -421,7 +525,10 @@ export default function EmployeesPage() {
               </div>
             </div>
 
-            <Badge className="h-8 w-fit rounded-full bg-purple-50 px-4 text-sm font-bold text-purple-600 dark:bg-purple-500/10">
+            <Badge
+              variant="outline"
+              className="h-8 w-fit rounded-full px-4 text-sm font-bold text-card-foreground"
+            >
               {positions.length} ตำแหน่ง
             </Badge>
           </div>
@@ -439,49 +546,33 @@ export default function EmployeesPage() {
               </p>
             </div>
           ) : (
-            <div className="grid gap-3 min-[520px]:grid-cols-2 min-[900px]:grid-cols-4">
+            <div className="grid gap-4 min-[520px]:grid-cols-2 min-[900px]:grid-cols-4">
               {positions.map((pos) => {
                 const empCount = employees.filter(
                   (emp) => emp.Positions?.trim() === pos.NamePositions,
                 ).length;
 
                 return (
-                  <div
+                  <KPICard
                     key={pos.Code}
-                    className="rounded-2xl border bg-white p-4 transition-colors duration-200 hover:bg-purple-50/30 dark:bg-card dark:hover:bg-purple-500/5"
-                  >
-                    <div className="mb-4 flex items-center justify-between gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-purple-100 bg-purple-50 dark:border-purple-500/20 dark:bg-purple-500/10">
-                        <Briefcase className="h-5 w-5 text-purple-600" />
-                      </div>
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          outfit.className,
-                          "rounded-full px-3 text-xs font-bold text-muted-foreground",
-                        )}
-                      >
-                        รหัส {pos.Code}
-                      </Badge>
-                    </div>
-                    <h3 className="line-clamp-1 text-base font-bold text-card-foreground">
-                      {pos.NamePositions}
-                    </h3>
-                    <p className="mt-1 text-sm font-medium text-muted-foreground">
-                      {empCount.toLocaleString("th-TH")} คนในตำแหน่งนี้
-                    </p>
-                  </div>
+                    title={pos.NamePositions}
+                    value={empCount}
+                    unit="คน"
+                    subtitle={`รหัสตำแหน่ง ${pos.Code}`}
+                    icon={Briefcase}
+                    variant="blue"
+                  />
                 );
               })}
             </div>
           )}
         </div>
 
-        <div className="overflow-hidden rounded-3xl border bg-card p-4 shadow-sm">
+        <div className="overflow-hidden rounded-3xl border bg-card p-4">
           <div className="mb-4 flex flex-col justify-between gap-4 min-[720px]:flex-row min-[720px]:items-center">
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-orange-100 bg-orange-50 dark:border-orange-500/20 dark:bg-orange-500/10">
-                <ReceiptText className="h-6 w-6 text-main-orange" />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] border border-red-100 bg-red-50 dark:border-red-500/20 dark:bg-red-500/10">
+                <ReceiptText className="h-6 w-6 text-main-red" />
               </div>
               <div className="flex flex-col">
                 <span className="text-xl font-bold text-card-foreground">
@@ -494,7 +585,10 @@ export default function EmployeesPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <Badge className="h-8 rounded-full bg-orange-50 px-4 text-sm font-bold text-main-orange dark:bg-orange-500/10">
+              <Badge
+                variant="outline"
+                className="h-8 rounded-full px-4 text-sm font-bold text-card-foreground"
+              >
                 {recentPayments.length} รายการ
               </Badge>
               <Badge
@@ -638,6 +732,230 @@ export default function EmployeesPage() {
           )}
         </div>
       </div>
+
+      <Dialog
+        open={selectedEmployee !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeEmployeeDetails();
+          }
+        }}
+      >
+        <DialogContent
+          showCloseButton={false}
+          className="max-h-[calc(100dvh-2rem)] max-w-2xl gap-0 overflow-y-auto rounded-2xl p-0 text-base"
+        >
+          {selectedEmployee ? (
+            <>
+              <DialogHeader className="flex-row items-start gap-3 border-b p-5 pr-4 text-left">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border bg-secondary text-main-blue">
+                  <Users className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <DialogTitle className="text-xl leading-tight font-semibold">
+                    {selectedEmployee.NameSure || "ไม่ระบุชื่อ"}
+                  </DialogTitle>
+                  <DialogDescription className="mt-1 text-sm">
+                    รหัสพนักงาน {selectedEmployee.Code}
+                  </DialogDescription>
+                </div>
+                <DialogClose asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10"
+                    aria-label="ปิดรายละเอียดพนักงาน"
+                  >
+                    <span aria-hidden="true" className="text-2xl leading-none">
+                      ×
+                    </span>
+                  </Button>
+                </DialogClose>
+              </DialogHeader>
+
+              <div className="grid gap-3 p-5 sm:grid-cols-2">
+                {[
+                  {
+                    label: "ตำแหน่ง",
+                    value: selectedEmployee.Positions || "ไม่ระบุ",
+                    icon: Briefcase,
+                  },
+                  {
+                    label: "ค่าแรงต่อวัน",
+                    value: selectedEmployee.PriceToWorkDay
+                      ? formatCurrency(selectedEmployee.PriceToWorkDay, 2)
+                      : "ไม่ระบุ",
+                    icon: DollarSign,
+                  },
+                  {
+                    label: "เบอร์โทร",
+                    value: selectedEmployee.Phone || "ไม่ระบุ",
+                    icon: Phone,
+                  },
+                  {
+                    label: "เลขบัตรประชาชน",
+                    value: selectedEmployee.IDCard || "ไม่ระบุ",
+                    icon: IdCard,
+                  },
+                  {
+                    label: "วันเกิด",
+                    value: formatDate(selectedEmployee.DateBirthDay),
+                    icon: CalendarDays,
+                  },
+                  {
+                    label: "อายุ",
+                    value:
+                      selectedEmployee.Age > 0
+                        ? `${selectedEmployee.Age} ปี`
+                        : "ไม่ระบุ",
+                    icon: Users,
+                  },
+                ].map((detail) => {
+                  const DetailIcon = detail.icon;
+
+                  return (
+                    <div
+                      key={detail.label}
+                      className="flex min-w-0 gap-3 rounded-xl bg-secondary p-4"
+                    >
+                      <DetailIcon className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-muted-foreground">
+                          {detail.label}
+                        </p>
+                        <p className="mt-1 break-words font-medium text-foreground">
+                          {detail.value}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <div className="flex min-w-0 gap-3 rounded-xl bg-secondary p-4 sm:col-span-2">
+                  <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      ที่อยู่
+                    </p>
+                    <p className="mt-1 break-words font-medium text-foreground">
+                      {selectedEmployee.Address || "ไม่ระบุ"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter className="m-0 rounded-none border-t bg-muted/40 p-4 sm:justify-between">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => setDeleteDialogOpen(true)}
+                >
+                  <Trash2 />
+                  ลบพนักงาน
+                </Button>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline">
+                    ปิด
+                  </Button>
+                </DialogClose>
+              </DialogFooter>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteDialogOpen} onOpenChange={handleDeleteDialogChange}>
+        <DialogContent
+          showCloseButton={false}
+          className="max-w-md gap-0 rounded-2xl p-0 text-base"
+        >
+          {selectedEmployee ? (
+            <>
+              <DialogHeader className="flex-row items-start gap-3 border-b p-5 pr-4 text-left">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-red-100 bg-red-50 text-main-red">
+                  <Trash2 className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <DialogTitle className="text-xl leading-tight font-semibold">
+                    ยืนยันการลบพนักงาน
+                  </DialogTitle>
+                  <DialogDescription className="mt-1 text-sm leading-relaxed">
+                    การลบจะนำ {selectedEmployee.NameSure || "พนักงานคนนี้"}{" "}
+                    ออกจากรายชื่อ และทำได้เฉพาะเมื่อยังไม่มีประวัติที่ต้องเก็บรักษา
+                  </DialogDescription>
+                </div>
+                <DialogClose asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10"
+                    aria-label="ยกเลิกการลบพนักงาน"
+                    disabled={isDeleting}
+                  >
+                    <span aria-hidden="true" className="text-2xl leading-none">
+                      ×
+                    </span>
+                  </Button>
+                </DialogClose>
+              </DialogHeader>
+
+              <div className="p-5">
+                <label
+                  htmlFor="employee-delete-code"
+                  className="mb-2 block text-sm font-medium text-foreground"
+                >
+                  พิมพ์รหัสพนักงาน {selectedEmployee.Code} เพื่อยืนยัน
+                </label>
+                <Input
+                  id="employee-delete-code"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  value={confirmationCode}
+                  onChange={(event) => setConfirmationCode(event.target.value)}
+                  className="h-10 rounded-[8px] bg-background px-3 text-base"
+                  placeholder={String(selectedEmployee.Code)}
+                  aria-describedby="employee-delete-code-help"
+                  disabled={isDeleting}
+                  autoFocus
+                />
+                <p
+                  id="employee-delete-code-help"
+                  className="mt-2 text-sm leading-relaxed text-muted-foreground"
+                >
+                  ระบบจะไม่ลบประวัติเงินเดือนหรือวันทำงานย้อนหลังโดยอัตโนมัติ
+                </p>
+              </div>
+
+              <DialogFooter className="m-0 rounded-none border-t bg-muted/40 p-4">
+                <DialogClose asChild>
+                  <Button type="button" variant="outline" disabled={isDeleting}>
+                    ยกเลิก
+                  </Button>
+                </DialogClose>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={
+                    confirmationCode !== String(selectedEmployee.Code) ||
+                    isDeleting
+                  }
+                  aria-busy={isDeleting}
+                  onClick={deleteEmployee}
+                >
+                  {isDeleting ? (
+                    <LoaderCircle className="animate-spin motion-reduce:animate-none" />
+                  ) : (
+                    <Trash2 />
+                  )}
+                  {isDeleting ? "กำลังลบ" : "ยืนยันการลบ"}
+                </Button>
+              </DialogFooter>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
