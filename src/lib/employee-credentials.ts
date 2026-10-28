@@ -76,16 +76,21 @@ async function matchesPassword(
 }
 
 export async function ensureEmployeeCredentialTable() {
+  const [table] = await executeQuery<{ exists: number }>(
+    `
+      SELECT CASE
+        WHEN OBJECT_ID(N'dbo.${credentialTable}', N'U') IS NULL THEN 0
+        ELSE 1
+      END as [exists]
+    `,
+    undefined,
+    false,
+  );
+  if (Number(table?.exists) === 1) return;
+
   await executeQuery(
     `
-      BEGIN TRANSACTION;
-
       BEGIN TRY
-        EXEC sys.sp_getapplock
-          @Resource = N'${credentialTable}Setup',
-          @LockMode = N'Exclusive',
-          @LockOwner = N'Transaction';
-
         IF OBJECT_ID(N'dbo.${credentialTable}', N'U') IS NULL
         BEGIN
           CREATE TABLE dbo.${credentialTable} (
@@ -103,12 +108,9 @@ export async function ensureEmployeeCredentialTable() {
             CONSTRAINT UQ_${credentialTable}_Phone UNIQUE (PhoneNormalized)
           )
         END
-
-        COMMIT TRANSACTION;
       END TRY
       BEGIN CATCH
-        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-        THROW;
+        IF ERROR_NUMBER() <> 2714 THROW;
       END CATCH
     `,
     undefined,
