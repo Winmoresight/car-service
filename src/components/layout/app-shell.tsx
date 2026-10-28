@@ -9,25 +9,31 @@ import { cn } from "@/lib/utils";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const isLoginPage = pathname === "/login";
+  const isFocusedPage =
+    pathname === "/login" ||
+    pathname === "/check-in" ||
+    pathname === "/change-password";
 
   return (
     <TooltipProvider>
-      {isLoginPage ? null : <Sidebar />}
+      {isFocusedPage ? null : <Sidebar />}
 
       <div
         className={cn(
-          "flex min-h-screen flex-col",
-          !isLoginPage && "min-[1025px]:pl-64",
+          "flex min-h-screen flex-col print:min-h-0 print:pl-0",
+          !isFocusedPage && "min-[1025px]:pl-64",
         )}
       >
         <main
-          className={cn("flex-1", !isLoginPage && "pb-20 min-[1025px]:pb-4")}
+          className={cn(
+            "flex-1 print:pb-0",
+            !isFocusedPage && "pb-20 min-[1025px]:pb-4",
+          )}
         >
           {children}
         </main>
 
-        {isLoginPage ? null : <MobileNav />}
+        {isFocusedPage ? null : <MobileNav />}
       </div>
     </TooltipProvider>
   );

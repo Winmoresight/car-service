@@ -7,11 +7,15 @@ import {
   CalendarDays,
   ChevronRight,
   DollarSign,
+  Eye,
+  EyeOff,
   IdCard,
+  KeyRound,
   LoaderCircle,
   MapPin,
   Phone,
   ReceiptText,
+  Save,
   Trash2,
   Users,
 } from "lucide-react";
@@ -83,6 +87,10 @@ export default function EmployeesPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [confirmationCode, setConfirmationCode] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [canManage, setCanManage] = useState(false);
+  const [salaryAmountsVisible, setSalaryAmountsVisible] = useState(false);
+  const [employeePhone, setEmployeePhone] = useState("");
+  const [isSavingAccess, setIsSavingAccess] = useState(false);
 
   const formatCurrency = (value: number, fractionDigits = 0) => {
     return new Intl.NumberFormat("th-TH", {
@@ -92,6 +100,10 @@ export default function EmployeesPage() {
       maximumFractionDigits: fractionDigits,
     }).format(value || 0);
   };
+
+  const amountsVisible = !canManage || salaryAmountsVisible;
+  const formatSensitiveCurrency = (value: number, fractionDigits = 0) =>
+    amountsVisible ? formatCurrency(value, fractionDigits) : "••••••";
 
   const formatDate = (dateString: string) => {
     if (!dateString) {
@@ -130,6 +142,7 @@ export default function EmployeesPage() {
 
         if (empData.success) {
           setEmployees(empData.data);
+          setCanManage(Boolean(empData.access?.canManage));
         }
 
         if (posData.success) {
@@ -148,6 +161,10 @@ export default function EmployeesPage() {
 
     fetchData();
   }, []);
+
+  useEffect(() => {
+    setEmployeePhone(selectedEmployee?.Phone || "");
+  }, [selectedEmployee]);
 
   if (loading) {
     return (
@@ -203,6 +220,60 @@ export default function EmployeesPage() {
     setDeleteDialogOpen(open);
     if (!open) {
       setConfirmationCode("");
+    }
+  };
+
+  const updateEmployeeAccess = async (action?: "reset_password") => {
+    if (!selectedEmployee) return;
+
+    try {
+      setIsSavingAccess(true);
+      const response = await fetch("/api/employees", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: selectedEmployee.Code,
+          phone: employeePhone,
+          action,
+        }),
+      });
+      const result = (await response.json()) as {
+        success?: boolean;
+        data?: { phone: string };
+        error?: string;
+      };
+      if (!response.ok || !result.success || !result.data) {
+        throw new Error(result.error || "อัปเดตบัญชีพนักงานไม่สำเร็จ");
+      }
+
+      const phone = result.data.phone;
+      setEmployeePhone(phone);
+      setEmployees((current) =>
+        current.map((employee) =>
+          employee.Code === selectedEmployee.Code
+            ? { ...employee, Phone: phone }
+            : employee,
+        ),
+      );
+      setSelectedEmployee((current) =>
+        current ? { ...current, Phone: phone } : current,
+      );
+      toast.add({
+        title: action ? "รีเซ็ตรหัสผ่านแล้ว" : "บันทึกเบอร์โทรแล้ว",
+        description: action
+          ? "พนักงานเข้าใช้ด้วย 123456 และต้องตั้งรหัสใหม่อีกครั้ง"
+          : "พนักงานใช้เบอร์นี้เป็นชื่อผู้ใช้งานได้แล้ว",
+      });
+    } catch (accessError) {
+      toast.add({
+        title: "อัปเดตบัญชีไม่สำเร็จ",
+        description:
+          accessError instanceof Error
+            ? accessError.message
+            : "กรุณาลองใหม่อีกครั้ง",
+      });
+    } finally {
+      setIsSavingAccess(false);
     }
   };
 
@@ -277,12 +348,29 @@ export default function EmployeesPage() {
                 </p>
               </div>
             </div>
-            <Button asChild className="h-10">
-              <Link href="/employees/attendance">
-                <CalendarCheck2 />
-                บันทึกวันทำงาน
-              </Link>
-            </Button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              {canManage && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 rounded-[8px]"
+                  onClick={() => setSalaryAmountsVisible((visible) => !visible)}
+                  aria-pressed={salaryAmountsVisible}
+                  aria-label={
+                    salaryAmountsVisible ? "ซ่อนยอดเงินเดือน" : "แสดงยอดเงินเดือน"
+                  }
+                >
+                  {salaryAmountsVisible ? <Eye /> : <EyeOff />}
+                  {salaryAmountsVisible ? "ซ่อนยอดเงิน" : "แสดงยอดเงิน"}
+                </Button>
+              )}
+              <Button asChild className="h-10">
+                <Link href="/employees/attendance">
+                  <CalendarCheck2 />
+                  บันทึกวันทำงาน
+                </Link>
+              </Button>
+            </div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-4">
@@ -303,15 +391,15 @@ export default function EmployeesPage() {
             />
             <KPICard
               title="ค่าแรงเฉลี่ย/วัน"
-              value={averageWage}
-              format="currency"
+              value={amountsVisible ? averageWage : "••••••"}
+              format={amountsVisible ? "currency" : undefined}
               icon={DollarSign}
               variant="emerald"
             />
             <KPICard
               title="ยอดจ่ายล่าสุด"
-              value={totalSalary}
-              format="currency"
+              value={amountsVisible ? totalSalary : "••••••"}
+              format={amountsVisible ? "currency" : undefined}
               subtitle={`${recentPayments.length.toLocaleString("th-TH")} รายการล่าสุด`}
               icon={ReceiptText}
               variant="red"
@@ -485,7 +573,7 @@ export default function EmployeesPage() {
                             )}
                           >
                             {emp.PriceToWorkDay
-                              ? formatCurrency(emp.PriceToWorkDay)
+                              ? formatSensitiveCurrency(emp.PriceToWorkDay)
                               : "-"}
                           </span>
                           <span
@@ -598,7 +686,7 @@ export default function EmployeesPage() {
                   "h-8 rounded-full px-4 text-sm font-bold text-card-foreground",
                 )}
               >
-                {formatCurrency(totalSalary, 2)}
+                {formatSensitiveCurrency(totalSalary, 2)}
               </Badge>
             </div>
           </div>
@@ -665,7 +753,7 @@ export default function EmployeesPage() {
                               <p className="max-w-[120px] truncate text-sm font-semibold text-muted-foreground min-[420px]:max-w-[180px] min-[550px]:max-w-[260px] min-[640px]:hidden">
                                 {payment.NameSure || "ไม่ระบุพนักงาน"}
                               </p>
-                              <p className="hidden text-xs font-medium text-muted-foreground min-[560px]:block min-[760px]:hidden">
+                              <p className="hidden text-sm font-medium text-muted-foreground min-[560px]:block min-[760px]:hidden">
                                 {formatDate(paymentDate)}
                               </p>
                             </div>
@@ -680,7 +768,7 @@ export default function EmployeesPage() {
                             <span
                               className={cn(
                                 outfit.className,
-                                "text-xs font-semibold text-muted-foreground",
+                                "text-sm font-semibold text-muted-foreground",
                               )}
                             >
                               รหัส {payment.CodeStaff || "-"}
@@ -693,7 +781,7 @@ export default function EmployeesPage() {
                             <span className="text-sm font-semibold text-card-foreground">
                               {formatDate(paymentDate)}
                             </span>
-                            <span className="text-xs font-medium text-muted-foreground">
+                            <span className="text-sm font-medium text-muted-foreground">
                               เงินเดือนล่าสุด
                             </span>
                           </div>
@@ -702,7 +790,7 @@ export default function EmployeesPage() {
                         <TableCell className="hidden text-right align-middle min-[900px]:table-cell">
                           <Badge
                             variant="outline"
-                            className="h-7 rounded-full border-orange-100 bg-orange-50 px-3 text-xs font-bold text-main-orange shadow-none dark:border-orange-500/20 dark:bg-orange-500/10"
+                            className="h-7 rounded-full border-orange-100 bg-orange-50 px-3 text-sm font-bold text-main-orange shadow-none dark:border-orange-500/20 dark:bg-orange-500/10"
                           >
                             {payment.NamePositions || "ไม่ระบุตำแหน่ง"}
                           </Badge>
@@ -716,9 +804,9 @@ export default function EmployeesPage() {
                                 "text-sm font-bold text-card-foreground min-[500px]:text-base",
                               )}
                             >
-                              {formatCurrency(payment.TotalPrice, 2)}
+                              {formatSensitiveCurrency(payment.TotalPrice, 2)}
                             </span>
-                            <span className="text-xs font-semibold text-muted-foreground min-[900px]:hidden">
+                            <span className="text-sm font-semibold text-muted-foreground min-[900px]:hidden">
                               {payment.NamePositions || "ไม่ระบุตำแหน่ง"}
                             </span>
                           </div>
@@ -784,7 +872,10 @@ export default function EmployeesPage() {
                   {
                     label: "ค่าแรงต่อวัน",
                     value: selectedEmployee.PriceToWorkDay
-                      ? formatCurrency(selectedEmployee.PriceToWorkDay, 2)
+                      ? formatSensitiveCurrency(
+                          selectedEmployee.PriceToWorkDay,
+                          2,
+                        )
                       : "ไม่ระบุ",
                     icon: DollarSign,
                   },
@@ -843,17 +934,75 @@ export default function EmployeesPage() {
                     </p>
                   </div>
                 </div>
+
+                {canManage ? (
+                  <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 sm:col-span-2">
+                    <div className="flex items-start gap-3">
+                      <KeyRound className="mt-0.5 h-5 w-5 shrink-0 text-main-blue" />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-foreground">
+                          บัญชีเข้าสู่ระบบของพนักงาน
+                        </p>
+                        <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                          ใช้เบอร์โทรเป็นชื่อผู้ใช้ รหัสเริ่มต้นคือ 123456
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                      <Input
+                        type="tel"
+                        inputMode="tel"
+                        aria-label="เบอร์โทรสำหรับเข้าสู่ระบบ"
+                        value={employeePhone}
+                        onChange={(event) =>
+                          setEmployeePhone(event.target.value)
+                        }
+                        placeholder="กรอกเบอร์โทร 10 หลัก"
+                        className="h-10 bg-white"
+                        disabled={isSavingAccess}
+                      />
+                      <Button
+                        type="button"
+                        onClick={() => void updateEmployeeAccess()}
+                        disabled={isSavingAccess}
+                        className="h-10 shrink-0"
+                      >
+                        {isSavingAccess ? (
+                          <LoaderCircle className="animate-spin" />
+                        ) : (
+                          <Save />
+                        )}
+                        บันทึกเบอร์
+                      </Button>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        void updateEmployeeAccess("reset_password")
+                      }
+                      disabled={isSavingAccess || !selectedEmployee.Phone}
+                      className="mt-3 h-10 w-full bg-white sm:w-auto"
+                    >
+                      <KeyRound /> รีเซ็ตรหัสเป็น 123456
+                    </Button>
+                  </div>
+                ) : null}
               </div>
 
               <DialogFooter className="m-0 rounded-none border-t bg-muted/40 p-4 sm:justify-between">
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={() => setDeleteDialogOpen(true)}
-                >
-                  <Trash2 />
-                  ลบพนักงาน
-                </Button>
+                {canManage ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => setDeleteDialogOpen(true)}
+                  >
+                    <Trash2 />
+                    ลบพนักงาน
+                  </Button>
+                ) : (
+                  <span />
+                )}
                 <DialogClose asChild>
                   <Button type="button" variant="outline">
                     ปิด

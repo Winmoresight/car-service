@@ -5,6 +5,8 @@ import {
   createAuthToken,
 } from "@/lib/auth-session";
 import { executeQuery } from "@/lib/db";
+import { getEmployeeAccessByUsername } from "@/lib/employee-access";
+import { authenticateEmployeePhone } from "@/lib/employee-credentials";
 
 interface LoginPayload {
   username?: unknown;
@@ -67,10 +69,39 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: "กรุณากรอก username และ password",
+          error: "กรุณากรอกชื่อผู้ใช้งานหรือเบอร์โทร และรหัสผ่าน",
         },
         { status: 400 },
       );
+    }
+
+    const phoneEmployee = await authenticateEmployeePhone(username, password);
+
+    if (phoneEmployee) {
+      const session = {
+        codePerson: String(phoneEmployee.code),
+        nameUser: phoneEmployee.name,
+        username: phoneEmployee.phone,
+        canManage: false,
+        employeeCode: phoneEmployee.code,
+        level: phoneEmployee.position,
+        authType: "employee_phone" as const,
+        mustChangePassword: phoneEmployee.mustChangePassword,
+      };
+      const token = await createAuthToken(session);
+      const response = NextResponse.json({ success: true, data: session });
+
+      response.cookies.set({
+        name: AUTH_COOKIE_NAME,
+        value: token,
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: AUTH_SESSION_MAX_AGE_SECONDS,
+      });
+
+      return response;
     }
 
     const passwordColumn = await resolvePasswordColumn();
@@ -104,7 +135,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: "username หรือ password ไม่ถูกต้อง",
+          error: "ชื่อผู้ใช้งาน เบอร์โทร หรือรหัสผ่านไม่ถูกต้อง",
         },
         { status: 401 },
       );
@@ -117,6 +148,9 @@ export async function POST(request: Request) {
           : String(employee.codePerson),
       nameUser: normalizeText(employee.nameUser) || employee.username,
       username: employee.username,
+      ...(await getEmployeeAccessByUsername(employee.username)),
+      authType: "legacy" as const,
+      mustChangePassword: false,
     };
     const token = await createAuthToken(session);
     const response = NextResponse.json({

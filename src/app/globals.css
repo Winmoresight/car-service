@@ -287,3 +287,136 @@
     font-size: 32px;
   }
 }
+
+.attendance-success-panel {
+  animation: attendance-success-panel-in 300ms ease-out both;
+}
+
+.attendance-success-ring {
+  animation: attendance-success-ring-in 520ms cubic-bezier(0.2, 0.9, 0.25, 1.25)
+    both;
+}
+
+.attendance-success-ring--outer {
+  animation-delay: 80ms;
+}
+
+.attendance-success-ring--middle {
+  animation-delay: 150ms;
+}
+
+.attendance-success-ring--inner {
+  animation-delay: 220ms;
+}
+
+.attendance-success-check path {
+  animation: attendance-success-check-draw 360ms ease-out 440ms both;
+  stroke-dasharray: 32;
+  stroke-dashoffset: 32;
+}
+
+.attendance-success-confetti {
+  animation: attendance-success-confetti-burst 620ms
+    cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.attendance-success-confetti--1,
+.attendance-success-confetti--4,
+.attendance-success-confetti--7 {
+  animation-delay: 320ms;
+}
+
+.attendance-success-confetti--2,
+.attendance-success-confetti--6,
+.attendance-success-confetti--9 {
+  animation-delay: 380ms;
+}
+
+.attendance-success-confetti--3,
+.attendance-success-confetti--5,
+.attendance-success-confetti--8 {
+  animation-delay: 440ms;
+}
+
+.attendance-success-copy {
+  animation: attendance-success-copy-in 420ms ease-out both;
+}
+
+.attendance-success-copy--title {
+  animation-delay: 500ms;
+}
+
+.attendance-success-copy--detail {
+  animation-delay: 580ms;
+}
+
+.attendance-success-copy--actions {
+  animation-delay: 660ms;
+}
+
+@keyframes attendance-success-panel-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes attendance-success-ring-in {
+  from {
+    opacity: 0;
+    scale: 0.55;
+  }
+
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes attendance-success-check-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes attendance-success-confetti-burst {
+  from {
+    opacity: 0;
+    scale: 0.15;
+  }
+
+  70% {
+    opacity: 1;
+    scale: 1.25;
+  }
+
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes attendance-success-copy-in {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+  }
+
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .attendance-success-panel,
+  .attendance-success-ring,
+  .attendance-success-confetti,
+  .attendance-success-copy,
+  .attendance-success-check path {
+    animation: none;
+  }
+
+  .attendance-success-check path {
+    stroke-dashoffset: 0;
+  }
+}

@@ -22,6 +22,12 @@ export async function GET() {
       codePerson: session.codePerson,
       nameUser: session.nameUser,
       username: session.username,
+      canManage: session.canManage,
+      employeeCode: session.employeeCode,
+      employeeLinked: session.canManage || session.employeeCode !== null,
+      level: session.level,
+      authType: session.authType,
+      mustChangePassword: session.mustChangePassword,
     },
   });
 }

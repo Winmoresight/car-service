@@ -1,10 +1,15 @@
 export const AUTH_COOKIE_NAME = "car_service_session";
-export const AUTH_SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
+export const AUTH_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 
 export interface AuthSession {
   codePerson: string;
   nameUser: string;
   username: string;
+  canManage: boolean;
+  employeeCode: number | null;
+  level: string;
+  authType: "legacy" | "employee_phone";
+  mustChangePassword: boolean;
   expiresAt: number;
 }
 
@@ -113,9 +118,17 @@ export async function readAuthToken(value: string | undefined) {
       new TextDecoder().decode(base64UrlToBytes(encodedPayload)),
     ) as AuthSession;
 
+    payload.authType ??= "legacy";
+    payload.mustChangePassword ??= false;
+
     if (
       !payload.username ||
       !payload.nameUser ||
+      typeof payload.canManage !== "boolean" ||
+      !(
+        payload.employeeCode === null ||
+        (Number.isInteger(payload.employeeCode) && payload.employeeCode > 0)
+      ) ||
       payload.expiresAt < Date.now()
     ) {
       return null;

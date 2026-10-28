@@ -2,9 +2,11 @@ import sql from "mssql";
 import { type NextRequest, NextResponse } from "next/server";
 import { AUTH_COOKIE_NAME, readAuthToken } from "@/lib/auth-session";
 import { executeQuery, getPool } from "@/lib/db";
+import { getEmployeeAccess } from "@/lib/employee-access";
 
 const attendanceTable = "WebEmployeeAttendance";
 const payrollAdjustmentTable = "WebEmployeePayrollAdjustment";
+const payrollSettingsTable = "WebEmployeePayrollSettings";
 const attendanceStatuses = new Set([
   "full_day",
   "half_day",
@@ -216,6 +218,51 @@ async function ensurePayrollAdjustmentTable() {
   );
 }
 
+async function ensurePayrollSettingsTable() {
+  await executeQuery(
+    `
+      IF OBJECT_ID(N'dbo.${payrollSettingsTable}', N'U') IS NULL
+      BEGIN
+        CREATE TABLE dbo.${payrollSettingsTable} (
+          CodeStaff int NOT NULL,
+          SocialSecurityMonthly decimal(18, 2) NOT NULL
+            CONSTRAINT DF_${payrollSettingsTable}_Social DEFAULT 0,
+          UpdatedBy nvarchar(100) NULL,
+          CreatedAt datetime NOT NULL
+            CONSTRAINT DF_${payrollSettingsTable}_CreatedAt DEFAULT GETDATE(),
+          UpdatedAt datetime NOT NULL
+            CONSTRAINT DF_${payrollSettingsTable}_UpdatedAt DEFAULT GETDATE(),
+          CONSTRAINT PK_${payrollSettingsTable} PRIMARY KEY (CodeStaff)
+        )
+      END
+
+      INSERT INTO dbo.${payrollSettingsTable} (
+        CodeStaff,
+        SocialSecurityMonthly,
+        UpdatedBy
+      )
+      SELECT
+        employee.Code,
+        ISNULL(previousAdjustment.SocialSecurity, 0),
+        N'เริ่มต้นจากรายการเดิม'
+      FROM dbo.NameServiceProduct employee
+      OUTER APPLY (
+        SELECT TOP 1 adjustment.SocialSecurity
+        FROM dbo.${payrollAdjustmentTable} adjustment
+        WHERE adjustment.CodeStaff = employee.Code
+        ORDER BY adjustment.PeriodStart DESC, adjustment.UpdatedAt DESC
+      ) previousAdjustment
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM dbo.${payrollSettingsTable} settings
+        WHERE settings.CodeStaff = employee.Code
+      )
+    `,
+    undefined,
+    false,
+  );
+}
+
 function getSafeMoneyExpression(columnName: string) {
   const text = `LTRIM(RTRIM(CONVERT(nvarchar(100), ${columnName})))`;
 
@@ -224,10 +271,9 @@ function getSafeMoneyExpression(columnName: string) {
 
 export async function GET(request: NextRequest) {
   try {
-    await Promise.all([
-      ensureAttendanceTable(),
-      ensurePayrollAdjustmentTable(),
-    ]);
+    await ensureAttendanceTable();
+    await ensurePayrollAdjustmentTable();
+    await ensurePayrollSettingsTable();
 
     const startDate = normalizeDate(
       request.nextUrl.searchParams.get("startDate"),
@@ -240,6 +286,9 @@ export async function GET(request: NextRequest) {
         { status: 400 },
       );
     }
+
+    const access = await getEmployeeAccess(request);
+    const employeeCode = access.canManage ? 0 : (access.employeeCode ?? -1);
 
     const [employees, records, adjustments] = await Promise.all([
       executeQuery<{
@@ -255,9 +304,10 @@ export async function GET(request: NextRequest) {
             ISNULL(Positions, '') as position,
             ISNULL(PriceToWorkDay, 0) as dailyWage
           FROM dbo.NameServiceProduct
+          WHERE @employeeCode = 0 OR Code = @employeeCode
           ORDER BY Code
         `,
-        undefined,
+        { employeeCode },
         false,
       ),
       executeQuery<{
@@ -279,9 +329,10 @@ export async function GET(request: NextRequest) {
           FROM dbo.${attendanceTable}
           WHERE AttendanceDate >= @startDate
             AND AttendanceDate <= @endDate
+            AND (@employeeCode = 0 OR CodeStaff = @employeeCode)
           ORDER BY AttendanceDate, CodeStaff
         `,
-        { startDate, endDate },
+        { startDate, endDate, employeeCode },
         false,
       ),
       executeQuery<{
@@ -290,20 +341,44 @@ export async function GET(request: NextRequest) {
         otherDeduction: number | string;
         manualAdvance: number | string;
         note: string | null;
+        monthlySocialSecurity: number | string;
+        socialSecurityDeductedThisMonth: boolean | number;
       }>(
         `
           SELECT
-            CodeStaff as codeStaff,
-            SocialSecurity as socialSecurity,
-            OtherDeduction as otherDeduction,
-            ManualAdvance as manualAdvance,
-            ISNULL(Note, '') as note
-          FROM dbo.${payrollAdjustmentTable}
-          WHERE PeriodStart = @startDate
-            AND PeriodEnd = @endDate
-          ORDER BY CodeStaff
+            employee.Code as codeStaff,
+            CASE WHEN DAY(@startDate) = 1
+              THEN ISNULL(settings.SocialSecurityMonthly, 0)
+              ELSE 0
+            END as socialSecurity,
+            ISNULL(settings.SocialSecurityMonthly, 0) as monthlySocialSecurity,
+            ISNULL(currentPeriod.OtherDeduction, 0) as otherDeduction,
+            ISNULL(currentPeriod.ManualAdvance, 0) as manualAdvance,
+            ISNULL(currentPeriod.Note, '') as note,
+            CASE
+              WHEN ISNULL(firstPeriod.SocialSecurity, 0) > 0 THEN 1
+              ELSE 0
+            END as socialSecurityDeductedThisMonth
+          FROM dbo.NameServiceProduct employee
+          LEFT JOIN dbo.${payrollSettingsTable} settings
+            ON settings.CodeStaff = employee.Code
+          LEFT JOIN dbo.${payrollAdjustmentTable} currentPeriod
+            ON currentPeriod.CodeStaff = employee.Code
+            AND currentPeriod.PeriodStart = @startDate
+            AND currentPeriod.PeriodEnd = @endDate
+          OUTER APPLY (
+            SELECT TOP 1 adjustment.SocialSecurity
+            FROM dbo.${payrollAdjustmentTable} adjustment
+            WHERE adjustment.CodeStaff = employee.Code
+              AND YEAR(adjustment.PeriodStart) = YEAR(@startDate)
+              AND MONTH(adjustment.PeriodStart) = MONTH(@startDate)
+              AND DAY(adjustment.PeriodStart) = 1
+            ORDER BY adjustment.UpdatedAt DESC
+          ) firstPeriod
+          WHERE @employeeCode = 0 OR employee.Code = @employeeCode
+          ORDER BY employee.Code
         `,
-        { startDate, endDate },
+        { startDate, endDate, employeeCode },
         false,
       ),
     ]);
@@ -321,16 +396,26 @@ export async function GET(request: NextRequest) {
             23
           ) as date,
           CodeStaff as codeStaff,
-          SUM(${getSafeMoneyExpression("AdvancePayment")}) as advanceAmount
+          SUM(
+            CASE
+              WHEN CodeTypepayment = 24 THEN ABS(ISNULL(TotalPrice, 0))
+              ELSE ${getSafeMoneyExpression("AdvancePayment")}
+            END
+          ) as advanceAmount
         FROM dbo.Payment
         WHERE CodeStaff > 0
+          AND (@employeeCode = 0 OR CodeStaff = @employeeCode)
+          AND (
+            CodeTypepayment = 24
+            OR ${getSafeMoneyExpression("AdvancePayment")} <> 0
+          )
           AND CONVERT(date, COALESCE(Datepayment, DatePost)) >= @startDate
           AND CONVERT(date, COALESCE(Datepayment, DatePost)) <= @endDate
         GROUP BY
           CONVERT(date, COALESCE(Datepayment, DatePost)),
           CodeStaff
       `,
-      { startDate, endDate },
+      { startDate, endDate, employeeCode },
       false,
     ).catch((error) => {
       console.error("Employee advance summary query error:", error);
@@ -340,6 +425,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
+        access: {
+          canManage: access.canManage,
+          employeeLinked: access.canManage || access.employeeCode !== null,
+        },
         employees: employees.map((employee) => ({
           code: Number(employee.code),
           name: normalizeText(employee.name),
@@ -362,9 +451,13 @@ export async function GET(request: NextRequest) {
         adjustments: adjustments.map((adjustment) => ({
           codeStaff: Number(adjustment.codeStaff),
           socialSecurity: Number(adjustment.socialSecurity) || 0,
+          monthlySocialSecurity: Number(adjustment.monthlySocialSecurity) || 0,
           otherDeduction: Number(adjustment.otherDeduction) || 0,
           manualAdvance: Number(adjustment.manualAdvance) || 0,
           note: normalizeText(adjustment.note),
+          socialSecurityDeductedThisMonth: Boolean(
+            adjustment.socialSecurityDeductedThisMonth,
+          ),
         })),
       },
     });
@@ -388,6 +481,15 @@ export async function PATCH(request: NextRequest) {
 
   try {
     await ensurePayrollAdjustmentTable();
+    await ensurePayrollSettingsTable();
+    const access = await getEmployeeAccess(request);
+
+    if (!access.canManage) {
+      return NextResponse.json(
+        { success: false, error: "บัญชีนี้ไม่มีสิทธิ์แก้ไขรายการเงินเดือน" },
+        { status: 403 },
+      );
+    }
 
     const body = (await request.json()) as PayrollAdjustmentPayload;
     const periodStart = normalizeDate(body.periodStart);
@@ -419,6 +521,7 @@ export async function PATCH(request: NextRequest) {
       request.cookies.get(AUTH_COOKIE_NAME)?.value,
     );
     const updatedBy = token?.nameUser || token?.username || "web";
+    const deductSocialSecurityThisPeriod = periodStart.endsWith("-01");
     const pool = await getPool();
     transaction = new sql.Transaction(pool);
     await transaction.begin();
@@ -430,6 +533,11 @@ export async function PATCH(request: NextRequest) {
       saveRequest.input("codeStaff", sql.Int, item.codeStaff);
       saveRequest.input(
         "socialSecurity",
+        sql.Decimal(18, 2),
+        deductSocialSecurityThisPeriod ? item.socialSecurity : 0,
+      );
+      saveRequest.input(
+        "monthlySocialSecurity",
         sql.Decimal(18, 2),
         item.socialSecurity,
       );
@@ -447,6 +555,27 @@ export async function PATCH(request: NextRequest) {
       saveRequest.input("updatedBy", sql.NVarChar(100), updatedBy);
 
       await saveRequest.query(`
+        UPDATE dbo.${payrollSettingsTable}
+        SET
+          SocialSecurityMonthly = @monthlySocialSecurity,
+          UpdatedBy = @updatedBy,
+          UpdatedAt = GETDATE()
+        WHERE CodeStaff = @codeStaff;
+
+        IF @@ROWCOUNT = 0
+        BEGIN
+          INSERT INTO dbo.${payrollSettingsTable} (
+            CodeStaff,
+            SocialSecurityMonthly,
+            UpdatedBy
+          )
+          VALUES (
+            @codeStaff,
+            @monthlySocialSecurity,
+            @updatedBy
+          )
+        END;
+
         UPDATE dbo.${payrollAdjustmentTable}
         SET
           PeriodEnd = @periodEnd,
@@ -516,6 +645,14 @@ export async function PUT(request: NextRequest) {
 
   try {
     await ensureAttendanceTable();
+    const access = await getEmployeeAccess(request);
+
+    if (!access.canManage) {
+      return NextResponse.json(
+        { success: false, error: "บัญชีนี้ไม่มีสิทธิ์แก้ไขวันทำงาน" },
+        { status: 403 },
+      );
+    }
 
     const body = (await request.json()) as AttendanceUpdatePayload;
     const attendanceDate = normalizeDate(body.date);

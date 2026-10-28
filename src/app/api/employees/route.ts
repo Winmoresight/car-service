@@ -4,8 +4,14 @@
  * DELETE ลบพนักงานเมื่อไม่มีประวัติที่ต้องเก็บรักษา
  */
 
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
+import { getEmployeeAccess } from "@/lib/employee-access";
+import {
+  EmployeeCredentialError,
+  resetEmployeePassword,
+  updateEmployeePhoneAccess,
+} from "@/lib/employee-credentials";
 
 interface Employee {
   Code: number;
@@ -19,8 +25,10 @@ interface Employee {
   PriceToWorkDay: number;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const access = await getEmployeeAccess(request);
+    const employeeCode = access.canManage ? 0 : (access.employeeCode ?? -1);
     const query = `
       SELECT 
         Code,
@@ -33,15 +41,20 @@ export async function GET() {
         Positions,
         PriceToWorkDay
       FROM dbo.NameServiceProduct
+      WHERE @employeeCode = 0 OR Code = @employeeCode
       ORDER BY Code
     `;
 
-    const employees = await executeQuery<Employee>(query);
+    const employees = await executeQuery<Employee>(query, { employeeCode });
 
     return NextResponse.json({
       success: true,
       data: employees,
       total: employees.length,
+      access: {
+        canManage: access.canManage,
+        employeeLinked: access.canManage || access.employeeCode !== null,
+      },
     });
   } catch (error) {
     console.error("❌ Error fetching employees:", error);
@@ -51,6 +64,59 @@ export async function GET() {
         error: "Failed to fetch employees",
         message: error instanceof Error ? error.message : "Unknown error",
       },
+      { status: 500 },
+    );
+  }
+}
+
+interface UpdateEmployeeAccessPayload {
+  code?: unknown;
+  phone?: unknown;
+  action?: unknown;
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const access = await getEmployeeAccess(request);
+    if (!access.canManage) {
+      return NextResponse.json(
+        { success: false, error: "บัญชีนี้ไม่มีสิทธิ์แก้ไขข้อมูลพนักงาน" },
+        { status: 403 },
+      );
+    }
+
+    const body = (await request.json()) as UpdateEmployeeAccessPayload;
+    const code = Number(body.code);
+    if (!Number.isInteger(code) || code <= 0) {
+      return NextResponse.json(
+        { success: false, error: "รหัสพนักงานไม่ถูกต้อง" },
+        { status: 400 },
+      );
+    }
+
+    const phone =
+      body.action === "reset_password"
+        ? await resetEmployeePassword(code)
+        : await updateEmployeePhoneAccess(code, String(body.phone ?? ""));
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        code,
+        phone,
+        passwordReset: body.action === "reset_password",
+      },
+    });
+  } catch (error) {
+    if (error instanceof EmployeeCredentialError) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: error.code === "not_found" ? 404 : 400 },
+      );
+    }
+    console.error("Employee PATCH API error:", error);
+    return NextResponse.json(
+      { success: false, error: "ไม่สามารถอัปเดตบัญชีพนักงานได้" },
       { status: 500 },
     );
   }
@@ -67,8 +133,17 @@ interface EmployeeReferenceCounts {
   adjustmentCount: number;
 }
 
-export async function DELETE(request: Request) {
+export async function DELETE(request: NextRequest) {
   try {
+    const access = await getEmployeeAccess(request);
+
+    if (!access.canManage) {
+      return NextResponse.json(
+        { success: false, error: "บัญชีนี้ไม่มีสิทธิ์ลบข้อมูลพนักงาน" },
+        { status: 403 },
+      );
+    }
+
     const body = (await request.json()) as DeleteEmployeePayload;
     const code = Number(body.code);
     const confirmationCode = String(body.confirmationCode ?? "").trim();
@@ -145,9 +220,24 @@ export async function DELETE(request: Request) {
 
     const result = await executeQuery<{ deletedCode: number }>(
       `
-        DELETE FROM dbo.NameServiceProduct
-        OUTPUT DELETED.Code as deletedCode
-        WHERE Code = @code
+        BEGIN TRANSACTION;
+
+        BEGIN TRY
+          IF OBJECT_ID(N'dbo.WebEmployeeCredential', N'U') IS NOT NULL
+          BEGIN
+            DELETE FROM dbo.WebEmployeeCredential WHERE CodeStaff = @code
+          END
+
+          DELETE FROM dbo.NameServiceProduct
+          OUTPUT DELETED.Code as deletedCode
+          WHERE Code = @code;
+
+          COMMIT TRANSACTION;
+        END TRY
+        BEGIN CATCH
+          IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+          THROW;
+        END CATCH
       `,
       { code },
       false,

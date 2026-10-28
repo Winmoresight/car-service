@@ -20,7 +20,7 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed inset-y-0 hidden w-64 flex-col border-r border-border bg-white min-[1025px]:flex">
+    <aside className="fixed inset-y-0 hidden w-64 flex-col border-r border-border bg-white print:!hidden min-[1025px]:flex">
       <div className="flex flex-col flex-grow pt-6 pb-4 overflow-y-auto">
         {/* Logo/Title */}
         <div className="flex items-center flex-shrink-0 px-6 mb-8">

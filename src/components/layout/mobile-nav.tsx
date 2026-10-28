@@ -76,7 +76,7 @@ export function MobileNav() {
   };
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 min-[1025px]:hidden">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 print:hidden min-[1025px]:hidden">
       {isMenuOpen ? (
         <button
           type="button"

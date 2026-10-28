@@ -3,8 +3,9 @@
  * ดึงข้อมูลการจ่ายเงินเดือนพนักงาน
  */
 
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
+import { getEmployeeAccess } from "@/lib/employee-access";
 
 interface Payment {
   OrderNum: number;
@@ -24,15 +25,22 @@ interface Payment {
   UserName: string;
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const codeStaff = searchParams.get("codeStaff");
+    const { searchParams } = request.nextUrl;
+    const access = await getEmployeeAccess(request);
+    const requestedCodeStaff = Number(searchParams.get("codeStaff"));
     const excludeZero = searchParams.get("excludeZero") === "true";
-    const limit = searchParams.get("limit") || "100";
+    const parsedLimit = Number.parseInt(searchParams.get("limit") || "100", 10);
+    const limit = Math.min(Math.max(parsedLimit || 100, 1), 500);
+    const codeStaff = access.canManage
+      ? Number.isInteger(requestedCodeStaff) && requestedCodeStaff > 0
+        ? requestedCodeStaff
+        : 0
+      : (access.employeeCode ?? -1);
 
     let query = `
-      SELECT TOP ${limit}
+      SELECT TOP (@limit)
         OrderNum,
         DatePost,
         NumberPrintPost,
@@ -49,12 +57,8 @@ export async function GET(request: Request) {
         Datepayment,
         UserName
       FROM dbo.Payment
-      WHERE 1=1
+      WHERE (@codeStaff = 0 OR CodeStaff = @codeStaff)
     `;
-
-    if (codeStaff) {
-      query += ` AND CodeStaff = ${codeStaff}`;
-    }
 
     // กรองข้อมูลที่ CodeStaff = 0 (รายจ่ายอื่นๆ ที่ไม่ใช่เงินเดือน)
     if (excludeZero) {
@@ -63,7 +67,7 @@ export async function GET(request: Request) {
 
     query += ` ORDER BY DatePost DESC, OrderNum DESC`;
 
-    const payments = await executeQuery<Payment>(query);
+    const payments = await executeQuery<Payment>(query, { limit, codeStaff });
 
     return NextResponse.json({
       success: true,
@@ -78,7 +82,7 @@ export async function GET(request: Request) {
         error: "Failed to fetch payments",
         message: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
