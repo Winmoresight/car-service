@@ -44,26 +44,44 @@ async function ensureEmployeeAccountLinkTable() {
           )
         END
 
+        ;WITH CandidateLinks AS (
+          SELECT
+            LTRIM(RTRIM(account.UserName)) as Username,
+            employee.Code as CodeStaff,
+            ROW_NUMBER() OVER (
+              PARTITION BY LTRIM(RTRIM(account.UserName))
+              ORDER BY employee.Code
+            ) as UsernameRank
+          FROM dbo.PasswordID account
+          CROSS APPLY (
+            SELECT TOP 1 staff.Code
+            FROM dbo.NameServiceProduct staff
+            WHERE LTRIM(RTRIM(ISNULL(staff.NameSure, ''))) =
+              LTRIM(RTRIM(ISNULL(account.NameUser, '')))
+            ORDER BY staff.Code
+          ) employee
+          WHERE LTRIM(RTRIM(ISNULL(account.Leval, ''))) <> @managementLevel
+            AND LTRIM(RTRIM(ISNULL(account.UserName, ''))) <> ''
+        ), UniqueLinks AS (
+          SELECT
+            Username,
+            CodeStaff,
+            ROW_NUMBER() OVER (
+              PARTITION BY CodeStaff
+              ORDER BY Username
+            ) as EmployeeRank
+          FROM CandidateLinks
+          WHERE UsernameRank = 1
+        )
         INSERT INTO dbo.${accountLinkTable} (Username, CodeStaff, LinkedBy)
-        SELECT
-          LTRIM(RTRIM(account.UserName)),
-          employee.Code,
-          N'จับคู่จากชื่อเริ่มต้น'
-        FROM dbo.PasswordID account
-        CROSS APPLY (
-          SELECT TOP 1 staff.Code
-          FROM dbo.NameServiceProduct staff
-          WHERE LTRIM(RTRIM(ISNULL(staff.NameSure, ''))) =
-            LTRIM(RTRIM(ISNULL(account.NameUser, '')))
-          ORDER BY staff.Code
-        ) employee
-        WHERE LTRIM(RTRIM(ISNULL(account.Leval, ''))) <> @managementLevel
-          AND LTRIM(RTRIM(ISNULL(account.UserName, ''))) <> ''
+        SELECT Username, CodeStaff, N'จับคู่จากชื่อเริ่มต้น'
+        FROM UniqueLinks candidate
+        WHERE EmployeeRank = 1
           AND NOT EXISTS (
             SELECT 1
             FROM dbo.${accountLinkTable} existingLink
-            WHERE existingLink.Username = LTRIM(RTRIM(account.UserName))
-              OR existingLink.CodeStaff = employee.Code
+            WHERE existingLink.Username = candidate.Username
+              OR existingLink.CodeStaff = candidate.CodeStaff
           );
 
         COMMIT TRANSACTION;
@@ -81,6 +99,24 @@ async function ensureEmployeeAccountLinkTable() {
 export async function getEmployeeAccessByUsername(
   username: string,
 ): Promise<Omit<EmployeeAccess, "authenticated">> {
+  const [account] = await executeQuery<{ level: string | null }>(
+    `SELECT TOP 1 LTRIM(RTRIM(ISNULL(Leval, ''))) as level
+     FROM dbo.PasswordID
+     WHERE LTRIM(RTRIM(ISNULL(UserName, ''))) = @username`,
+    { username },
+    false,
+  );
+  const accountLevel = account?.level?.trim() || "";
+
+  if (accountLevel === managementLevel) {
+    return {
+      canManage: true,
+      employeeCode: null,
+      level: accountLevel,
+      mustChangePassword: false,
+    };
+  }
+
   await ensureEmployeeAccountLinkTable();
 
   const rows = await executeQuery<EmployeeAccessRow>(
