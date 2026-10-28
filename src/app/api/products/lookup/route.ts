@@ -440,7 +440,7 @@ export async function GET(request: NextRequest) {
               ISNULL(d.Contain, 0) as packageQuantity,
               COALESCE(NULLIF(d.CostPrice, 0), NULLIF(sales.averageCostPrice, 0), 0) as costPrice,
               COALESCE(NULLIF(d.SalePrice, 0), NULLIF(sales.latestRetailPrice, 0), 0) as retailPrice,
-              ISNULL(ss.currentStock, 0) as stock,
+              ISNULL(d.NProduct, 0) as stock,
               ss.lastMovementAt,
               ISNULL(sales.salesCount, 0) as salesCount,
               ISNULL(sales.totalSoldQuantity, 0) as totalSoldQuantity,

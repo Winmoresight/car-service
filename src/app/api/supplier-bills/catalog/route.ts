@@ -127,10 +127,27 @@ export async function GET(request: NextRequest) {
               ISNULL(m.NameProduct, '') as name,
               ISNULL(d.MeterProduct, '') as unit,
               ISNULL(d.SalePrice, 0) as unitPrice,
-              ISNULL(d.CostPrice, 0) as cost,
+              COALESCE(latestPurchase.cost, d.CostPrice, 0) as cost,
               ISNULL(m.CaseProduct, 25) as caseProduct
             FROM dbo.MasterProductDetail d
             INNER JOIN dbo.MasterProduct m ON m.CodeProduct = d.CodeProduct
+            OUTER APPLY (
+              SELECT TOP 1
+                CONVERT(money, CASE
+                  WHEN ISNUMERIC(CONVERT(nvarchar(100), movement.CostPrice)) = 1
+                    THEN CONVERT(nvarchar(100), movement.CostPrice)
+                  ELSE '0'
+                END) as cost
+              FROM dbo.INOUTStockProduct movement
+              WHERE movement.BarCode = d.BarCode
+                AND movement.Debit > 0
+                AND ISNULL(movement.CodeCompany, '') NOT IN ('', 'ADJUST')
+                AND ISNUMERIC(CONVERT(nvarchar(100), movement.CostPrice)) = 1
+              ORDER BY
+                movement.DateSave DESC,
+                movement.Times DESC,
+                movement.NumberPrint DESC
+            ) latestPurchase
             WHERE
               @q = N''
               OR d.BarCode LIKE N'%' + @q + N'%'

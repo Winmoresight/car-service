@@ -5,6 +5,7 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock3,
+  Download,
   Eye,
   EyeOff,
   Loader2,
@@ -36,6 +37,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toast";
+import { calculatePayrollBalance } from "@/lib/payroll";
 import { cn } from "@/lib/utils";
 
 type AttendanceStatus =
@@ -86,6 +88,17 @@ interface PayrollAdjustment {
   manualAdvance: number;
   note: string;
   socialSecurityDeductedThisMonth: boolean;
+  carryIn: number;
+  snapshotPayableDays: number | null;
+  snapshotGrossWage: number | null;
+  snapshotSocialSecurity: number | null;
+  snapshotOtherDeduction: number | null;
+  snapshotAdvance: number | null;
+  netWage: number | null;
+  paidAmount: number | null;
+  carryOut: number;
+  paidAt: string | null;
+  paidBy: string;
 }
 
 interface PayrollAdjustmentDraft {
@@ -307,6 +320,7 @@ export default function EmployeeAttendancePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingAdjustments, setSavingAdjustments] = useState(false);
+  const [settlingPayroll, setSettlingPayroll] = useState(false);
   const [bulkStatus, setBulkStatus] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [activeTab, setActiveTab] = useState("daily");
@@ -451,25 +465,50 @@ export default function EmployeeAttendancePage() {
       );
       const count = (status: AttendanceStatus) =>
         records.filter((record) => record.status === status).length;
-      const payableDays = records.reduce(
+      const calculatedPayableDays = records.reduce(
         (sum, record) => sum + (wageFactorByStatus.get(record.status) ?? 0),
         0,
       );
-      const grossWage = Number((payableDays * employee.dailyWage).toFixed(2));
+      const calculatedGrossWage = Number(
+        (calculatedPayableDays * employee.dailyWage).toFixed(2),
+      );
       const recordedAdvanceAmount = advanceByEmployee.get(employee.code) ?? 0;
       const adjustment = adjustmentDrafts[employee.code];
       const monthlySocialSecurity = Number(adjustment?.socialSecurity) || 0;
-      const socialSecurity = deductSocialSecurityThisPeriod
-        ? monthlySocialSecurity
-        : 0;
       const savedAdjustment = data.adjustments.find(
         (item) => item.codeStaff === employee.code,
       );
-      const otherDeduction = Number(adjustment?.otherDeduction) || 0;
+      const settled = Boolean(savedAdjustment?.paidAt);
+      const payableDays = settled
+        ? (savedAdjustment?.snapshotPayableDays ?? calculatedPayableDays)
+        : calculatedPayableDays;
+      const grossWage = settled
+        ? (savedAdjustment?.snapshotGrossWage ?? calculatedGrossWage)
+        : calculatedGrossWage;
+      const currentSocialSecurity = deductSocialSecurityThisPeriod
+        ? monthlySocialSecurity
+        : 0;
+      const socialSecurity = settled
+        ? (savedAdjustment?.snapshotSocialSecurity ?? currentSocialSecurity)
+        : currentSocialSecurity;
+      const otherDeduction = settled
+        ? (savedAdjustment?.snapshotOtherDeduction ?? 0)
+        : Number(adjustment?.otherDeduction) || 0;
       const manualAdvance = Number(adjustment?.manualAdvance) || 0;
-      const advanceAmount = Number(
+      const calculatedAdvanceAmount = Number(
         (recordedAdvanceAmount + manualAdvance).toFixed(2),
       );
+      const advanceAmount = settled
+        ? (savedAdjustment?.snapshotAdvance ?? calculatedAdvanceAmount)
+        : calculatedAdvanceAmount;
+      const carryIn = savedAdjustment?.carryIn ?? 0;
+      const calculatedNetWage = calculatePayrollBalance({
+        grossWage,
+        socialSecurity,
+        otherDeduction,
+        advanceAmount,
+        carryIn,
+      }).netWage;
       const absentDates = records
         .filter((record) => record.status === "absent")
         .map((record) => Number(record.date.slice(8, 10)))
@@ -502,11 +541,14 @@ export default function EmployeeAttendancePage() {
         recordedAdvanceAmount,
         manualAdvance,
         advanceAmount,
-        netWage: Number(
-          (grossWage - socialSecurity - otherDeduction - advanceAmount).toFixed(
-            2,
-          ),
-        ),
+        carryIn,
+        netWage: settled
+          ? (savedAdjustment?.netWage ?? calculatedNetWage)
+          : calculatedNetWage,
+        paidAmount: savedAdjustment?.paidAmount ?? null,
+        carryOut: savedAdjustment?.carryOut ?? 0,
+        paidAt: savedAdjustment?.paidAt ?? null,
+        paidBy: savedAdjustment?.paidBy ?? "",
       };
     });
   }, [adjustmentDrafts, data, deductSocialSecurityThisPeriod, selectedDate]);
@@ -545,6 +587,7 @@ export default function EmployeeAttendancePage() {
         (sum, row) => sum + row.advanceAmount,
         0,
       ),
+      carryIn: periodRows.reduce((sum, row) => sum + row.carryIn, 0),
       netWage: periodRows.reduce((sum, row) => sum + row.netWage, 0),
     }),
     [periodRows],
@@ -561,6 +604,8 @@ export default function EmployeeAttendancePage() {
   );
 
   const selectedReportRow = reportRows.length === 1 ? reportRows[0] : null;
+  const payrollSettled =
+    data.employees.length > 0 && periodRows.every((row) => row.paidAt);
   const selectedEmployeeAdvances = useMemo(
     () =>
       selectedReportRow
@@ -712,6 +757,7 @@ export default function EmployeeAttendancePage() {
         description: `ข้อมูลรอบ ${payPeriod.label} ถูกบันทึกเรียบร้อยแล้ว`,
       });
       setRefreshKey((current) => current + 1);
+      return true;
     } catch (saveError) {
       toast.add({
         title: "❌ บันทึกรายการหักและยอดเบิกไม่สำเร็จ",
@@ -720,9 +766,110 @@ export default function EmployeeAttendancePage() {
             ? saveError.message
             : "กรุณาลองบันทึกข้อมูลอีกครั้ง",
       });
+      return false;
     } finally {
       setSavingAdjustments(false);
     }
+  };
+
+  const handleSettlePayroll = async () => {
+    if (
+      !window.confirm(
+        `ยืนยันว่าจ่ายเงินเดือนรอบ ${payPeriod.label} แล้วใช่ไหม? หลังปิดรอบจะไม่สามารถแก้รายการหักของรอบนี้ได้`,
+      )
+    ) {
+      return;
+    }
+
+    const saved = await handleSaveAdjustments();
+    if (!saved) {
+      return;
+    }
+
+    try {
+      setSettlingPayroll(true);
+      const response = await fetch("/api/employees/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          periodStart: payPeriod.startDate,
+          periodEnd: payPeriod.endDate,
+        }),
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "บันทึกการจ่ายเงินเดือนไม่สำเร็จ");
+      }
+
+      toast.add({
+        title: "✅ ปิดรอบและบันทึกการจ่ายแล้ว",
+        description: `ระบบบันทึกยอดสุทธิ ยอดหนี้คงเหลือ และเวลาจ่ายของรอบ ${payPeriod.label} แล้ว`,
+      });
+      setRefreshKey((current) => current + 1);
+    } catch (settlementError) {
+      toast.add({
+        title: "❌ ปิดรอบเงินเดือนไม่สำเร็จ",
+        description:
+          settlementError instanceof Error
+            ? settlementError.message
+            : "กรุณาลองใหม่อีกครั้ง",
+      });
+    } finally {
+      setSettlingPayroll(false);
+    }
+  };
+
+  const handleExportCsv = () => {
+    const headers = [
+      "พนักงาน",
+      "ตำแหน่ง",
+      "ค่าแรง/วัน",
+      ...periodDates.map((date) => formatThaiDate(date)),
+      "วันคิดเงิน",
+      "ค่าแรงก่อนหัก",
+      "ประกันสังคม",
+      "หนี้/หักอื่น",
+      "ยอดเบิก",
+      "หนี้ยกมา",
+      "สุทธิ",
+      "จ่ายจริง",
+      "จ่ายแล้วเมื่อ",
+    ];
+    const rows = reportRows.map((row) => [
+      row.employee.name,
+      row.employee.position,
+      row.employee.dailyWage,
+      ...periodDates.map(
+        (date) =>
+          getReportStatus(
+            attendanceByDateAndEmployee.get(`${date}:${row.employee.code}`)
+              ?.status,
+          ).label,
+      ),
+      row.payableDays,
+      row.grossWage,
+      row.socialSecurity,
+      row.otherDeduction,
+      row.advanceAmount,
+      row.carryIn,
+      row.netWage,
+      row.paidAmount ?? "ยังไม่จ่าย",
+      row.paidAt ? new Date(row.paidAt).toLocaleString("th-TH") : "ยังไม่จ่าย",
+    ]);
+    const escapeCell = (value: string | number) =>
+      `"${String(value).replaceAll('"', '""')}"`;
+    const csv = [headers, ...rows]
+      .map((row) => row.map(escapeCell).join(","))
+      .join("\r\n");
+    const url = URL.createObjectURL(
+      new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `รายงานค่าแรง-${payPeriod.startDate}-${payPeriod.endDate}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -863,6 +1010,17 @@ export default function EmployeeAttendancePage() {
                         ))}
                       </SelectContent>
                     </Select>
+                  )}
+                  {data.access.canManage && (
+                    <Button
+                      variant="outline"
+                      className="rounded-[8px] text-sm font-medium"
+                      onClick={handleExportCsv}
+                      disabled={reportRows.length === 0 || !amountsVisible}
+                    >
+                      <Download />
+                      ส่งออก Excel (CSV)
+                    </Button>
                   )}
                   <Button
                     variant="outline"
@@ -1042,8 +1200,22 @@ export default function EmployeeAttendancePage() {
                       )}
                     />
                     <ReportValue
+                      label="หนี้ยกมาจากรอบก่อน"
+                      value={formatSensitiveCurrency(selectedReportRow.carryIn)}
+                    />
+                    <ReportValue
                       label="รายรับสุทธิ"
                       value={formatSensitiveCurrency(selectedReportRow.netWage)}
+                    />
+                    <ReportValue
+                      label="ยอดจ่ายจริง"
+                      value={
+                        selectedReportRow.paidAmount === null
+                          ? "ยังไม่จ่าย"
+                          : formatSensitiveCurrency(
+                              selectedReportRow.paidAmount,
+                            )
+                      }
                     />
                     <ReportValue
                       label="สถานะประกันสังคมรายเดือน"
@@ -1301,6 +1473,7 @@ export default function EmployeeAttendancePage() {
                     savingAdjustments ||
                     !data.access.canManage ||
                     !amountsVisible ||
+                    payrollSettled ||
                     data.employees.length === 0
                   }
                   onClick={handleSaveAdjustments}
@@ -1336,6 +1509,9 @@ export default function EmployeeAttendancePage() {
                       </TableHead>
                       <TableHead className="min-w-40 font-semibold">
                         กรอกยอดเบิกเพิ่ม (บาท)
+                      </TableHead>
+                      <TableHead className="min-w-32 text-right font-semibold">
+                        หนี้ยกมา (บาท)
                       </TableHead>
                       <TableHead className="min-w-36 text-right font-semibold">
                         วงเงินคงเหลือ (บาท)
@@ -1379,7 +1555,9 @@ export default function EmployeeAttendancePage() {
                               placeholder="0.00"
                               className="!h-10 rounded-[8px] border-slate-300 bg-white text-right text-sm focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/15 dark:bg-background"
                               aria-label={`ประกันสังคมรายเดือน ${row.employee.name}`}
-                              disabled={!data.access.canManage}
+                              disabled={
+                                !data.access.canManage || Boolean(row.paidAt)
+                              }
                             />
                           ) : (
                             <div className="flex h-10 items-center justify-end rounded-[8px] border border-slate-300 bg-secondary/40 px-3 font-semibold tracking-wider text-muted-foreground">
@@ -1415,7 +1593,9 @@ export default function EmployeeAttendancePage() {
                               placeholder="0.00"
                               className="!h-10 rounded-[8px] border-slate-300 bg-white text-right text-sm focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/15 dark:bg-background"
                               aria-label={`หนี้ค้างหรือรายการหักอื่น ${row.employee.name}`}
-                              disabled={!data.access.canManage}
+                              disabled={
+                                !data.access.canManage || Boolean(row.paidAt)
+                              }
                             />
                           ) : (
                             <div className="flex h-10 items-center justify-end rounded-[8px] border border-slate-300 bg-secondary/40 px-3 font-semibold tracking-wider text-muted-foreground">
@@ -1442,7 +1622,9 @@ export default function EmployeeAttendancePage() {
                               placeholder="0.00"
                               className="!h-10 rounded-[8px] border-slate-300 bg-white text-right text-sm focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/15 dark:bg-background"
                               aria-label={`ยอดเบิกเพิ่ม ${row.employee.name}`}
-                              disabled={!data.access.canManage}
+                              disabled={
+                                !data.access.canManage || Boolean(row.paidAt)
+                              }
                             />
                           ) : (
                             <div className="flex h-10 items-center justify-end rounded-[8px] border border-slate-300 bg-secondary/40 px-3 font-semibold tracking-wider text-muted-foreground">
@@ -1455,6 +1637,16 @@ export default function EmployeeAttendancePage() {
                               {formatSensitiveAmount(row.recordedAdvanceAmount)}
                             </div>
                           )}
+                        </TableCell>
+                        <TableCell
+                          className={cn(
+                            "py-5 text-right font-semibold",
+                            row.carryIn > 0
+                              ? "text-main-red"
+                              : "text-muted-foreground",
+                          )}
+                        >
+                          {formatSensitiveAmount(row.carryIn)}
                         </TableCell>
                         <TableCell
                           className={cn(
@@ -1478,17 +1670,46 @@ export default function EmployeeAttendancePage() {
               </p>
             </section>
             <section className="order-1 rounded-3xl border bg-card p-4">
-              <div className="mb-4">
-                <h2 className="text-xl font-semibold text-card-foreground">
-                  สรุปรอบค่าแรง {payPeriod.label}
-                </h2>
-                <p className="text-sm font-medium text-muted-foreground">
-                  คำนวณถึง {formatThaiDate(selectedDate)} หลังหักประกันสังคม
-                  รายการหักอื่น และยอดเบิก
-                </p>
+              <div className="mb-4 flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+                <div>
+                  <h2 className="text-xl font-semibold text-card-foreground">
+                    สรุปรอบค่าแรง {payPeriod.label}
+                  </h2>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    {payrollSettled
+                      ? `จ่ายแล้ว ${new Date(periodRows[0].paidAt ?? "").toLocaleString("th-TH")} โดย ${periodRows[0].paidBy || "ผู้ดูแลระบบ"}`
+                      : `คำนวณถึง ${formatThaiDate(selectedDate)} หลังหักประกันสังคม รายการหักอื่น ยอดเบิก และหนี้ยกมา`}
+                  </p>
+                </div>
+                {data.access.canManage && (
+                  <Button
+                    className="h-10 rounded-[8px] text-sm font-medium"
+                    disabled={
+                      loading ||
+                      savingAdjustments ||
+                      settlingPayroll ||
+                      payrollSettled ||
+                      !amountsVisible ||
+                      data.employees.length === 0
+                    }
+                    onClick={handleSettlePayroll}
+                    aria-busy={settlingPayroll}
+                  >
+                    {settlingPayroll ? (
+                      <Loader2 className="animate-spin" />
+                    ) : (
+                      <CheckCircle2 />
+                    )}
+                    {payrollSettled
+                      ? "จ่ายเงินเดือนแล้ว"
+                      : settlingPayroll
+                        ? "กำลังปิดรอบ"
+                        : "ยืนยันจ่ายเงินและปิดรอบ"}
+                  </Button>
+                )}
               </div>
 
-              <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+              <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
                 <KPICard
                   title="วันคิดค่าแรงรวม"
                   value={periodTotals.payableDays}
@@ -1516,6 +1737,13 @@ export default function EmployeeAttendancePage() {
                   format={amountsVisible ? "currency" : undefined}
                   icon={WalletCards}
                   variant="orange"
+                />
+                <KPICard
+                  title="หนี้ยกมา"
+                  value={amountsVisible ? periodTotals.carryIn : "••••••"}
+                  format={amountsVisible ? "currency" : undefined}
+                  icon={WalletCards}
+                  variant="red"
                 />
                 <KPICard
                   title="คงเหลือประมาณการ"
@@ -1567,7 +1795,13 @@ export default function EmployeeAttendancePage() {
                         ยอดเบิก (บาท)
                       </TableHead>
                       <TableHead className="text-right font-semibold">
+                        หนี้ยกมา (บาท)
+                      </TableHead>
+                      <TableHead className="text-right font-semibold">
                         คงเหลือ (บาท)
+                      </TableHead>
+                      <TableHead className="text-right font-semibold">
+                        จ่ายจริง (บาท)
                       </TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1665,6 +1899,16 @@ export default function EmployeeAttendancePage() {
                         </TableCell>
                         <TableCell
                           className={cn(
+                            "text-right",
+                            row.carryIn > 0
+                              ? "text-main-red"
+                              : "text-muted-foreground",
+                          )}
+                        >
+                          {formatSensitiveAmount(row.carryIn)}
+                        </TableCell>
+                        <TableCell
+                          className={cn(
                             "py-5 text-right font-semibold",
                             row.netWage >= 0
                               ? "text-main-green"
@@ -1672,6 +1916,11 @@ export default function EmployeeAttendancePage() {
                           )}
                         >
                           {formatSensitiveAmount(row.netWage)}
+                        </TableCell>
+                        <TableCell className="py-5 text-right font-semibold text-main-green">
+                          {row.paidAmount === null
+                            ? "—"
+                            : formatSensitiveAmount(row.paidAmount)}
                         </TableCell>
                       </TableRow>
                     ))}

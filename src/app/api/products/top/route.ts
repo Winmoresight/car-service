@@ -98,13 +98,6 @@ export async function GET(request: NextRequest) {
     const analyticsSql = await getProductAnalyticsSqlConfig("s", "top");
     const salesBarcodeExpression = analyticsSql.resolvedBarcodeExpression;
     const salesAnalyticsJoins = analyticsSql.joins;
-    const stockBarcodeExpression = analyticsSql.hasBarcodeAliases
-      ? "COALESCE(NULLIF(stockBarcodeAlias.CanonicalBarcode, ''), NULLIF(stockMovement.BarCode, ''), '')"
-      : "ISNULL(NULLIF(stockMovement.BarCode, ''), '')";
-    const stockBarcodeAliasJoin = analyticsSql.hasBarcodeAliases
-      ? `LEFT JOIN dbo.WebProductBarcodeAliases stockBarcodeAlias
-          ON stockBarcodeAlias.AliasBarcode = stockMovement.BarCode`
-      : "";
     const masterBarcodeExpression = analyticsSql.hasBarcodeAliases
       ? "COALESCE(NULLIF(masterBarcodeAlias.CanonicalBarcode, ''), NULLIF(d.BarCode, ''), '')"
       : "ISNULL(NULLIF(d.BarCode, ''), '')";
@@ -122,25 +115,14 @@ export async function GET(request: NextRequest) {
       `
       : "";
     const currentStockCte = `
-      StockTimeline AS (
-        SELECT
-          ${stockBarcodeExpression} as barcode,
-          stockMovement.Stock as stock,
-          ROW_NUMBER() OVER (
-            PARTITION BY ${stockBarcodeExpression}
-            ORDER BY
-              stockMovement.DateSave DESC,
-              stockMovement.Times DESC,
-              stockMovement.NumberPrint DESC
-          ) as stock_rank
-        FROM dbo.INOUTStockProduct stockMovement
-        ${stockBarcodeAliasJoin}
-        WHERE ISNULL(stockMovement.BarCode, '') <> ''
-      ),
       CurrentStock AS (
-        SELECT barcode, stock
-        FROM StockTimeline
-        WHERE stock_rank = 1
+        SELECT
+          ${masterBarcodeExpression} as barcode,
+          MAX(ISNULL(d.NProduct, 0)) as stock
+        FROM dbo.MasterProductDetail d
+        ${masterBarcodeAliasJoin}
+        WHERE ISNULL(d.BarCode, '') <> ''
+        GROUP BY ${masterBarcodeExpression}
       )
     `;
     const productDataCte = `
