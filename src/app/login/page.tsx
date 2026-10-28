@@ -171,7 +171,6 @@ export default function LoginPage() {
                     value={username}
                     onChange={(event) => setUsername(event.target.value)}
                     className="h-12 rounded-full bg-[#F8FAFC] px-5 font-medium"
-                    inputMode="tel"
                     placeholder="กรอกชื่อผู้ใช้งานหรือเบอร์โทร"
                     autoFocus
                   />

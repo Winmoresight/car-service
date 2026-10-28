@@ -1,14 +1,16 @@
 /**
  * API Endpoint: /api/employees
- * GET ดึงข้อมูลพนักงานทั้งหมด
+ * GET ดึงข้อมูลพนักงานทั้งหมด และ POST เพิ่มพนักงานพร้อมบัญชีเข้าสู่ระบบ
  * DELETE ลบพนักงานเมื่อไม่มีประวัติที่ต้องเก็บรักษา
  */
 
+import sql from "mssql";
 import { type NextRequest, NextResponse } from "next/server";
-import { executeQuery } from "@/lib/db";
+import { executeQuery, getPool } from "@/lib/db";
 import { getEmployeeAccess } from "@/lib/employee-access";
 import {
   EmployeeCredentialError,
+  normalizeEmployeePhone,
   resetEmployeePassword,
   updateEmployeePhoneAccess,
 } from "@/lib/employee-credentials";
@@ -23,6 +25,205 @@ interface Employee {
   Age: number;
   Positions: string;
   PriceToWorkDay: number;
+}
+
+interface CreateEmployeePayload {
+  name?: unknown;
+  address?: unknown;
+  phone?: unknown;
+  idCard?: unknown;
+  birthDate?: unknown;
+  position?: unknown;
+  dailyWage?: unknown;
+}
+
+function normalizeText(value: unknown, maxLength: number) {
+  return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
+}
+
+function normalizeDate(value: unknown) {
+  const text = normalizeText(value, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
+  const date = new Date(`${text}T00:00:00`);
+  const [year, month, day] = text.split("-").map(Number);
+  return !Number.isNaN(date.getTime()) &&
+    date.getFullYear() === year &&
+    date.getMonth() + 1 === month &&
+    date.getDate() === day
+    ? text
+    : null;
+}
+
+export async function POST(request: NextRequest) {
+  let createdCode: number | null = null;
+
+  try {
+    const access = await getEmployeeAccess(request);
+    if (!access.canManage) {
+      return NextResponse.json(
+        { success: false, error: "บัญชีนี้ไม่มีสิทธิ์เพิ่มพนักงาน" },
+        { status: 403 },
+      );
+    }
+
+    const body = (await request.json()) as CreateEmployeePayload;
+    const name = normalizeText(body.name, 200);
+    const address = normalizeText(body.address, 500);
+    const phone = normalizeEmployeePhone(body.phone);
+    const idCard = normalizeText(body.idCard, 13).replace(/\D/g, "");
+    const birthDate = body.birthDate ? normalizeDate(body.birthDate) : null;
+    const position = normalizeText(body.position, 100);
+    const dailyWage = Number(body.dailyWage);
+
+    if (!name || !position || !phone) {
+      return NextResponse.json(
+        { success: false, error: "กรุณากรอกชื่อ ตำแหน่ง และเบอร์โทรให้ครบ" },
+        { status: 400 },
+      );
+    }
+    if (!Number.isFinite(dailyWage) || dailyWage < 0 || dailyWage > 1_000_000) {
+      return NextResponse.json(
+        { success: false, error: "กรุณากรอกค่าแรงต่อวันให้ถูกต้อง" },
+        { status: 400 },
+      );
+    }
+    if (body.birthDate && !birthDate) {
+      return NextResponse.json(
+        { success: false, error: "วันเกิดไม่ถูกต้อง" },
+        { status: 400 },
+      );
+    }
+    if (birthDate && new Date(`${birthDate}T00:00:00`) > new Date()) {
+      return NextResponse.json(
+        { success: false, error: "วันเกิดต้องไม่เป็นวันที่ในอนาคต" },
+        { status: 400 },
+      );
+    }
+    if (idCard && idCard.length !== 13) {
+      return NextResponse.json(
+        { success: false, error: "เลขบัตรประชาชนต้องมี 13 หลัก" },
+        { status: 400 },
+      );
+    }
+
+    const positionRows = await executeQuery<{ total: number }>(
+      "SELECT COUNT(*) as total FROM dbo.NamePositions WHERE NamePositions = @position",
+      { position },
+      false,
+    );
+    if (Number(positionRows[0]?.total || 0) === 0) {
+      return NextResponse.json(
+        { success: false, error: "ไม่พบตำแหน่งงานที่เลือก" },
+        { status: 400 },
+      );
+    }
+
+    const pool = await getPool();
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      const insertRequest = new sql.Request(transaction);
+      insertRequest.input("name", sql.NVarChar(200), name);
+      insertRequest.input("address", sql.NVarChar(500), address);
+      insertRequest.input("phone", sql.NVarChar(20), phone);
+      insertRequest.input("idCard", sql.NVarChar(20), idCard);
+      insertRequest.input("birthDate", sql.Date, birthDate);
+      insertRequest.input("position", sql.NVarChar(100), position);
+      insertRequest.input(
+        "dailyWage",
+        sql.Decimal(18, 2),
+        Number(dailyWage.toFixed(2)),
+      );
+      const result = await insertRequest.query<{ code: number }>(`
+        DECLARE @createdEmployee TABLE (Code int);
+
+        IF COLUMNPROPERTY(OBJECT_ID(N'dbo.NameServiceProduct'), N'Code', 'IsIdentity') = 1
+        BEGIN
+          INSERT INTO dbo.NameServiceProduct (
+            NameSure, Address, Phone, IDCard, DateBirthDay, Age, Positions, PriceToWorkDay
+          )
+          OUTPUT INSERTED.Code INTO @createdEmployee
+          VALUES (
+            @name, @address, @phone, @idCard, @birthDate,
+            CASE WHEN @birthDate IS NULL THEN 0 ELSE DATEDIFF(YEAR, @birthDate, GETDATE()) -
+              CASE WHEN DATEADD(YEAR, DATEDIFF(YEAR, @birthDate, GETDATE()), @birthDate) > GETDATE() THEN 1 ELSE 0 END
+            END,
+            @position, @dailyWage
+          );
+        END
+        ELSE
+        BEGIN
+          DECLARE @nextCode int;
+          SELECT @nextCode = ISNULL(MAX(Code), 0) + 1
+          FROM dbo.NameServiceProduct WITH (UPDLOCK, HOLDLOCK);
+
+          INSERT INTO dbo.NameServiceProduct (
+            Code, NameSure, Address, Phone, IDCard, DateBirthDay, Age, Positions, PriceToWorkDay
+          )
+          OUTPUT INSERTED.Code INTO @createdEmployee
+          VALUES (
+            @nextCode, @name, @address, @phone, @idCard, @birthDate,
+            CASE WHEN @birthDate IS NULL THEN 0 ELSE DATEDIFF(YEAR, @birthDate, GETDATE()) -
+              CASE WHEN DATEADD(YEAR, DATEDIFF(YEAR, @birthDate, GETDATE()), @birthDate) > GETDATE() THEN 1 ELSE 0 END
+            END,
+            @position, @dailyWage
+          );
+        END;
+
+        SELECT Code as code FROM @createdEmployee;
+      `);
+      createdCode = Number(result.recordset[0]?.code) || null;
+      if (!createdCode) throw new Error("ไม่สามารถสร้างรหัสพนักงานได้");
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback().catch(() => undefined);
+      throw error;
+    }
+
+    await updateEmployeePhoneAccess(createdCode, phone, true);
+    const [employee] = await executeQuery<Employee>(
+      `SELECT Code, NameSure, Address, Phone, IDCard, DateBirthDay, Age, Positions, PriceToWorkDay
+       FROM dbo.NameServiceProduct WHERE Code = @code`,
+      { code: createdCode },
+      false,
+    );
+    if (!employee) throw new Error("ไม่พบข้อมูลพนักงานหลังบันทึก");
+
+    return NextResponse.json(
+      { success: true, data: employee },
+      { status: 201 },
+    );
+  } catch (error) {
+    if (createdCode) {
+      await executeQuery(
+        `BEGIN TRANSACTION;
+         BEGIN TRY
+           IF OBJECT_ID(N'dbo.WebEmployeeCredential', N'U') IS NOT NULL
+             DELETE FROM dbo.WebEmployeeCredential WHERE CodeStaff = @code;
+           DELETE FROM dbo.NameServiceProduct WHERE Code = @code;
+           COMMIT TRANSACTION;
+         END TRY
+         BEGIN CATCH
+           IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+           THROW;
+         END CATCH`,
+        { code: createdCode },
+        false,
+      ).catch(() => undefined);
+    }
+    if (error instanceof EmployeeCredentialError) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 400 },
+      );
+    }
+    console.error("Employee POST API error:", error);
+    return NextResponse.json(
+      { success: false, error: "ไม่สามารถเพิ่มพนักงานได้" },
+      { status: 500 },
+    );
+  }
 }
 
 export async function GET(request: NextRequest) {

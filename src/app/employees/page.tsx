@@ -14,6 +14,7 @@ import {
   LoaderCircle,
   MapPin,
   Phone,
+  Plus,
   ReceiptText,
   Save,
   Trash2,
@@ -36,6 +37,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -75,6 +83,16 @@ interface Payment {
   Datepayment: string;
 }
 
+const emptyEmployeeDraft = {
+  name: "",
+  position: "",
+  phone: "",
+  dailyWage: "",
+  idCard: "",
+  birthDate: "",
+  address: "",
+};
+
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
@@ -91,6 +109,9 @@ export default function EmployeesPage() {
   const [salaryAmountsVisible, setSalaryAmountsVisible] = useState(false);
   const [employeePhone, setEmployeePhone] = useState("");
   const [isSavingAccess, setIsSavingAccess] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [employeeDraft, setEmployeeDraft] = useState(emptyEmployeeDraft);
 
   const formatCurrency = (value: number, fractionDigits = 0) => {
     return new Intl.NumberFormat("th-TH", {
@@ -329,6 +350,46 @@ export default function EmployeesPage() {
     }
   };
 
+  const createEmployee = async () => {
+    try {
+      setIsCreating(true);
+      const response = await fetch("/api/employees", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(employeeDraft),
+      });
+      const result = (await response.json()) as {
+        success?: boolean;
+        data?: Employee;
+        error?: string;
+      };
+
+      if (!response.ok || !result.success || !result.data) {
+        throw new Error(result.error || "เพิ่มพนักงานไม่สำเร็จ");
+      }
+
+      setEmployees((current) =>
+        [...current, result.data as Employee].sort((a, b) => a.Code - b.Code),
+      );
+      setEmployeeDraft(emptyEmployeeDraft);
+      setCreateDialogOpen(false);
+      toast.add({
+        title: "✅ เพิ่มพนักงานแล้ว",
+        description: `${result.data.NameSure} เข้าระบบด้วยเบอร์โทรและรหัสเริ่มต้น 123456 ได้ทันที`,
+      });
+    } catch (createError) {
+      toast.add({
+        title: "❌ เพิ่มพนักงานไม่สำเร็จ",
+        description:
+          createError instanceof Error
+            ? createError.message
+            : "กรุณาลองใหม่อีกครั้ง",
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   return (
     <div className="p-6 pb-16">
       <DashboardBreadcrumb label="พนักงาน" href="/employees" />
@@ -349,6 +410,16 @@ export default function EmployeesPage() {
               </div>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
+              {canManage && (
+                <Button
+                  type="button"
+                  className="h-10 rounded-[8px]"
+                  onClick={() => setCreateDialogOpen(true)}
+                >
+                  <Plus />
+                  เพิ่มพนักงาน
+                </Button>
+              )}
               {canManage && (
                 <Button
                   type="button"
@@ -820,6 +891,214 @@ export default function EmployeesPage() {
           )}
         </div>
       </div>
+
+      <Dialog
+        open={createDialogOpen}
+        onOpenChange={(open) => {
+          if (isCreating) return;
+          setCreateDialogOpen(open);
+          if (!open) setEmployeeDraft(emptyEmployeeDraft);
+        }}
+      >
+        <DialogContent
+          showCloseButton={false}
+          className="max-h-[calc(100dvh-2rem)] max-w-xl gap-0 overflow-y-auto rounded-2xl p-0 text-base"
+        >
+          <DialogHeader className="flex-row items-start gap-3 border-b p-5 pr-4 text-left">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-[8px] border bg-secondary text-main-blue">
+              <Plus className="size-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="text-xl font-semibold">
+                เพิ่มพนักงาน
+              </DialogTitle>
+              <DialogDescription className="mt-1 text-sm">
+                ระบบจะสร้างบัญชีเบอร์โทรพร้อมรหัสเริ่มต้น 123456
+              </DialogDescription>
+            </div>
+            <DialogClose asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled={isCreating}
+                aria-label="ปิดหน้าต่างเพิ่มพนักงาน"
+              >
+                <span aria-hidden="true" className="text-2xl leading-none">
+                  ×
+                </span>
+              </Button>
+            </DialogClose>
+          </DialogHeader>
+
+          <div className="grid gap-4 p-5 sm:grid-cols-2">
+            <div className="space-y-2 sm:col-span-2">
+              <label htmlFor="employee-name" className="font-medium">
+                ชื่อพนักงาน <span className="text-main-red">*</span>
+              </label>
+              <Input
+                id="employee-name"
+                value={employeeDraft.name}
+                onChange={(event) =>
+                  setEmployeeDraft((current) => ({
+                    ...current,
+                    name: event.target.value,
+                  }))
+                }
+                maxLength={200}
+                placeholder="ชื่อ–นามสกุล หรือชื่อเรียก"
+                autoFocus
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="employee-position" className="font-medium">
+                ตำแหน่ง <span className="text-main-red">*</span>
+              </label>
+              <Select
+                value={employeeDraft.position}
+                onValueChange={(position) =>
+                  setEmployeeDraft((current) => ({ ...current, position }))
+                }
+              >
+                <SelectTrigger id="employee-position" className="w-full">
+                  <SelectValue placeholder="เลือกตำแหน่ง" />
+                </SelectTrigger>
+                <SelectContent>
+                  {positions.map((position) => (
+                    <SelectItem
+                      key={position.Code}
+                      value={position.NamePositions}
+                    >
+                      {position.NamePositions}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="employee-phone" className="font-medium">
+                เบอร์โทร <span className="text-main-red">*</span>
+              </label>
+              <Input
+                id="employee-phone"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                value={employeeDraft.phone}
+                onChange={(event) =>
+                  setEmployeeDraft((current) => ({
+                    ...current,
+                    phone: event.target.value,
+                  }))
+                }
+                placeholder="0xx-xxx-xxxx"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="employee-wage" className="font-medium">
+                ค่าแรงต่อวัน <span className="text-main-red">*</span>
+              </label>
+              <Input
+                id="employee-wage"
+                type="number"
+                min="0"
+                step="0.01"
+                inputMode="decimal"
+                value={employeeDraft.dailyWage}
+                onChange={(event) =>
+                  setEmployeeDraft((current) => ({
+                    ...current,
+                    dailyWage: event.target.value,
+                  }))
+                }
+                placeholder="0.00"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="employee-id-card" className="font-medium">
+                เลขบัตรประชาชน
+              </label>
+              <Input
+                id="employee-id-card"
+                inputMode="numeric"
+                value={employeeDraft.idCard}
+                onChange={(event) =>
+                  setEmployeeDraft((current) => ({
+                    ...current,
+                    idCard: event.target.value.replace(/\D/g, "").slice(0, 13),
+                  }))
+                }
+                placeholder="13 หลัก"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="employee-birth-date" className="font-medium">
+                วันเกิด
+              </label>
+              <Input
+                id="employee-birth-date"
+                type="date"
+                value={employeeDraft.birthDate}
+                onChange={(event) =>
+                  setEmployeeDraft((current) => ({
+                    ...current,
+                    birthDate: event.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div className="space-y-2 sm:col-span-2">
+              <label htmlFor="employee-address" className="font-medium">
+                ที่อยู่
+              </label>
+              <Input
+                id="employee-address"
+                value={employeeDraft.address}
+                onChange={(event) =>
+                  setEmployeeDraft((current) => ({
+                    ...current,
+                    address: event.target.value,
+                  }))
+                }
+                maxLength={500}
+                placeholder="ที่อยู่ปัจจุบัน"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="m-0 rounded-none border-t bg-muted/40 p-4">
+            <DialogClose asChild>
+              <Button type="button" variant="outline" disabled={isCreating}>
+                ยกเลิก
+              </Button>
+            </DialogClose>
+            <Button
+              type="button"
+              onClick={() => void createEmployee()}
+              disabled={
+                isCreating ||
+                !employeeDraft.name.trim() ||
+                !employeeDraft.position ||
+                !employeeDraft.phone.trim() ||
+                employeeDraft.dailyWage === ""
+              }
+            >
+              {isCreating ? (
+                <LoaderCircle className="animate-spin" />
+              ) : (
+                <Plus />
+              )}
+              {isCreating ? "กำลังเพิ่ม" : "เพิ่มพนักงาน"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={selectedEmployee !== null}
