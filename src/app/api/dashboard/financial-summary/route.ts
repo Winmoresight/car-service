@@ -74,6 +74,7 @@ interface ReceivablePaymentSummaryRow {
 interface ReceivablePaymentRow {
   id: string;
   occurred_at: Date | null;
+  occurred_time: string | null;
   document_no: string;
   customer_name: string;
   name_car: string;
@@ -596,6 +597,7 @@ async function getReceivablePayments(params: Record<string, unknown>) {
         SELECT TOP (@listLimit)
           id,
           occurred_at,
+          occurred_time,
           document_no,
           customer_name,
           name_car,
@@ -635,7 +637,9 @@ async function getReceivablePayments(params: Record<string, unknown>) {
             row.province,
             row.bank_name,
           ]) || "ไม่ระบุรายละเอียด",
-        occurredAt: toISOStringOrNull(row.occurred_at),
+        occurredAt:
+          combineLegacyBangkokDateTime(row.occurred_at, row.occurred_time) ??
+          toISOStringOrNull(row.occurred_at),
         amount: normalizeMoney(row.amount),
         cash: isTransfer ? 0 : normalizeMoney(row.amount),
         transfer: isTransfer ? normalizeMoney(row.amount) : 0,

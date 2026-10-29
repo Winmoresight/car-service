@@ -13,6 +13,7 @@ const emptyPaymentCte = (name: string) => `
     SELECT
       CAST(NULL AS nvarchar(150)) as id,
       CAST(NULL AS datetime) as occurred_at,
+      CAST(NULL AS nvarchar(20)) as occurred_time,
       CAST(NULL AS nvarchar(30)) as document_no,
       CAST(NULL AS nvarchar(30)) as customer_code,
       CAST(NULL AS nvarchar(200)) as customer_name,
@@ -155,6 +156,7 @@ function buildWebReceivablePaymentsCte(
       SELECT
         CAST(p.ID AS nvarchar(50)) as id,
         p.PaidAt as occurred_at,
+        '' as occurred_time,
         p.NumberPrintSalePost as document_no,
         ISNULL(p.CodeCustomer, ISNULL(m.CodeCustomer, '')) as customer_code,
         ISNULL(p.NameCustomer, ISNULL(m.NameCustomer, N'ไม่ระบุ')) as customer_name,
@@ -223,6 +225,12 @@ function buildPaymentCustomerCte(
     : masterDateColumn
       ? qualify("p", masterDateColumn)
       : "";
+  const timeExpression = getTextExpression("p", masterColumns, [
+    "Times",
+    "Time",
+    "TimePay",
+    "PaymentTime",
+  ]);
 
   if (
     !masterNumberColumn ||
@@ -363,6 +371,7 @@ function buildPaymentCustomerCte(
           AS nvarchar(150)
         ) as id,
         ${dateExpression} as occurred_at,
+        ${timeExpression} as occurred_time,
         ${qualify("d", detailSaleNumberColumn)} as document_no,
         ${customerCodeExpression} as customer_code,
         ${customerNameExpression} as customer_name,
@@ -407,6 +416,7 @@ function buildMasterReceivableCte(dateFilter: DateFilterBuilder) {
       SELECT
         CAST('legacy-' + ISNULL(r.NumberPrintPost, '') + '-' + CONVERT(nvarchar(30), r.DatePost, 121) AS nvarchar(100)) as id,
         r.DatePost as occurred_at,
+        '' as occurred_time,
         r.NumberPrintPost as document_no,
         ISNULL(r.CodeCustomer, ISNULL(m.CodeCustomer, '')) as customer_code,
         ISNULL(r.NameCustomer, ISNULL(m.NameCustomer, N'ไม่ระบุ')) as customer_name,

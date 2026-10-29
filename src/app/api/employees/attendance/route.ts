@@ -343,6 +343,7 @@ export async function GET(request: NextRequest) {
       executeQuery<{
         code: number;
         name: string | null;
+        phone: string | null;
         position: string | null;
         dailyWage: number | string | null;
       }>(
@@ -350,6 +351,7 @@ export async function GET(request: NextRequest) {
           SELECT
             Code as code,
             ISNULL(NameSure, '') as name,
+            ISNULL(Phone, '') as phone,
             ISNULL(Positions, '') as position,
             ISNULL(PriceToWorkDay, 0) as dailyWage
           FROM dbo.NameServiceProduct
@@ -514,6 +516,7 @@ export async function GET(request: NextRequest) {
         employees: employees.map((employee) => ({
           code: Number(employee.code),
           name: normalizeText(employee.name),
+          phone: normalizeText(employee.phone),
           position: normalizeText(employee.position),
           dailyWage: Number(employee.dailyWage) || 0,
         })),

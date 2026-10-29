@@ -17,6 +17,14 @@ import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -49,6 +57,7 @@ type AttendanceStatus =
 interface Employee {
   code: number;
   name: string;
+  phone: string;
   position: string;
   dailyWage: number;
 }
@@ -177,15 +186,6 @@ function StatusOptionLabel({
   );
 }
 
-function ReportValue({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl bg-secondary/60 p-3">
-      <div className="text-sm font-medium text-muted-foreground">{label}</div>
-      <div className="mt-1 font-semibold text-card-foreground">{value}</div>
-    </div>
-  );
-}
-
 function getTodayInputValue() {
   const now = new Date();
   const year = now.getFullYear();
@@ -231,6 +231,10 @@ function formatCurrency(value: number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value || 0);
+}
+
+function formatDeduction(value: number) {
+  return value > 0 ? `-${formatCurrency(value)}` : formatCurrency(0);
 }
 
 function formatAmount(value: number) {
@@ -322,7 +326,10 @@ export default function EmployeeAttendancePage() {
   const [bulkStatus, setBulkStatus] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [activeTab, setActiveTab] = useState("daily");
-  const [reportEmployeeCode, setReportEmployeeCode] = useState("all");
+  const [reportEmployeeCode, setReportEmployeeCode] = useState<number | null>(
+    null,
+  );
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [printingIndividualSlip, setPrintingIndividualSlip] = useState(false);
   const payPeriod = useMemo(() => getPayPeriod(selectedDate), [selectedDate]);
   const deductSocialSecurityThisPeriod = payPeriod.startDate.endsWith("-01");
@@ -393,9 +400,7 @@ export default function EmployeeAttendancePage() {
         setData(nextData);
         if (!nextData.access.canManage) {
           setActiveTab("payroll");
-          setReportEmployeeCode(
-            nextData.employees[0] ? String(nextData.employees[0].code) : "all",
-          );
+          setReportEmployeeCode(nextData.employees[0]?.code ?? null);
         }
         setDrafts(nextDrafts);
         setAdjustmentDrafts(nextAdjustmentDrafts);
@@ -591,17 +596,15 @@ export default function EmployeeAttendancePage() {
     [periodRows],
   );
 
-  const reportRows = useMemo(
+  const reportRows = periodRows;
+  const selectedReportRow = useMemo(
     () =>
-      reportEmployeeCode === "all"
-        ? periodRows
-        : periodRows.filter(
-            (row) => row.employee.code === Number(reportEmployeeCode),
-          ),
+      reportEmployeeCode === null
+        ? null
+        : (periodRows.find((row) => row.employee.code === reportEmployeeCode) ??
+          null),
     [periodRows, reportEmployeeCode],
   );
-
-  const selectedReportRow = reportRows.length === 1 ? reportRows[0] : null;
   const selectedAdjustmentNote = selectedReportRow
     ? adjustmentDrafts[selectedReportRow.employee.code]?.note.trim() || ""
     : "";
@@ -869,10 +872,10 @@ export default function EmployeeAttendancePage() {
 
   const handlePrintReport = () => {
     if (!selectedReportRow) {
-      window.print();
       return;
     }
 
+    setReportDialogOpen(false);
     setPrintingIndividualSlip(true);
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => window.print());
@@ -884,7 +887,10 @@ export default function EmployeeAttendancePage() {
       return;
     }
 
-    const finishPrinting = () => setPrintingIndividualSlip(false);
+    const finishPrinting = () => {
+      setPrintingIndividualSlip(false);
+      setReportDialogOpen(true);
+    };
     window.addEventListener("afterprint", finishPrinting);
 
     return () => window.removeEventListener("afterprint", finishPrinting);
@@ -893,7 +899,21 @@ export default function EmployeeAttendancePage() {
   return (
     <div className="p-4 pb-16 print:p-0 sm:p-6">
       {printingIndividualSlip ? (
-        <style>{`@page { size: A5 portrait; margin: 8mm; }`}</style>
+        <style>{`
+          @page { size: A5 landscape; margin: 0; }
+          @media print {
+            html, body {
+              width: 210mm !important;
+              height: 148mm !important;
+              margin: 0 !important;
+              overflow: hidden !important;
+            }
+            [data-slot="dialog-overlay"],
+            [data-slot="dialog-content"] {
+              display: none !important;
+            }
+          }
+        `}</style>
       ) : null}
       <div className="print:hidden">
         <DashboardBreadcrumb
@@ -998,31 +1018,10 @@ export default function EmployeeAttendancePage() {
                     รายงานวันทำงานและยอดเบิก {payPeriod.label}
                   </h2>
                   <p className="text-sm text-muted-foreground">
-                    รูปแบบรายวันสำหรับตรวจสอบก่อนสรุปเงินเดือน
+                    คลิกชื่อพนักงานเพื่อดูสรุปและพิมพ์สลิป
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 print:hidden sm:flex-row">
-                  {data.access.canManage && (
-                    <Select
-                      value={reportEmployeeCode}
-                      onValueChange={setReportEmployeeCode}
-                    >
-                      <SelectTrigger className="!h-10 min-w-56 rounded-[8px] text-sm font-medium">
-                        <SelectValue placeholder="เลือกพนักงาน" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">พนักงานทุกคน</SelectItem>
-                        {data.employees.map((employee) => (
-                          <SelectItem
-                            key={employee.code}
-                            value={String(employee.code)}
-                          >
-                            {employee.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
                   {data.access.canManage && (
                     <Button
                       variant="outline"
@@ -1034,15 +1033,6 @@ export default function EmployeeAttendancePage() {
                       ส่งออก Excel (CSV)
                     </Button>
                   )}
-                  <Button
-                    variant="outline"
-                    className="rounded-[8px] text-sm font-medium"
-                    onClick={handlePrintReport}
-                    disabled={reportRows.length === 0}
-                  >
-                    <Printer />
-                    {selectedReportRow ? "พิมพ์สลิป A5" : "พิมพ์รายงานรวม"}
-                  </Button>
                 </div>
               </div>
 
@@ -1086,13 +1076,23 @@ export default function EmployeeAttendancePage() {
                   <TableBody>
                     {reportRows.map((row) => (
                       <TableRow key={row.employee.code} className="[&>td]:py-4">
-                        <TableCell className="sticky left-0 z-10 border-r bg-card py-4">
-                          <div className="font-semibold text-card-foreground">
-                            {row.employee.name}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            {row.employee.position || "ไม่ระบุตำแหน่ง"}
-                          </div>
+                        <TableCell className="sticky left-0 z-10 border-r bg-card p-0">
+                          <button
+                            type="button"
+                            className="w-full px-3 py-4 text-left hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                            onClick={() => {
+                              setReportEmployeeCode(row.employee.code);
+                              setReportDialogOpen(true);
+                            }}
+                            aria-label={`ดูสรุปและพิมพ์สลิปของ ${row.employee.name}`}
+                          >
+                            <span className="block font-semibold text-card-foreground underline-offset-4 hover:underline">
+                              {row.employee.name}
+                            </span>
+                            <span className="block text-sm text-muted-foreground">
+                              {row.employee.position || "ไม่ระบุตำแหน่ง"}
+                            </span>
+                          </button>
                         </TableCell>
                         {periodDates.map((date) => {
                           const key = `${date}:${row.employee.code}`;
@@ -1166,101 +1166,169 @@ export default function EmployeeAttendancePage() {
                 <span>หยุด+ = หยุดพิเศษได้ค่าแรง</span>
                 <span>ตัวเลขบรรทัดล่าง = ยอดเบิก</span>
               </div>
-
-              {selectedReportRow && (
-                <div className="mt-5 rounded-[16px] border p-4">
-                  <div className="mb-4">
-                    <h3 className="text-lg font-semibold">
-                      สรุปรายบุคคล: {selectedReportRow.employee.name}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedReportRow.employee.position || "ไม่ระบุตำแหน่ง"} ·
-                      รอบ {payPeriod.label}
-                    </p>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    <ReportValue
-                      label="วันทำงานคิดเงิน"
-                      value={`${formatWorkDays(selectedReportRow.payableDays)} วัน`}
-                    />
-                    <ReportValue
-                      label="ขาดงาน"
-                      value={`${formatWorkDays(selectedReportRow.absenceUnits)} วัน`}
-                    />
-                    <ReportValue
-                      label="รายรับก่อนหัก"
-                      value={formatCurrency(selectedReportRow.grossWage)}
-                    />
-                    <ReportValue
-                      label="ประกันสังคมที่หักในงวดนี้"
-                      value={formatCurrency(selectedReportRow.socialSecurity)}
-                    />
-                    <ReportValue
-                      label="หนี้/หักอื่น"
-                      value={formatCurrency(selectedReportRow.otherDeduction)}
-                    />
-                    <ReportValue
-                      label="ยอดเบิกรวม"
-                      value={formatCurrency(selectedReportRow.advanceAmount)}
-                    />
-                    <ReportValue
-                      label="หนี้ยกมาจากรอบก่อน"
-                      value={formatCurrency(selectedReportRow.carryIn)}
-                    />
-                    <ReportValue
-                      label="รายรับสุทธิ"
-                      value={formatCurrency(selectedReportRow.netWage)}
-                    />
-                    <ReportValue
-                      label="ยอดจ่ายจริง"
-                      value={
-                        selectedReportRow.paidAmount === null
-                          ? "ยังไม่จ่าย"
-                          : formatCurrency(selectedReportRow.paidAmount)
-                      }
-                    />
-                    <ReportValue
-                      label="สถานะประกันสังคมรายเดือน"
-                      value={
-                        selectedReportRow.monthlySocialSecurity <= 0
-                          ? "ยังไม่ได้ตั้งค่า"
-                          : deductSocialSecurityThisPeriod
-                            ? "หักในงวด 1–15 นี้"
-                            : selectedReportRow.socialSecurityDeductedThisMonth
-                              ? "หักแล้วในงวด 1–15"
-                              : "ตั้งค่าแล้ว · ยังไม่พบการหักงวด 1–15"
-                      }
-                    />
-                  </div>
-                  <div className="mt-4 border-t pt-4">
-                    <h4 className="font-semibold">รายการเบิกตามวันที่</h4>
-                    {selectedEmployeeAdvances.length > 0 ? (
-                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                        {selectedEmployeeAdvances.map((advance) => (
-                          <div
-                            key={`${advance.date}:${advance.codeStaff}`}
-                            className="flex justify-between rounded-lg bg-secondary/60 px-3 py-2 text-sm"
-                          >
-                            <span>{formatThaiDate(advance.date)}</span>
-                            <span className="font-semibold text-main-orange">
-                              {formatCurrency(advance.amount)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        ไม่มีรายการเบิกในรอบนี้
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
             </section>
 
+            <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
+              {selectedReportRow ? (
+                <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-4xl gap-0 overflow-hidden rounded-2xl p-0 text-base print:hidden">
+                  <DialogHeader className="border-b p-5 pr-14 text-left">
+                    <DialogTitle className="text-xl font-semibold">
+                      สรุปค่าแรง: {selectedReportRow.employee.name}
+                    </DialogTitle>
+                    <DialogDescription>
+                      {selectedReportRow.employee.position || "ไม่ระบุตำแหน่ง"} ·
+                      รอบ {payPeriod.label}
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="overflow-y-auto p-5">
+                    <div className="overflow-hidden rounded-[12px] border">
+                      <div className="flex flex-col justify-between gap-4 p-4 sm:flex-row sm:items-end">
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">
+                            ยอดรับสุทธิ
+                          </p>
+                          <p className="mt-1 text-3xl font-semibold text-card-foreground">
+                            {formatCurrency(selectedReportRow.netWage)}
+                          </p>
+                        </div>
+                        <div className="sm:text-right">
+                          <p className="text-sm font-medium text-muted-foreground">
+                            สถานะการจ่าย
+                          </p>
+                          <p
+                            className={cn(
+                              "mt-1 text-lg font-semibold",
+                              selectedReportRow.paidAmount === null
+                                ? "text-main-orange"
+                                : "text-main-green",
+                            )}
+                          >
+                            {selectedReportRow.paidAmount === null
+                              ? "ยังไม่จ่าย"
+                              : `จ่ายแล้ว ${formatCurrency(selectedReportRow.paidAmount)}`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 divide-x border-t bg-secondary/40 text-center">
+                        <div className="p-3">
+                          <p className="text-sm text-muted-foreground">
+                            วันทำงานคิดเงิน
+                          </p>
+                          <p className="mt-1 font-semibold">
+                            {formatWorkDays(selectedReportRow.payableDays)} วัน
+                          </p>
+                        </div>
+                        <div className="p-3">
+                          <p className="text-sm text-muted-foreground">
+                            ขาดงาน
+                          </p>
+                          <p className="mt-1 font-semibold">
+                            {formatWorkDays(selectedReportRow.absenceUnits)} วัน
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-5">
+                      <h3 className="font-semibold">สรุปการคำนวณ</h3>
+                      <div className="mt-2 overflow-hidden rounded-[8px] border text-sm">
+                        <div className="flex justify-between border-b px-3 py-2">
+                          <span>รายรับก่อนหัก</span>
+                          <span className="font-semibold">
+                            {formatCurrency(selectedReportRow.grossWage)}
+                          </span>
+                        </div>
+                        {selectedReportRow.socialSecurity > 0 ? (
+                          <div className="flex justify-between border-b px-3 py-2">
+                            <span>หักประกันสังคม</span>
+                            <span>
+                              {formatDeduction(
+                                selectedReportRow.socialSecurity,
+                              )}
+                            </span>
+                          </div>
+                        ) : null}
+                        {selectedReportRow.otherDeduction > 0 ? (
+                          <div className="flex justify-between border-b px-3 py-2">
+                            <span>หนี้/รายการหักอื่น</span>
+                            <span>
+                              {formatDeduction(
+                                selectedReportRow.otherDeduction,
+                              )}
+                            </span>
+                          </div>
+                        ) : null}
+                        {selectedReportRow.advanceAmount > 0 ? (
+                          <div className="flex justify-between border-b px-3 py-2">
+                            <span>ยอดเบิกรวม</span>
+                            <span>
+                              {formatDeduction(selectedReportRow.advanceAmount)}
+                            </span>
+                          </div>
+                        ) : null}
+                        {selectedReportRow.carryIn > 0 ? (
+                          <div className="flex justify-between px-3 py-2">
+                            <span>หนี้ยกมาจากรอบก่อน</span>
+                            <span>
+                              {formatDeduction(selectedReportRow.carryIn)}
+                            </span>
+                          </div>
+                        ) : null}
+                      </div>
+                      {selectedReportRow.monthlySocialSecurity <= 0 ? (
+                        <p className="mt-2 text-sm text-main-orange">
+                          ยังไม่ได้ตั้งค่าประกันสังคมรายเดือน
+                        </p>
+                      ) : !deductSocialSecurityThisPeriod &&
+                        !selectedReportRow.socialSecurityDeductedThisMonth ? (
+                        <p className="mt-2 text-sm text-main-orange">
+                          ยังไม่พบการหักประกันสังคมในงวด 1–15
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-5 border-t pt-4">
+                      <h3 className="font-semibold">รายการเบิกตามวันที่</h3>
+                      {selectedEmployeeAdvances.length > 0 ? (
+                        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                          {selectedEmployeeAdvances.map((advance) => (
+                            <div
+                              key={`${advance.date}:${advance.codeStaff}`}
+                              className="flex justify-between rounded-[8px] bg-secondary/60 px-3 py-2 text-sm"
+                            >
+                              <span>{formatThaiDate(advance.date)}</span>
+                              <span className="font-semibold text-main-orange">
+                                {formatCurrency(advance.amount)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          ไม่มีรายการเบิกในรอบนี้
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <DialogFooter className="m-0 rounded-none">
+                    <Button
+                      type="button"
+                      className="rounded-[8px]"
+                      onClick={handlePrintReport}
+                    >
+                      <Printer />
+                      พิมพ์สลิป A5
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              ) : null}
+            </Dialog>
+
             {selectedReportRow && printingIndividualSlip ? (
-              <article className="hidden bg-white text-black print:block print:[print-color-adjust:exact]">
-                <header className="flex items-start justify-between border-b-2 border-black pb-3">
+              <article className="hidden bg-white text-black print:fixed print:inset-0 print:flex print:h-[148mm] print:w-[210mm] print:flex-col print:overflow-hidden print:p-[8mm] print:[box-sizing:border-box] print:[print-color-adjust:exact]">
+                <header className="flex items-start justify-between border-b-2 border-black pb-2">
                   <div>
                     <p className="text-xl font-bold">CAR SERVICE</p>
                     <p className="text-sm">ใบสรุปค่าแรงพนักงาน</p>
@@ -1271,14 +1339,14 @@ export default function EmployeeAttendancePage() {
                   </div>
                 </header>
 
-                <section className="mt-4 grid grid-cols-[1fr_auto] gap-x-6 gap-y-1 border-b pb-3 text-sm">
+                <section className="mt-2 grid grid-cols-4 gap-x-5 border-b pb-2 text-sm">
                   <p>
                     <span className="text-neutral-600">ชื่อพนักงาน:</span>{" "}
                     <strong>{selectedReportRow.employee.name}</strong>
                   </p>
                   <p>
-                    <span className="text-neutral-600">รหัส:</span>{" "}
-                    {selectedReportRow.employee.code}
+                    <span className="text-neutral-600">เบอร์โทร:</span>{" "}
+                    {selectedReportRow.employee.phone || "ไม่ระบุ"}
                   </p>
                   <p>
                     <span className="text-neutral-600">ตำแหน่ง:</span>{" "}
@@ -1290,9 +1358,16 @@ export default function EmployeeAttendancePage() {
                   </p>
                 </section>
 
-                <section className="mt-4">
-                  <h2 className="text-base font-bold">สรุปวันทำงาน</h2>
-                  <div className="mt-2 grid grid-cols-4 divide-x border py-2 text-center text-sm">
+                <section className="mt-2">
+                  <div className="flex items-baseline justify-between gap-4">
+                    <h2 className="text-base font-bold">สรุปวันทำงาน</h2>
+                    {selectedReportRow.absentDates.length > 0 ? (
+                      <p className="text-sm">
+                        วันที่ขาด: {selectedReportRow.absentDates.join(", ")}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="mt-1 grid grid-cols-4 divide-x border py-1.5 text-center text-sm">
                     <div>
                       <p className="text-neutral-600">เต็มวัน</p>
                       <p className="font-bold">
@@ -1318,108 +1393,109 @@ export default function EmployeeAttendancePage() {
                       </p>
                     </div>
                   </div>
-                  {selectedReportRow.absentDates.length > 0 ? (
-                    <p className="mt-2 text-sm">
-                      วันที่ขาด: {selectedReportRow.absentDates.join(", ")}
-                    </p>
-                  ) : null}
                 </section>
 
-                <section className="mt-4">
-                  <h2 className="text-base font-bold">สรุปรายรับและรายการหัก</h2>
-                  <div className="mt-2 overflow-hidden border text-sm">
-                    <div className="flex justify-between border-b px-3 py-2">
-                      <span>รายรับก่อนหัก</span>
-                      <strong>
-                        {formatCurrency(selectedReportRow.grossWage)}
-                      </strong>
-                    </div>
-                    <div className="flex justify-between border-b px-3 py-2">
-                      <span>หักประกันสังคม</span>
-                      <span>
-                        -{formatCurrency(selectedReportRow.socialSecurity)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between border-b px-3 py-2">
-                      <span>หนี้/รายการหักอื่น</span>
-                      <span>
-                        -{formatCurrency(selectedReportRow.otherDeduction)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between border-b px-3 py-2">
-                      <span>ยอดเบิกรวม</span>
-                      <span>
-                        -{formatCurrency(selectedReportRow.advanceAmount)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between border-b px-3 py-2">
-                      <span>หนี้ยกมาจากรอบก่อน</span>
-                      <span>-{formatCurrency(selectedReportRow.carryIn)}</span>
-                    </div>
-                    <div className="flex justify-between bg-neutral-100 px-3 py-3 text-base">
-                      <strong>ยอดสุทธิ</strong>
-                      <strong>
-                        {formatCurrency(selectedReportRow.netWage)}
-                      </strong>
-                    </div>
-                    <div className="flex justify-between border-t px-3 py-2">
-                      <span>ยอดจ่ายจริง</span>
-                      <strong>
-                        {selectedReportRow.paidAmount === null
-                          ? "ยังไม่จ่าย"
-                          : formatCurrency(selectedReportRow.paidAmount)}
-                      </strong>
-                    </div>
-                  </div>
-                  {selectedAdjustmentNote ? (
-                    <p className="mt-2 text-sm">
-                      หมายเหตุรายการหัก: {selectedAdjustmentNote}
-                    </p>
-                  ) : null}
-                </section>
-
-                <section className="mt-4">
-                  <div className="flex items-baseline justify-between">
-                    <h2 className="text-base font-bold">รายละเอียดการเบิกเงิน</h2>
-                    <p className="text-sm">
-                      รวม {formatCurrency(selectedReportRow.advanceAmount)}
-                    </p>
-                  </div>
-                  <div className="mt-2 overflow-hidden border text-sm">
-                    {selectedEmployeeAdvances.length > 0 ? (
-                      selectedEmployeeAdvances.map((advance) => (
-                        <div
-                          key={`${advance.date}:${advance.codeStaff}`}
-                          className="flex justify-between border-b px-3 py-1.5 last:border-b-0"
-                        >
-                          <span>{formatThaiDate(advance.date)}</span>
-                          <span>{formatCurrency(advance.amount)}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="px-3 py-2 text-neutral-600">
-                        ไม่มีรายการเบิกตามวันที่ในรอบนี้
-                      </p>
-                    )}
-                    {selectedReportRow.manualAdvance > 0 ? (
-                      <div className="flex justify-between border-t px-3 py-1.5">
-                        <span>ยอดเบิกปรับเพิ่ม</span>
+                <div className="mt-2 grid grid-cols-2 gap-3">
+                  <section>
+                    <h2 className="text-base font-bold">สรุปรายรับและรายการหัก</h2>
+                    <div className="mt-1 overflow-hidden border text-sm">
+                      <div className="flex justify-between border-b px-3 py-1">
+                        <span>รายรับก่อนหัก</span>
+                        <strong>
+                          {formatCurrency(selectedReportRow.grossWage)}
+                        </strong>
+                      </div>
+                      <div className="flex justify-between border-b px-3 py-1">
+                        <span>หักประกันสังคม</span>
                         <span>
-                          {formatCurrency(selectedReportRow.manualAdvance)}
+                          {formatDeduction(selectedReportRow.socialSecurity)}
                         </span>
                       </div>
+                      <div className="flex justify-between border-b px-3 py-1">
+                        <span>หนี้/รายการหักอื่น</span>
+                        <span>
+                          {formatDeduction(selectedReportRow.otherDeduction)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between border-b px-3 py-1">
+                        <span>ยอดเบิกรวม</span>
+                        <span>
+                          {formatDeduction(selectedReportRow.advanceAmount)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between border-b px-3 py-1">
+                        <span>หนี้ยกมาจากรอบก่อน</span>
+                        <span>
+                          {formatDeduction(selectedReportRow.carryIn)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between bg-neutral-100 px-3 py-1.5 text-base">
+                        <strong>ยอดสุทธิ</strong>
+                        <strong>
+                          {formatCurrency(selectedReportRow.netWage)}
+                        </strong>
+                      </div>
+                      <div className="flex justify-between border-t px-3 py-1">
+                        <span>ยอดจ่ายจริง</span>
+                        <strong>
+                          {selectedReportRow.paidAmount === null
+                            ? "ยังไม่จ่าย"
+                            : formatCurrency(selectedReportRow.paidAmount)}
+                        </strong>
+                      </div>
+                    </div>
+                    {selectedAdjustmentNote ? (
+                      <p className="mt-1 text-sm">
+                        หมายเหตุรายการหัก: {selectedAdjustmentNote}
+                      </p>
                     ) : null}
-                  </div>
-                </section>
+                  </section>
 
-                <section className="mt-5 grid grid-cols-2 gap-8 text-center text-sm break-inside-avoid">
+                  <section>
+                    <div className="flex items-baseline justify-between">
+                      <h2 className="text-base font-bold">
+                        รายละเอียดการเบิกเงิน
+                      </h2>
+                      <p className="text-sm">
+                        รวม {formatCurrency(selectedReportRow.advanceAmount)}
+                      </p>
+                    </div>
+                    <div className="mt-1 grid grid-cols-2 overflow-hidden border text-sm">
+                      {selectedEmployeeAdvances.length > 0 ? (
+                        selectedEmployeeAdvances.map((advance) => (
+                          <div
+                            key={`${advance.date}:${advance.codeStaff}`}
+                            className="flex justify-between gap-2 border-b px-2 py-1 odd:border-r last:border-b-0"
+                          >
+                            <span>{formatThaiDate(advance.date)}</span>
+                            <span>{formatCurrency(advance.amount)}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="col-span-2 px-3 py-2 text-neutral-600">
+                          ไม่มีรายการเบิกตามวันที่ในรอบนี้
+                        </div>
+                      )}
+                      {selectedReportRow.manualAdvance > 0 ? (
+                        <div className="col-span-2 flex justify-between border-t px-3 py-1">
+                          <span>ยอดเบิกปรับเพิ่ม</span>
+                          <span>
+                            {formatCurrency(selectedReportRow.manualAdvance)}
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
+                  </section>
+                </div>
+
+                <section className="mt-auto grid grid-cols-2 gap-12 pt-3 text-center text-sm break-inside-avoid">
                   <div>
-                    <div className="h-8 border-b border-black" />
+                    <div className="h-6 border-b border-black" />
                     <p className="mt-1">ผู้รับเงิน</p>
                     <p>วันที่ ______ / ______ / ______</p>
                   </div>
                   <div>
-                    <div className="h-8 border-b border-black" />
+                    <div className="h-6 border-b border-black" />
                     <p className="mt-1">ผู้จ่ายเงิน/ผู้อนุมัติ</p>
                     <p>วันที่ ______ / ______ / ______</p>
                   </div>

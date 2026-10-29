@@ -5,6 +5,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
+import { combineLegacyBangkokDateTime } from "@/lib/legacy-date-time";
 import {
   buildReceivablePaymentCte,
   getReceivablePaymentSourceConfig,
@@ -115,6 +116,7 @@ export async function GET(request: NextRequest) {
     const rows = await executeQuery<{
       id: string;
       paid_at: Date;
+      paid_time: string;
       number_print: string;
       customer_code: string;
       customer_name: string;
@@ -139,6 +141,7 @@ export async function GET(request: NextRequest) {
         SELECT
           id,
           occurred_at as paid_at,
+          occurred_time as paid_time,
           document_no as number_print,
           customer_code,
           customer_name,
@@ -189,7 +192,9 @@ export async function GET(request: NextRequest) {
 
     const payments: ReceivablePayment[] = rows.map((row) => ({
       id: row.id,
-      paidAt: new Date(row.paid_at).toISOString(),
+      paidAt:
+        combineLegacyBangkokDateTime(row.paid_at, row.paid_time) ??
+        new Date(row.paid_at).toISOString(),
       numberPrint: row.number_print,
       customerCode: row.customer_code,
       customerName: row.customer_name,
