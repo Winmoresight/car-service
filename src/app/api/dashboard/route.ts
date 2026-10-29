@@ -11,6 +11,7 @@
 import type { NextRequest } from "next/server";
 import { handleApiError, successResponse, withTimeout } from "@/lib/api-utils";
 import { executeQuery } from "@/lib/db";
+import { combineLegacyBangkokDateTime } from "@/lib/legacy-date-time";
 import { getPocvDateExpression } from "@/lib/legacy-pocv";
 import { getProductAnalyticsSqlConfig } from "@/lib/product-analytics-policy";
 import {
@@ -49,6 +50,7 @@ interface SupplierBillSummary extends OptionalDailyMoneySummary {
 interface DailySaleMoneyRow {
   number_print: string;
   date_post: Date | null;
+  sale_time: string | null;
   customer_name: string;
   name_car: string;
   province: string;
@@ -148,20 +150,6 @@ function normalizeMoney(value: unknown) {
   }
 
   return Number(number.toFixed(2));
-}
-
-function toISOStringOrNull(value: Date | null) {
-  if (!value) {
-    return null;
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  return date.toISOString();
 }
 
 function compactDescription(parts: string[]) {
@@ -530,6 +518,7 @@ async function getDailySaleMoneyItems(
           SELECT
             ISNULL(m.NumberPrintSalePost, '') as number_print,
             m.DateSalePost as date_post,
+            ISNULL(m.Times, '') as sale_time,
             ISNULL(m.NameCustomer, N'ไม่ระบุลูกค้า') as customer_name,
             ISNULL(m.NameCar, '') as name_car,
             ISNULL(m.Province, '') as province,
@@ -543,6 +532,7 @@ async function getDailySaleMoneyItems(
           SELECT
             ISNULL(p.NumberPrintCash, '') as number_print,
             ${pocvDateExpression} as date_post,
+            '' as sale_time,
             ISNULL(p.NameCustomer, N'ไม่ระบุลูกค้า') as customer_name,
             ISNULL(p.NameCar, '') as name_car,
             ISNULL(p.Province, '') as province,
@@ -561,6 +551,7 @@ async function getDailySaleMoneyItems(
         SELECT
           number_print,
           date_post,
+          sale_time,
           customer_name,
           name_car,
           province,
@@ -582,7 +573,7 @@ async function getDailySaleMoneyItems(
       const baseItem = {
         label: numberPrint ? `บิลขาย ${numberPrint}` : "บิลขาย",
         description,
-        occurredAt: toISOStringOrNull(row.date_post),
+        occurredAt: combineLegacyBangkokDateTime(row.date_post, row.sale_time),
         direction: "in" as const,
         source: "sale" as const,
       };

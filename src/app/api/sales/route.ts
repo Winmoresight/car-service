@@ -6,6 +6,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { ensureBillDepositPaymentTable } from "@/lib/bill-deposit-payment";
 import { executeQuery } from "@/lib/db";
+import { combineLegacyBangkokDateTime } from "@/lib/legacy-date-time";
 import type { ApiResponse } from "@/types/api";
 
 interface SaleItem {
@@ -147,6 +148,7 @@ export async function GET(request: NextRequest) {
         SELECT 
           m.NumberPrintSalePost as id,
           m.DateSalePost as date,
+          ISNULL(m.Times, '') as saleTime,
           ISNULL(m.NameCustomer, 'ไม่ระบุ') as customerName,
           ISNULL(c.PhoneCustomer, '') as customerPhone,
           CASE
@@ -205,6 +207,7 @@ export async function GET(request: NextRequest) {
       SELECT
         id,
         date,
+        saleTime,
         customerName,
         customerPhone,
         totalPrice,
@@ -223,6 +226,7 @@ export async function GET(request: NextRequest) {
     const results = await executeQuery<{
       id: string;
       date: Date;
+      saleTime: string;
       customerName: string;
       customerPhone: string;
       totalPrice: number;
@@ -244,7 +248,9 @@ export async function GET(request: NextRequest) {
     // Return data without masking
     const sales: SaleItem[] = results.map((row) => ({
       id: row.id,
-      date: new Date(row.date).toISOString(),
+      date:
+        combineLegacyBangkokDateTime(row.date, row.saleTime) ??
+        new Date(row.date).toISOString(),
       customerName: row.customerName,
       customerPhone: row.customerPhone,
       totalPrice: row.totalPrice,

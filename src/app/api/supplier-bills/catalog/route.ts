@@ -49,7 +49,8 @@ export async function GET(request: NextRequest) {
       async (): Promise<SupplierBillsCatalogPayload> => {
         const searchParams = request.nextUrl.searchParams;
         const q = normalizeText(searchParams.get("q"));
-        const supplierLimit = 100;
+        const supplierOnly = searchParams.get("scope") === "suppliers";
+        const supplierLimit = supplierOnly ? 5 : 100;
         const productLimit = q ? 50 : 80;
 
         const [suppliers, creditorTypes, units, products] = await Promise.all([
@@ -83,51 +84,57 @@ export async function GET(request: NextRequest) {
             { q, supplierLimit },
             false,
           ),
-          executeQuery<{
-            id: number | null;
-            name: string | null;
-          }>(
-            `
+          supplierOnly
+            ? Promise.resolve([])
+            : executeQuery<{
+                id: number | null;
+                name: string | null;
+              }>(
+                `
             SELECT
               Code as id,
               ISNULL(CaseCreditor, '') as name
             FROM dbo.CaseCreditor
             ORDER BY Code
           `,
-            undefined,
-            false,
-          ),
-          executeQuery<{
-            id: number | null;
-            name: string | null;
-          }>(
-            `
+                undefined,
+                false,
+              ),
+          supplierOnly
+            ? Promise.resolve([])
+            : executeQuery<{
+                id: number | null;
+                name: string | null;
+              }>(
+                `
             SELECT
               Code as id,
               ISNULL(MeterProduct, '') as name
             FROM dbo.MeterProduct
             ORDER BY Code
           `,
-            undefined,
-            false,
-          ),
-          executeQuery<{
-            productCode: string | null;
-            barcode: string | null;
-            name: string | null;
-            unit: string | null;
-            unitPrice: number | string | null;
-            cost: number | string | null;
-            caseProduct: number | null;
-          }>(
-            `
+                undefined,
+                false,
+              ),
+          supplierOnly
+            ? Promise.resolve([])
+            : executeQuery<{
+                productCode: string | null;
+                barcode: string | null;
+                name: string | null;
+                unit: string | null;
+                unitPrice: number | string | null;
+                cost: number | string | null;
+                caseProduct: number | null;
+              }>(
+                `
             SELECT TOP (@productLimit)
               ISNULL(m.CodeProduct, '') as productCode,
               ISNULL(d.BarCode, '') as barcode,
               ISNULL(m.NameProduct, '') as name,
               ISNULL(d.MeterProduct, '') as unit,
               ISNULL(d.SalePrice, 0) as unitPrice,
-              COALESCE(latestPurchase.cost, d.CostPrice, 0) as cost,
+              COALESCE(latestPurchase.cost, NULLIF(d.CostPrice, 0), 0) as cost,
               ISNULL(m.CaseProduct, 25) as caseProduct
             FROM dbo.MasterProductDetail d
             INNER JOIN dbo.MasterProduct m ON m.CodeProduct = d.CodeProduct
@@ -143,6 +150,11 @@ export async function GET(request: NextRequest) {
                 AND movement.Debit > 0
                 AND ISNULL(movement.CodeCompany, '') NOT IN ('', 'ADJUST')
                 AND ISNUMERIC(CONVERT(nvarchar(100), movement.CostPrice)) = 1
+                AND CONVERT(money, CASE
+                  WHEN ISNUMERIC(CONVERT(nvarchar(100), movement.CostPrice)) = 1
+                    THEN CONVERT(nvarchar(100), movement.CostPrice)
+                  ELSE '0'
+                END) > 0
               ORDER BY
                 movement.DateSave DESC,
                 movement.Times DESC,
@@ -154,9 +166,9 @@ export async function GET(request: NextRequest) {
               OR m.NameProduct LIKE N'%' + @q + N'%'
             ORDER BY m.NameProduct
           `,
-            { q, productLimit },
-            false,
-          ),
+                { q, productLimit },
+                false,
+              ),
         ]);
 
         return {

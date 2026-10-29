@@ -134,7 +134,7 @@ export default function DeletedBillsPage() {
     }).format(value || 0);
   };
 
-  const formatDate = (dateString: string | null) => {
+  const formatDate = (dateString: string | null, includeTime = true) => {
     if (!dateString) {
       return "-";
     }
@@ -149,8 +149,7 @@ export default function DeletedBillsPage() {
       year: "numeric",
       month: "short",
       day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+      ...(includeTime ? { hour: "2-digit", minute: "2-digit" } : {}),
     });
   };
 
@@ -462,7 +461,7 @@ export default function DeletedBillsPage() {
                                 {bill.customerName}
                               </p>
                               <p className="hidden text-xs font-medium text-muted-foreground min-[560px]:block min-[760px]:hidden">
-                                {formatDate(bill.originalDate)}
+                                {formatDate(bill.originalDate, false)}
                               </p>
                             </div>
                           </div>
@@ -482,7 +481,7 @@ export default function DeletedBillsPage() {
                         <TableCell className="hidden text-right align-middle min-[760px]:table-cell">
                           <div className="flex flex-col items-end">
                             <span className="text-sm font-semibold text-card-foreground">
-                              {formatDate(bill.originalDate)}
+                              {formatDate(bill.originalDate, false)}
                             </span>
                             <span className="text-xs font-medium text-muted-foreground">
                               พบเมื่อ {formatDate(bill.detectedAt)}

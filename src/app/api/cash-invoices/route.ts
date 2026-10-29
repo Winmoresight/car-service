@@ -5,6 +5,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
+import { combineLegacyBangkokDateTime } from "@/lib/legacy-date-time";
 import type { ApiResponse } from "@/types/api";
 
 interface CashInvoice {
@@ -34,7 +35,8 @@ export async function GET(request: NextRequest) {
       WITH PaginatedData AS (
         SELECT 
           ISNULL(NumberPrintSalePost, '') as invoiceNo,
-          DateSalePost as dateSalePost,
+          detail.DateSalePost as dateSalePost,
+          ISNULL(masterTime.saleTime, '') as saleTime,
           ISNULL(CodeCustomer, '') as customerCode,
           ISNULL(NameProduct, '') as productName,
           ISNULL(NumProduct, 0) as quantity,
@@ -44,8 +46,13 @@ export async function GET(request: NextRequest) {
           ISNULL(NameSave, '') as userName,
           ISNULL(TypeSale, '') as typeSale,
           ROW_NUMBER() OVER (ORDER BY DateSalePost DESC, NumberPrintSalePost DESC) as RowNum
-        FROM dbo.DetailSalePost
-        WHERE (NumberPrintSalePost LIKE 'psc%' OR NumberPrintSalePost LIKE 'PSC%')
+        FROM dbo.DetailSalePost detail
+        OUTER APPLY (
+          SELECT TOP 1 ISNULL(master.Times, '') as saleTime
+          FROM dbo.MasterSalePost master
+          WHERE master.NumberPrintSalePost = detail.NumberPrintSalePost
+        ) masterTime
+        WHERE (detail.NumberPrintSalePost LIKE 'psc%' OR detail.NumberPrintSalePost LIKE 'PSC%')
     `;
 
     // Build additional WHERE conditions
@@ -74,6 +81,7 @@ export async function GET(request: NextRequest) {
       SELECT
         invoiceNo,
         dateSalePost,
+        saleTime,
         customerCode,
         productName,
         quantity,
@@ -90,6 +98,7 @@ export async function GET(request: NextRequest) {
     const results = await executeQuery<{
       invoiceNo: string;
       dateSalePost: Date;
+      saleTime: string;
       customerCode: string;
       productName: string;
       quantity: number;
@@ -108,7 +117,9 @@ export async function GET(request: NextRequest) {
 
     const cashInvoices: CashInvoice[] = results.map((row) => ({
       invoiceNo: row.invoiceNo,
-      dateSalePost: new Date(row.dateSalePost).toISOString(),
+      dateSalePost:
+        combineLegacyBangkokDateTime(row.dateSalePost, row.saleTime) ??
+        new Date(row.dateSalePost).toISOString(),
       customerCode: row.customerCode,
       productName: row.productName,
       quantity: row.quantity,

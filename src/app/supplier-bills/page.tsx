@@ -168,10 +168,7 @@ function formatDateParts(dateString: string | null) {
       month: "short",
       day: "numeric",
     }),
-    time: parsedDate.toLocaleTimeString("th-TH", {
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
+    time: "",
   };
 }
 
@@ -578,7 +575,7 @@ function getLineProductUpdates(
     barcode: product.barcode,
     name: product.name,
     unit: product.unit || line.unit,
-    unitPrice: getMoneyInputValue(product.unitPrice),
+    unitPrice: getMoneyInputValue(product.cost),
     cost: getMoneyInputValue(product.cost),
     caseProduct: product.caseProduct || 25,
   };
@@ -788,6 +785,7 @@ function SupplierBillEditDialog({
   onOpenChange,
   onSaved,
 }: SupplierBillEditDialogProps) {
+  const [billDate, setBillDate] = useState("");
   const [status, setStatus] = useState("");
   const [amount, setAmount] = useState("");
   const [specialDiscount, setSpecialDiscount] = useState("");
@@ -808,6 +806,11 @@ function SupplierBillEditDialog({
       return;
     }
 
+    setBillDate(
+      bill.date && !Number.isNaN(new Date(bill.date).getTime())
+        ? format(new Date(bill.date), "yyyy-MM-dd")
+        : "",
+    );
     setStatus(normalizeDialogStatus(bill.status || bill.paymentLabel || ""));
     setAmount(String(getEditableBillAmount(bill)));
     setSpecialDiscount(getMoneyInputValue(bill.discount));
@@ -819,6 +822,7 @@ function SupplierBillEditDialog({
   }, [bill, open]);
 
   const resetDialog = () => {
+    setBillDate("");
     setStatus("");
     setAmount("");
     setSpecialDiscount("");
@@ -869,7 +873,6 @@ function SupplierBillEditDialog({
   ) => {
     updateLineItem(item.id, {
       ...getLineProductUpdates(item, product),
-      unitPrice: getMoneyInputValue(product.cost || product.unitPrice),
     });
     setErrorMessage(null);
   };
@@ -909,7 +912,6 @@ function SupplierBillEditDialog({
 
       updateLineItem(item.id, {
         ...getLineProductUpdates({ ...item, barcode: barcodeInput }, product),
-        unitPrice: getMoneyInputValue(product.cost || product.unitPrice),
       });
     } catch (error) {
       setErrorMessage(
@@ -943,6 +945,11 @@ function SupplierBillEditDialog({
         ? null
         : calculateSupplierBillVat(vatInputAmount, vatMode);
     const updateItems = [];
+
+    if (!billDate) {
+      setErrorMessage("กรุณาระบุวันที่บิล");
+      return;
+    }
 
     if (!isSupplierStatusOption(status)) {
       setErrorMessage("กรุณาเลือกสถานะชำระเงินแล้วหรือค้างชำระ");
@@ -1016,6 +1023,7 @@ function SupplierBillEditDialog({
         },
         body: JSON.stringify({
           documentNo: bill.documentNo,
+          billDate,
           status,
           totalPrice: vatTotals.totalPrice,
           vatInputAmount,
@@ -1197,7 +1205,24 @@ function SupplierBillEditDialog({
                 </p>
               </div>
 
-              <div className="grid gap-4 min-[760px]:grid-cols-[1fr_0.85fr]">
+              <div className="grid gap-4 min-[900px]:grid-cols-[0.8fr_1fr_0.85fr]">
+                <div className="space-y-2">
+                  <label
+                    htmlFor="supplier-edit-bill-date"
+                    className="block text-sm font-bold text-card-foreground"
+                  >
+                    วันที่บิล
+                  </label>
+                  <Input
+                    id="supplier-edit-bill-date"
+                    type="date"
+                    value={billDate}
+                    onChange={(event) => setBillDate(event.target.value)}
+                    className="h-12 rounded-[8px] font-bold"
+                    required
+                  />
+                </div>
+
                 <div className="space-y-2">
                   <span className="block text-sm font-bold text-card-foreground">
                     สถานะ
@@ -1795,7 +1820,8 @@ function SupplierBillCreateDialog({
   const [supplierMode, setSupplierMode] = useState<"existing" | "new">(
     "existing",
   );
-  const [selectedSupplierCode, setSelectedSupplierCode] = useState("");
+  const [selectedSupplier, setSelectedSupplier] =
+    useState<SupplierCatalogSupplier | null>(null);
   const [newSupplier, setNewSupplier] =
     useState<NewSupplierDraft>(createEmptySupplier);
   const [billDate, setBillDate] = useState(getTodayInputDate);
@@ -1860,10 +1886,7 @@ function SupplierBillCreateDialog({
     productCatalogData?.success && productCatalogData.data
       ? productCatalogData.data
       : null;
-  const suppliers = catalog?.suppliers ?? [];
-  const selectedSupplier = suppliers.find(
-    (supplier) => supplier.code === selectedSupplierCode,
-  );
+  const selectedSupplierCode = selectedSupplier?.code ?? "";
   const selectedSupplierLabel = selectedSupplier
     ? `${selectedSupplier.code} · ${selectedSupplier.name}`
     : "";
@@ -1883,23 +1906,17 @@ function SupplierBillCreateDialog({
         return [];
       }
 
-      const normalizedSearch = search.trim().toLowerCase();
-
-      if (!normalizedSearch) {
-        return suppliers;
-      }
-
-      return suppliers.filter((supplier) =>
-        [
-          supplier.code,
-          supplier.name,
-          supplier.phone,
-          supplier.type,
-          supplier.taxId,
-        ].some((value) => value.toLowerCase().includes(normalizedSearch)),
+      const normalizedSearch = search.trim();
+      const response = await fetch(
+        `/api/supplier-bills/catalog?scope=suppliers&q=${encodeURIComponent(normalizedSearch)}`,
+        { signal },
       );
+      const data =
+        (await response.json()) as ApiResponse<SupplierBillsCatalogPayload>;
+
+      return data.success && data.data ? data.data.suppliers.slice(0, 5) : [];
     },
-    [suppliers],
+    [],
   );
   const fetchSupplierUnitOptions = useCallback(
     async (search: string, signal: AbortSignal) => {
@@ -1943,7 +1960,7 @@ function SupplierBillCreateDialog({
     }
 
     setSupplierMode("existing");
-    setSelectedSupplierCode("");
+    setSelectedSupplier(null);
     setNewSupplier(createEmptySupplier());
     setBillDate(getTodayInputDate());
     setStatus(defaultSupplierBillStatus);
@@ -2492,9 +2509,7 @@ function SupplierBillCreateDialog({
                         isOptionSelected={(supplier) =>
                           supplier.code === selectedSupplierCode
                         }
-                        onSelect={(supplier) =>
-                          setSelectedSupplierCode(supplier.code)
-                        }
+                        onSelect={setSelectedSupplier}
                         triggerClassName="h-11 rounded-[8px] py-0 font-bold"
                       />
                     </div>

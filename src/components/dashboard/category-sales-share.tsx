@@ -1,11 +1,18 @@
 "use client";
 
-import { addDays, startOfWeek } from "date-fns";
-import { ChartPie, Check, ListFilter, Settings2 } from "lucide-react";
+import { addDays, format, startOfWeek } from "date-fns";
+import {
+  ChartPie,
+  Check,
+  ChevronRight,
+  ListFilter,
+  Settings2,
+} from "lucide-react";
 import Link from "next/link";
-import { useId } from "react";
+import { useId, useState } from "react";
 import type { DateRange } from "react-day-picker";
 import { Cell, Pie, PieChart } from "recharts";
+import { CategorySalesDetailDialog } from "@/components/dashboard/category-sales-detail-dialog";
 import { Button } from "@/components/ui/button";
 import {
   type ChartConfig,
@@ -114,6 +121,10 @@ export function CategorySalesShareCard({
   onExcludedCategoryIdsChange,
 }: CategorySalesShareProps) {
   const patternIdPrefix = useId().replace(/:/g, "");
+  const [selectedCategory, setSelectedCategory] = useState<{
+    name: string;
+    detailNames: string[];
+  } | null>(null);
   const categories = data?.categories ?? [];
   const topCategories = categories.slice(0, 5);
   const remainingCategories = categories.slice(5);
@@ -169,6 +180,34 @@ export function CategorySalesShareCard({
         : [...excludedCategoryIds, categoryId],
     );
   };
+
+  const detailPeriodLabel = dateRange?.from
+    ? dateRange.to && dateRange.to.getTime() !== dateRange.from.getTime()
+      ? `${formatThaiShortDate(dateRange.from)} – ${formatThaiShortDate(dateRange.to)}`
+      : formatThaiShortDate(dateRange.from)
+    : getPeriodLabel(period, selectedDate);
+  const detailRequestUrl = selectedCategory
+    ? (() => {
+        const params = new URLSearchParams({
+          period,
+          date: format(selectedDate, "yyyy-MM-dd"),
+        });
+
+        if (dateRange?.from) {
+          params.set("startDate", format(dateRange.from, "yyyy-MM-dd"));
+          params.set(
+            "endDate",
+            format(dateRange.to ?? dateRange.from, "yyyy-MM-dd"),
+          );
+        }
+
+        for (const categoryName of selectedCategory.detailNames) {
+          params.append("categoryName", categoryName);
+        }
+
+        return `/api/products/category-share?${params.toString()}`;
+      })()
+    : "";
 
   return (
     <section className="overflow-hidden rounded-[16px] border bg-card p-4 sm:p-5">
@@ -379,6 +418,24 @@ export function CategorySalesShareCard({
           </div>
 
           <div className="self-start overflow-hidden rounded-2xl border">
+            <div className="grid grid-cols-2 divide-x border-b bg-muted/15">
+              <div className="px-3 py-3">
+                <p className="text-sm font-medium text-muted-foreground">
+                  ยอดขายรวม
+                </p>
+                <p className="mt-1 text-lg font-semibold tabular-nums">
+                  {formatCurrency(data?.totalAmount ?? 0)}
+                </p>
+              </div>
+              <div className="px-3 py-3">
+                <p className="text-sm font-medium text-muted-foreground">
+                  กำไรรวม
+                </p>
+                <p className="mt-1 text-lg font-semibold tabular-nums">
+                  {formatCurrency(data?.totalProfit ?? 0)}
+                </p>
+              </div>
+            </div>
             <div
               className={cn(
                 "grid gap-2 border-b bg-muted/35 px-3 py-2 text-sm font-medium text-muted-foreground max-[560px]:grid-cols-[32px_minmax(0,1fr)_72px]",
@@ -396,58 +453,73 @@ export function CategorySalesShareCard({
               ) : null}
             </div>
             <div className="divide-y">
-              {displayCategories.map((category, index) => (
-                <div
-                  key={category.name}
-                  className={cn(
-                    "grid items-center gap-2 px-3 py-3 text-sm max-[560px]:grid-cols-[32px_minmax(0,1fr)_72px]",
-                    allVisibleProfitsUnavailable
-                      ? "grid-cols-[36px_minmax(0,1fr)_82px_110px]"
-                      : "grid-cols-[36px_minmax(0,1fr)_82px_110px_110px]",
-                  )}
-                >
-                  <span className="text-sm font-medium tabular-nums text-muted-foreground">
-                    {index + 1}
-                  </span>
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <span
-                      className="h-2.5 w-2.5 shrink-0 rounded-[3px]"
-                      style={{
-                        backgroundColor:
-                          index < segmentColors.length
-                            ? segmentColors[index]
-                            : "var(--muted-foreground)",
-                      }}
-                    />
-                    <div className="min-w-0">
-                      <p className="truncate font-semibold">{category.name}</p>
-                      <p className="text-sm tabular-nums text-muted-foreground">
-                        {formatNumber(category.quantity)} ชิ้น
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-right font-semibold tabular-nums">
-                    {category.percentage.toFixed(2)}%
-                  </span>
-                  <span className="truncate text-right text-sm font-medium tabular-nums text-muted-foreground max-[560px]:hidden">
-                    {formatCurrency(category.amount)}
-                  </span>
-                  {!allVisibleProfitsUnavailable ? (
-                    <div className="min-w-0 text-right max-[560px]:hidden">
-                      <p className="truncate text-sm font-medium tabular-nums">
-                        {category.profit === null
-                          ? "–"
-                          : formatCurrency(category.profit)}
-                      </p>
-                      <p className="text-sm tabular-nums text-muted-foreground">
-                        {category.profitPercent === null
-                          ? "ยังไม่กำหนด"
-                          : `${category.profitPercent.toFixed(2)}%`}
-                      </p>
-                    </div>
-                  ) : null}
-                </div>
-              ))}
+              {displayCategories.map((category, index) => {
+                const detailNames =
+                  index < topCategories.length
+                    ? [category.name]
+                    : remainingCategories.map((item) => item.name);
+
+                return (
+                  <button
+                    key={category.name}
+                    type="button"
+                    aria-label={`ดูรายละเอียด ${category.name}`}
+                    className={cn(
+                      "group grid w-full items-center gap-2 px-3 py-3 text-left text-sm transition-colors hover:bg-muted/35 focus-visible:bg-muted/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset max-[560px]:grid-cols-[32px_minmax(0,1fr)_72px]",
+                      allVisibleProfitsUnavailable
+                        ? "grid-cols-[36px_minmax(0,1fr)_82px_110px]"
+                        : "grid-cols-[36px_minmax(0,1fr)_82px_110px_110px]",
+                    )}
+                    onClick={() =>
+                      setSelectedCategory({ name: category.name, detailNames })
+                    }
+                  >
+                    <span className="text-sm font-medium tabular-nums text-muted-foreground">
+                      {index + 1}
+                    </span>
+                    <span className="flex min-w-0 items-center gap-2.5">
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-[3px]"
+                        style={{
+                          backgroundColor:
+                            index < segmentColors.length
+                              ? segmentColors[index]
+                              : "var(--muted-foreground)",
+                        }}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-1 font-semibold">
+                          <span className="truncate">{category.name}</span>
+                          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                        </span>
+                        <span className="block text-sm tabular-nums text-muted-foreground">
+                          {formatNumber(category.quantity)} ชิ้น
+                        </span>
+                      </span>
+                    </span>
+                    <span className="text-right font-semibold tabular-nums">
+                      {category.percentage.toFixed(2)}%
+                    </span>
+                    <span className="truncate text-right text-sm font-medium tabular-nums text-muted-foreground max-[560px]:hidden">
+                      {formatCurrency(category.amount)}
+                    </span>
+                    {!allVisibleProfitsUnavailable ? (
+                      <span className="min-w-0 text-right max-[560px]:hidden">
+                        <span className="block truncate text-sm font-medium tabular-nums">
+                          {category.profit === null
+                            ? "–"
+                            : formatCurrency(category.profit)}
+                        </span>
+                        <span className="block text-sm tabular-nums text-muted-foreground">
+                          {category.profitPercent === null
+                            ? "ยังไม่กำหนด"
+                            : `${category.profitPercent.toFixed(2)}%`}
+                        </span>
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
             </div>
             {allVisibleProfitsUnavailable ? (
               <div className="flex flex-col gap-3 border-t bg-muted/25 px-3 py-3 min-[560px]:flex-row min-[560px]:items-center min-[560px]:justify-between">
@@ -465,6 +537,14 @@ export function CategorySalesShareCard({
           </div>
         </div>
       )}
+
+      <CategorySalesDetailDialog
+        categoryName={selectedCategory?.name ?? ""}
+        requestUrl={detailRequestUrl}
+        periodLabel={detailPeriodLabel}
+        isOpen={selectedCategory !== null}
+        onClose={() => setSelectedCategory(null)}
+      />
     </section>
   );
 }

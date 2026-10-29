@@ -39,8 +39,17 @@ export default function AsyncSearchableSelect<Option>({
   const [search, setSearch] = useState("");
   const [options, setOptions] = useState<Option[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  const selectOption = (option: Option) => {
+    onSelect(option);
+    setIsOpen(false);
+    setSearch("");
+    setActiveIndex(-1);
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -50,6 +59,7 @@ export default function AsyncSearchableSelect<Option>({
       ) {
         setIsOpen(false);
         setSearch("");
+        setActiveIndex(-1);
       }
     };
 
@@ -70,9 +80,11 @@ export default function AsyncSearchableSelect<Option>({
         setIsLoading(true);
         const nextOptions = await fetchOptions(search, controller.signal);
         setOptions(nextOptions);
+        setActiveIndex(-1);
       } catch (error) {
         if ((error as Error).name !== "AbortError") {
           setOptions([]);
+          setActiveIndex(-1);
         }
       } finally {
         setIsLoading(false);
@@ -84,6 +96,10 @@ export default function AsyncSearchableSelect<Option>({
       controller.abort();
     };
   }, [fetchOptions, isOpen, search]);
+
+  useEffect(() => {
+    optionRefs.current[activeIndex]?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex]);
 
   return (
     <div
@@ -123,10 +139,40 @@ export default function AsyncSearchableSelect<Option>({
               className="flex h-8 w-full bg-transparent py-3 text-sm font-semibold outline-none placeholder:text-muted-foreground"
               placeholder={searchPlaceholder}
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setActiveIndex(-1);
+              }}
               onKeyDown={(event) => {
+                if (event.key === "ArrowDown") {
+                  event.preventDefault();
+                  setActiveIndex((current) =>
+                    Math.min(current + 1, options.length - 1),
+                  );
+                  return;
+                }
+
+                if (event.key === "ArrowUp") {
+                  event.preventDefault();
+                  setActiveIndex((current) => Math.max(current - 1, 0));
+                  return;
+                }
+
                 if (event.key === "Enter") {
                   event.preventDefault();
+                  const activeOption = options[activeIndex];
+
+                  if (activeOption) {
+                    selectOption(activeOption);
+                  }
+                  return;
+                }
+
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  setIsOpen(false);
+                  setSearch("");
+                  setActiveIndex(-1);
                 }
               }}
             />
@@ -153,22 +199,24 @@ export default function AsyncSearchableSelect<Option>({
               </div>
             ) : (
               <div className="flex flex-col gap-0.5">
-                {options.map((option) => {
+                {options.map((option, index) => {
                   const selected = isOptionSelected?.(option) || false;
+                  const active = index === activeIndex;
                   const description = getOptionDescription?.(option);
 
                   return (
                     <button
                       key={getOptionKey(option)}
                       type="button"
-                      onClick={() => {
-                        onSelect(option);
-                        setIsOpen(false);
-                        setSearch("");
+                      ref={(element) => {
+                        optionRefs.current[index] = element;
                       }}
+                      onMouseEnter={() => setActiveIndex(index)}
+                      onClick={() => selectOption(option)}
                       className={cn(
                         "group relative flex w-full cursor-pointer select-none items-center rounded-lg px-3 py-2.5 text-left text-sm outline-none transition-colors hover:bg-primary hover:text-primary-foreground",
                         selected && "bg-primary/10 font-bold text-primary",
+                        active && "bg-primary text-primary-foreground",
                       )}
                     >
                       <Check

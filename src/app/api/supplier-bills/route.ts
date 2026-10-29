@@ -11,7 +11,9 @@ import {
   successResponse,
   withTimeout,
 } from "@/lib/api-utils";
+import { parseLocalDateInput } from "@/lib/date-input";
 import { executeQuery, getPool } from "@/lib/db";
+import { getSupplierStockAdjustments } from "@/lib/supplier-stock-adjustments";
 import type {
   SupplierBill,
   SupplierBillLineItem,
@@ -83,6 +85,7 @@ interface SupplierBillDetailIdentityRow {
 
 interface SupplierBillUpdatePayload {
   documentNo?: unknown;
+  billDate?: unknown;
   status?: unknown;
   totalPrice?: unknown;
   vatInputAmount?: unknown;
@@ -1980,6 +1983,7 @@ export async function PATCH(request: NextRequest) {
     const data = await withTimeout(async () => {
       const body = (await request.json()) as SupplierBillUpdatePayload;
       const documentNo = normalizeText(body.documentNo);
+      const billDate = parseLocalDateInput(body.billDate);
       const status = getPaymentLabel(
         normalizeText(body.status),
         normalizeText(body.status),
@@ -2003,6 +2007,10 @@ export async function PATCH(request: NextRequest) {
 
       if (!documentNo) {
         return errorResponse("กรุณาระบุเลขเอกสารคู่ค้า", 400);
+      }
+
+      if (!billDate) {
+        return errorResponse("กรุณาระบุวันที่บิลให้ถูกต้อง", 400);
       }
 
       if (!editableSupplierStatuses.has(status)) {
@@ -2088,6 +2096,11 @@ export async function PATCH(request: NextRequest) {
       try {
         const masterRequest = new sql.Request(transaction);
         masterRequest.input("documentNo", sql.NVarChar(30), documentNo);
+        masterRequest.input(
+          "billDate",
+          sql.VarChar(19),
+          formatLegacySqlDateStart(billDate),
+        );
         masterRequest.input("status", sql.NVarChar(30), status);
         masterRequest.input("totalPrice", sql.Money, totalPrice);
         masterRequest.input("productDiscount", sql.Money, productDiscount);
@@ -2102,6 +2115,7 @@ export async function PATCH(request: NextRequest) {
         }>(`
             UPDATE dbo.${quoteIdentifier(sourceTable)}
             SET
+              DatePost = CONVERT(datetime, @billDate, 126),
               Status = @status,
               TotalPrice = @totalPrice
               ${resultUpdate}
@@ -2129,10 +2143,24 @@ export async function PATCH(request: NextRequest) {
         let removedItemCount = 0;
         let addedItemCount = 0;
         let stockAdjustmentCount = 0;
+        const detailTable = await resolveTable(detailTableCandidates);
+
+        if (detailTable) {
+          const detailDateRequest = new sql.Request(transaction);
+          detailDateRequest.input(
+            "billDate",
+            sql.VarChar(19),
+            formatLegacySqlDateStart(billDate),
+          );
+          detailDateRequest.input("documentNo", sql.NVarChar(30), documentNo);
+          await detailDateRequest.query(`
+            UPDATE dbo.${quoteIdentifier(detailTable)}
+            SET DatePost = CONVERT(datetime, @billDate, 126)
+            WHERE NumberPrintPost = @documentNo
+          `);
+        }
 
         if (updateItems !== null && updateItems.length > 0) {
-          const detailTable = await resolveTable(detailTableCandidates);
-
           if (!detailTable) {
             await transaction.rollback();
             return errorResponse("ยังไม่พบตารางรายละเอียดบิลคู่ค้า", 404);
@@ -2167,6 +2195,22 @@ export async function PATCH(request: NextRequest) {
               FROM dbo.${quoteIdentifier(detailTable)} WITH (UPDLOCK, HOLDLOCK)
               WHERE NumberPrintPost = @documentNo
             `);
+          const stockAdjustments = getSupplierStockAdjustments(
+            existingDetailRows.recordset.map((row) => ({
+              barcode: normalizeText(row.barcode),
+              name: normalizeText(row.name),
+              unit: normalizeText(row.unit),
+              quantity: normalizeMoney(row.quantity),
+              unitPrice: normalizeMoney(row.unitPrice),
+            })),
+            updateItems.map((item) => ({
+              barcode: item.barcode,
+              name: item.name,
+              unit: item.unit,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+            })),
+          );
           const stockBalanceByBarcode = new Map<string, number>();
           const supplierCode = normalizeText(updatedMaster.supplierCode);
           const supplierName = normalizeText(updatedMaster.supplierName);
@@ -2222,17 +2266,6 @@ export async function PATCH(request: NextRequest) {
             `);
 
             removedItemCount += deleteResult.rowsAffected[0] ?? 0;
-
-            if ((deleteResult.rowsAffected[0] ?? 0) > 0) {
-              await applyStockAdjustment({
-                barcode: normalizeText(row.barcode),
-                name: normalizeText(row.name),
-                unit: normalizeText(row.unit),
-                quantityDelta: -normalizeMoney(row.quantity),
-                unitPrice: normalizeMoney(row.unitPrice),
-                requireProduct: false,
-              });
-            }
           }
 
           let nextRowNo = existingDetailRows.recordset.reduce(
@@ -2305,15 +2338,6 @@ export async function PATCH(request: NextRequest) {
                 supplierCode,
               );
               insertRequest.input("status", sql.NVarChar(30), status);
-
-              await applyStockAdjustment({
-                barcode: item.barcode,
-                name: item.name,
-                unit: item.unit,
-                quantityDelta: item.quantity,
-                unitPrice: item.unitPrice,
-                requireProduct: true,
-              });
 
               await insertRequest.query(`
                 INSERT INTO dbo.${quoteIdentifier(detailTable)} (
@@ -2416,37 +2440,17 @@ export async function PATCH(request: NextRequest) {
                 404,
               );
             }
+          }
 
-            const oldBarcode = normalizeText(existingItem.barcode);
-            const oldQuantity = normalizeMoney(existingItem.quantity);
-
-            if (oldBarcode !== item.barcode) {
-              await applyStockAdjustment({
-                barcode: oldBarcode,
-                name: normalizeText(existingItem.name),
-                unit: normalizeText(existingItem.unit),
-                quantityDelta: -oldQuantity,
-                unitPrice: normalizeMoney(existingItem.unitPrice),
-                requireProduct: false,
-              });
-              await applyStockAdjustment({
-                barcode: item.barcode,
-                name: item.name,
-                unit: item.unit,
-                quantityDelta: item.quantity,
-                unitPrice: item.unitPrice,
-                requireProduct: true,
-              });
-            } else {
-              await applyStockAdjustment({
-                barcode: item.barcode,
-                name: item.name,
-                unit: item.unit,
-                quantityDelta: item.quantity - oldQuantity,
-                unitPrice: item.unitPrice,
-                requireProduct: false,
-              });
-            }
+          for (const adjustment of stockAdjustments) {
+            await applyStockAdjustment({
+              barcode: adjustment.barcode,
+              name: adjustment.name,
+              unit: adjustment.unit,
+              quantityDelta: adjustment.quantityDelta,
+              unitPrice: adjustment.unitPrice,
+              requireProduct: adjustment.requireProduct,
+            });
           }
         }
 

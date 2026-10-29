@@ -6,8 +6,6 @@ import {
   CheckCircle2,
   Clock3,
   Download,
-  Eye,
-  EyeOff,
   Loader2,
   Printer,
   Save,
@@ -325,7 +323,7 @@ export default function EmployeeAttendancePage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [activeTab, setActiveTab] = useState("daily");
   const [reportEmployeeCode, setReportEmployeeCode] = useState("all");
-  const [salaryAmountsVisible, setSalaryAmountsVisible] = useState(false);
+  const [printingIndividualSlip, setPrintingIndividualSlip] = useState(false);
   const payPeriod = useMemo(() => getPayPeriod(selectedDate), [selectedDate]);
   const deductSocialSecurityThisPeriod = payPeriod.startDate.endsWith("-01");
   const periodDates = useMemo(
@@ -604,6 +602,9 @@ export default function EmployeeAttendancePage() {
   );
 
   const selectedReportRow = reportRows.length === 1 ? reportRows[0] : null;
+  const selectedAdjustmentNote = selectedReportRow
+    ? adjustmentDrafts[selectedReportRow.employee.code]?.note.trim() || ""
+    : "";
   const payrollSettled =
     data.employees.length > 0 && periodRows.every((row) => row.paidAt);
   const selectedEmployeeAdvances = useMemo(
@@ -618,12 +619,6 @@ export default function EmployeeAttendancePage() {
         : [],
     [data.advances, selectedDate, selectedReportRow],
   );
-
-  const amountsVisible = !data.access.canManage || salaryAmountsVisible;
-  const formatSensitiveAmount = (value: number) =>
-    amountsVisible ? formatAmount(value) : "••••••";
-  const formatSensitiveCurrency = (value: number) =>
-    amountsVisible ? formatCurrency(value) : "••••••";
 
   const updateDraft = (
     codeStaff: number,
@@ -872,8 +867,34 @@ export default function EmployeeAttendancePage() {
     URL.revokeObjectURL(url);
   };
 
+  const handlePrintReport = () => {
+    if (!selectedReportRow) {
+      window.print();
+      return;
+    }
+
+    setPrintingIndividualSlip(true);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => window.print());
+    });
+  };
+
+  useEffect(() => {
+    if (!printingIndividualSlip) {
+      return;
+    }
+
+    const finishPrinting = () => setPrintingIndividualSlip(false);
+    window.addEventListener("afterprint", finishPrinting);
+
+    return () => window.removeEventListener("afterprint", finishPrinting);
+  }, [printingIndividualSlip]);
+
   return (
     <div className="p-4 pb-16 print:p-0 sm:p-6">
+      {printingIndividualSlip ? (
+        <style>{`@page { size: A5 portrait; margin: 8mm; }`}</style>
+      ) : null}
       <div className="print:hidden">
         <DashboardBreadcrumb
           label="วันทำงานพนักงาน"
@@ -900,20 +921,6 @@ export default function EmployeeAttendancePage() {
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              {data.access.canManage && (
-                <Button
-                  variant="outline"
-                  className="h-10 rounded-[8px] px-4 text-sm font-medium"
-                  onClick={() => setSalaryAmountsVisible((visible) => !visible)}
-                  aria-pressed={salaryAmountsVisible}
-                  aria-label={
-                    salaryAmountsVisible ? "ซ่อนยอดเงินเดือน" : "แสดงยอดเงินเดือน"
-                  }
-                >
-                  {salaryAmountsVisible ? <Eye /> : <EyeOff />}
-                  {salaryAmountsVisible ? "ซ่อนยอดเงิน" : "แสดงยอดเงิน"}
-                </Button>
-              )}
               <DatePicker
                 date={parseInputDate(selectedDate)}
                 onDateChange={(date) => {
@@ -979,7 +986,12 @@ export default function EmployeeAttendancePage() {
           </div>
 
           <TabsContent value="report" className="mt-0">
-            <section className="rounded-3xl border bg-card p-4 print:border-0">
+            <section
+              className={cn(
+                "rounded-3xl border bg-card p-4 print:border-0",
+                printingIndividualSlip && "print:hidden",
+              )}
+            >
               <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
                 <div>
                   <h2 className="text-xl font-semibold text-card-foreground">
@@ -1016,7 +1028,7 @@ export default function EmployeeAttendancePage() {
                       variant="outline"
                       className="rounded-[8px] text-sm font-medium"
                       onClick={handleExportCsv}
-                      disabled={reportRows.length === 0 || !amountsVisible}
+                      disabled={reportRows.length === 0}
                     >
                       <Download />
                       ส่งออก Excel (CSV)
@@ -1025,11 +1037,11 @@ export default function EmployeeAttendancePage() {
                   <Button
                     variant="outline"
                     className="rounded-[8px] text-sm font-medium"
-                    onClick={() => window.print()}
+                    onClick={handlePrintReport}
                     disabled={reportRows.length === 0}
                   >
                     <Printer />
-                    {selectedReportRow ? "พิมพ์รายงานรายคน" : "พิมพ์รายงานรวม"}
+                    {selectedReportRow ? "พิมพ์สลิป A5" : "พิมพ์รายงานรวม"}
                   </Button>
                 </div>
               </div>
@@ -1108,7 +1120,7 @@ export default function EmployeeAttendancePage() {
                               </span>
                               {advance > 0 && (
                                 <span className="mt-1 block font-medium text-main-orange">
-                                  -{formatSensitiveAmount(advance)}
+                                  -{formatAmount(advance)}
                                 </span>
                               )}
                             </TableCell>
@@ -1138,7 +1150,7 @@ export default function EmployeeAttendancePage() {
                           )}
                         >
                           {row.advanceAmount > 0
-                            ? formatSensitiveAmount(row.advanceAmount)
+                            ? formatAmount(row.advanceAmount)
                             : "—"}
                         </TableCell>
                       </TableRow>
@@ -1177,44 +1189,34 @@ export default function EmployeeAttendancePage() {
                     />
                     <ReportValue
                       label="รายรับก่อนหัก"
-                      value={formatSensitiveCurrency(
-                        selectedReportRow.grossWage,
-                      )}
+                      value={formatCurrency(selectedReportRow.grossWage)}
                     />
                     <ReportValue
                       label="ประกันสังคมที่หักในงวดนี้"
-                      value={formatSensitiveCurrency(
-                        selectedReportRow.socialSecurity,
-                      )}
+                      value={formatCurrency(selectedReportRow.socialSecurity)}
                     />
                     <ReportValue
                       label="หนี้/หักอื่น"
-                      value={formatSensitiveCurrency(
-                        selectedReportRow.otherDeduction,
-                      )}
+                      value={formatCurrency(selectedReportRow.otherDeduction)}
                     />
                     <ReportValue
                       label="ยอดเบิกรวม"
-                      value={formatSensitiveCurrency(
-                        selectedReportRow.advanceAmount,
-                      )}
+                      value={formatCurrency(selectedReportRow.advanceAmount)}
                     />
                     <ReportValue
                       label="หนี้ยกมาจากรอบก่อน"
-                      value={formatSensitiveCurrency(selectedReportRow.carryIn)}
+                      value={formatCurrency(selectedReportRow.carryIn)}
                     />
                     <ReportValue
                       label="รายรับสุทธิ"
-                      value={formatSensitiveCurrency(selectedReportRow.netWage)}
+                      value={formatCurrency(selectedReportRow.netWage)}
                     />
                     <ReportValue
                       label="ยอดจ่ายจริง"
                       value={
                         selectedReportRow.paidAmount === null
                           ? "ยังไม่จ่าย"
-                          : formatSensitiveCurrency(
-                              selectedReportRow.paidAmount,
-                            )
+                          : formatCurrency(selectedReportRow.paidAmount)
                       }
                     />
                     <ReportValue
@@ -1241,7 +1243,7 @@ export default function EmployeeAttendancePage() {
                           >
                             <span>{formatThaiDate(advance.date)}</span>
                             <span className="font-semibold text-main-orange">
-                              {formatSensitiveCurrency(advance.amount)}
+                              {formatCurrency(advance.amount)}
                             </span>
                           </div>
                         ))}
@@ -1255,6 +1257,175 @@ export default function EmployeeAttendancePage() {
                 </div>
               )}
             </section>
+
+            {selectedReportRow && printingIndividualSlip ? (
+              <article className="hidden bg-white text-black print:block print:[print-color-adjust:exact]">
+                <header className="flex items-start justify-between border-b-2 border-black pb-3">
+                  <div>
+                    <p className="text-xl font-bold">CAR SERVICE</p>
+                    <p className="text-sm">ใบสรุปค่าแรงพนักงาน</p>
+                  </div>
+                  <div className="text-right text-sm">
+                    <p className="font-semibold">รอบ {payPeriod.label}</p>
+                    <p>ข้อมูลถึง {formatThaiDate(selectedDate)}</p>
+                  </div>
+                </header>
+
+                <section className="mt-4 grid grid-cols-[1fr_auto] gap-x-6 gap-y-1 border-b pb-3 text-sm">
+                  <p>
+                    <span className="text-neutral-600">ชื่อพนักงาน:</span>{" "}
+                    <strong>{selectedReportRow.employee.name}</strong>
+                  </p>
+                  <p>
+                    <span className="text-neutral-600">รหัส:</span>{" "}
+                    {selectedReportRow.employee.code}
+                  </p>
+                  <p>
+                    <span className="text-neutral-600">ตำแหน่ง:</span>{" "}
+                    {selectedReportRow.employee.position || "ไม่ระบุ"}
+                  </p>
+                  <p>
+                    <span className="text-neutral-600">ค่าแรง/วัน:</span>{" "}
+                    {formatCurrency(selectedReportRow.employee.dailyWage)}
+                  </p>
+                </section>
+
+                <section className="mt-4">
+                  <h2 className="text-base font-bold">สรุปวันทำงาน</h2>
+                  <div className="mt-2 grid grid-cols-4 divide-x border py-2 text-center text-sm">
+                    <div>
+                      <p className="text-neutral-600">เต็มวัน</p>
+                      <p className="font-bold">
+                        {selectedReportRow.fullDay} วัน
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-neutral-600">ครึ่งวัน</p>
+                      <p className="font-bold">
+                        {selectedReportRow.halfDay} วัน
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-neutral-600">ขาดรวม</p>
+                      <p className="font-bold">
+                        {formatWorkDays(selectedReportRow.absenceUnits)} วัน
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-neutral-600">วันคิดเงิน</p>
+                      <p className="font-bold">
+                        {formatWorkDays(selectedReportRow.payableDays)} วัน
+                      </p>
+                    </div>
+                  </div>
+                  {selectedReportRow.absentDates.length > 0 ? (
+                    <p className="mt-2 text-sm">
+                      วันที่ขาด: {selectedReportRow.absentDates.join(", ")}
+                    </p>
+                  ) : null}
+                </section>
+
+                <section className="mt-4">
+                  <h2 className="text-base font-bold">สรุปรายรับและรายการหัก</h2>
+                  <div className="mt-2 overflow-hidden border text-sm">
+                    <div className="flex justify-between border-b px-3 py-2">
+                      <span>รายรับก่อนหัก</span>
+                      <strong>
+                        {formatCurrency(selectedReportRow.grossWage)}
+                      </strong>
+                    </div>
+                    <div className="flex justify-between border-b px-3 py-2">
+                      <span>หักประกันสังคม</span>
+                      <span>
+                        -{formatCurrency(selectedReportRow.socialSecurity)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-b px-3 py-2">
+                      <span>หนี้/รายการหักอื่น</span>
+                      <span>
+                        -{formatCurrency(selectedReportRow.otherDeduction)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-b px-3 py-2">
+                      <span>ยอดเบิกรวม</span>
+                      <span>
+                        -{formatCurrency(selectedReportRow.advanceAmount)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-b px-3 py-2">
+                      <span>หนี้ยกมาจากรอบก่อน</span>
+                      <span>-{formatCurrency(selectedReportRow.carryIn)}</span>
+                    </div>
+                    <div className="flex justify-between bg-neutral-100 px-3 py-3 text-base">
+                      <strong>ยอดสุทธิ</strong>
+                      <strong>
+                        {formatCurrency(selectedReportRow.netWage)}
+                      </strong>
+                    </div>
+                    <div className="flex justify-between border-t px-3 py-2">
+                      <span>ยอดจ่ายจริง</span>
+                      <strong>
+                        {selectedReportRow.paidAmount === null
+                          ? "ยังไม่จ่าย"
+                          : formatCurrency(selectedReportRow.paidAmount)}
+                      </strong>
+                    </div>
+                  </div>
+                  {selectedAdjustmentNote ? (
+                    <p className="mt-2 text-sm">
+                      หมายเหตุรายการหัก: {selectedAdjustmentNote}
+                    </p>
+                  ) : null}
+                </section>
+
+                <section className="mt-4">
+                  <div className="flex items-baseline justify-between">
+                    <h2 className="text-base font-bold">รายละเอียดการเบิกเงิน</h2>
+                    <p className="text-sm">
+                      รวม {formatCurrency(selectedReportRow.advanceAmount)}
+                    </p>
+                  </div>
+                  <div className="mt-2 overflow-hidden border text-sm">
+                    {selectedEmployeeAdvances.length > 0 ? (
+                      selectedEmployeeAdvances.map((advance) => (
+                        <div
+                          key={`${advance.date}:${advance.codeStaff}`}
+                          className="flex justify-between border-b px-3 py-1.5 last:border-b-0"
+                        >
+                          <span>{formatThaiDate(advance.date)}</span>
+                          <span>{formatCurrency(advance.amount)}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="px-3 py-2 text-neutral-600">
+                        ไม่มีรายการเบิกตามวันที่ในรอบนี้
+                      </p>
+                    )}
+                    {selectedReportRow.manualAdvance > 0 ? (
+                      <div className="flex justify-between border-t px-3 py-1.5">
+                        <span>ยอดเบิกปรับเพิ่ม</span>
+                        <span>
+                          {formatCurrency(selectedReportRow.manualAdvance)}
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
+                </section>
+
+                <section className="mt-5 grid grid-cols-2 gap-8 text-center text-sm break-inside-avoid">
+                  <div>
+                    <div className="h-8 border-b border-black" />
+                    <p className="mt-1">ผู้รับเงิน</p>
+                    <p>วันที่ ______ / ______ / ______</p>
+                  </div>
+                  <div>
+                    <div className="h-8 border-b border-black" />
+                    <p className="mt-1">ผู้จ่ายเงิน/ผู้อนุมัติ</p>
+                    <p>วันที่ ______ / ______ / ______</p>
+                  </div>
+                </section>
+              </article>
+            ) : null}
           </TabsContent>
 
           <TabsContent value="daily" className="mt-0">
@@ -1398,7 +1569,7 @@ export default function EmployeeAttendancePage() {
                               </div>
                               <div className="text-sm text-muted-foreground">
                                 {employee.position || "ไม่ระบุตำแหน่ง"} · ค่าแรง{" "}
-                                {formatSensitiveCurrency(employee.dailyWage)}
+                                {formatCurrency(employee.dailyWage)}
                                 /วัน
                               </div>
                             </TableCell>
@@ -1472,7 +1643,6 @@ export default function EmployeeAttendancePage() {
                     loading ||
                     savingAdjustments ||
                     !data.access.canManage ||
-                    !amountsVisible ||
                     payrollSettled ||
                     data.employees.length === 0
                   }
@@ -1526,44 +1696,37 @@ export default function EmployeeAttendancePage() {
                             {row.employee.name}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            {formatSensitiveAmount(row.employee.dailyWage)}{" "}
-                            บาท/วัน
+                            {formatAmount(row.employee.dailyWage)} บาท/วัน
                           </div>
                         </TableCell>
                         <TableCell className="py-5 text-right font-semibold text-main-blue">
                           {formatWorkDays(row.payableDays)} วัน
                         </TableCell>
                         <TableCell className="py-5 text-right font-semibold">
-                          {formatSensitiveAmount(row.grossWage)}
+                          {formatAmount(row.grossWage)}
                         </TableCell>
                         <TableCell className="py-5">
-                          {amountsVisible ? (
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              inputMode="decimal"
-                              value={
-                                adjustmentDrafts[row.employee.code]
-                                  ?.socialSecurity ?? ""
-                              }
-                              onChange={(event) =>
-                                updateAdjustmentDraft(row.employee.code, {
-                                  socialSecurity: event.target.value,
-                                })
-                              }
-                              placeholder="0.00"
-                              className="!h-10 rounded-[8px] border-slate-300 bg-white text-right text-sm focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/15 dark:bg-background"
-                              aria-label={`ประกันสังคมรายเดือน ${row.employee.name}`}
-                              disabled={
-                                !data.access.canManage || Boolean(row.paidAt)
-                              }
-                            />
-                          ) : (
-                            <div className="flex h-10 items-center justify-end rounded-[8px] border border-slate-300 bg-secondary/40 px-3 font-semibold tracking-wider text-muted-foreground">
-                              ••••••
-                            </div>
-                          )}
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            inputMode="decimal"
+                            value={
+                              adjustmentDrafts[row.employee.code]
+                                ?.socialSecurity ?? ""
+                            }
+                            onChange={(event) =>
+                              updateAdjustmentDraft(row.employee.code, {
+                                socialSecurity: event.target.value,
+                              })
+                            }
+                            placeholder="0.00"
+                            className="!h-10 rounded-[8px] border-slate-300 bg-white text-right text-sm focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/15 dark:bg-background"
+                            aria-label={`ประกันสังคมรายเดือน ${row.employee.name}`}
+                            disabled={
+                              !data.access.canManage || Boolean(row.paidAt)
+                            }
+                          />
                           <p className="mt-1.5 text-sm font-medium text-muted-foreground">
                             {row.monthlySocialSecurity <= 0
                               ? "ยังไม่ได้ตั้งค่าประกันสังคม"
@@ -1575,66 +1738,54 @@ export default function EmployeeAttendancePage() {
                           </p>
                         </TableCell>
                         <TableCell className="py-5">
-                          {amountsVisible ? (
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              inputMode="decimal"
-                              value={
-                                adjustmentDrafts[row.employee.code]
-                                  ?.otherDeduction ?? ""
-                              }
-                              onChange={(event) =>
-                                updateAdjustmentDraft(row.employee.code, {
-                                  otherDeduction: event.target.value,
-                                })
-                              }
-                              placeholder="0.00"
-                              className="!h-10 rounded-[8px] border-slate-300 bg-white text-right text-sm focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/15 dark:bg-background"
-                              aria-label={`หนี้ค้างหรือรายการหักอื่น ${row.employee.name}`}
-                              disabled={
-                                !data.access.canManage || Boolean(row.paidAt)
-                              }
-                            />
-                          ) : (
-                            <div className="flex h-10 items-center justify-end rounded-[8px] border border-slate-300 bg-secondary/40 px-3 font-semibold tracking-wider text-muted-foreground">
-                              ••••••
-                            </div>
-                          )}
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            inputMode="decimal"
+                            value={
+                              adjustmentDrafts[row.employee.code]
+                                ?.otherDeduction ?? ""
+                            }
+                            onChange={(event) =>
+                              updateAdjustmentDraft(row.employee.code, {
+                                otherDeduction: event.target.value,
+                              })
+                            }
+                            placeholder="0.00"
+                            className="!h-10 rounded-[8px] border-slate-300 bg-white text-right text-sm focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/15 dark:bg-background"
+                            aria-label={`หนี้ค้างหรือรายการหักอื่น ${row.employee.name}`}
+                            disabled={
+                              !data.access.canManage || Boolean(row.paidAt)
+                            }
+                          />
                         </TableCell>
                         <TableCell className="py-5">
-                          {amountsVisible ? (
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              inputMode="decimal"
-                              value={
-                                adjustmentDrafts[row.employee.code]
-                                  ?.manualAdvance ?? ""
-                              }
-                              onChange={(event) =>
-                                updateAdjustmentDraft(row.employee.code, {
-                                  manualAdvance: event.target.value,
-                                })
-                              }
-                              placeholder="0.00"
-                              className="!h-10 rounded-[8px] border-slate-300 bg-white text-right text-sm focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/15 dark:bg-background"
-                              aria-label={`ยอดเบิกเพิ่ม ${row.employee.name}`}
-                              disabled={
-                                !data.access.canManage || Boolean(row.paidAt)
-                              }
-                            />
-                          ) : (
-                            <div className="flex h-10 items-center justify-end rounded-[8px] border border-slate-300 bg-secondary/40 px-3 font-semibold tracking-wider text-muted-foreground">
-                              ••••••
-                            </div>
-                          )}
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            inputMode="decimal"
+                            value={
+                              adjustmentDrafts[row.employee.code]
+                                ?.manualAdvance ?? ""
+                            }
+                            onChange={(event) =>
+                              updateAdjustmentDraft(row.employee.code, {
+                                manualAdvance: event.target.value,
+                              })
+                            }
+                            placeholder="0.00"
+                            className="!h-10 rounded-[8px] border-slate-300 bg-white text-right text-sm focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/15 dark:bg-background"
+                            aria-label={`ยอดเบิกเพิ่ม ${row.employee.name}`}
+                            disabled={
+                              !data.access.canManage || Boolean(row.paidAt)
+                            }
+                          />
                           {row.recordedAdvanceAmount > 0 && (
                             <div className="mt-1.5 text-right text-sm text-muted-foreground">
                               จากรายการรับจ่าย{" "}
-                              {formatSensitiveAmount(row.recordedAdvanceAmount)}
+                              {formatAmount(row.recordedAdvanceAmount)}
                             </div>
                           )}
                         </TableCell>
@@ -1646,7 +1797,7 @@ export default function EmployeeAttendancePage() {
                               : "text-muted-foreground",
                           )}
                         >
-                          {formatSensitiveAmount(row.carryIn)}
+                          {formatAmount(row.carryIn)}
                         </TableCell>
                         <TableCell
                           className={cn(
@@ -1656,7 +1807,7 @@ export default function EmployeeAttendancePage() {
                               : "text-main-red",
                           )}
                         >
-                          {formatSensitiveAmount(row.netWage)}
+                          {formatAmount(row.netWage)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1689,7 +1840,6 @@ export default function EmployeeAttendancePage() {
                       savingAdjustments ||
                       settlingPayroll ||
                       payrollSettled ||
-                      !amountsVisible ||
                       data.employees.length === 0
                     }
                     onClick={handleSettlePayroll}
@@ -1719,36 +1869,36 @@ export default function EmployeeAttendancePage() {
                 />
                 <KPICard
                   title="ค่าแรงก่อนหัก"
-                  value={amountsVisible ? periodTotals.grossWage : "••••••"}
-                  format={amountsVisible ? "currency" : undefined}
+                  value={periodTotals.grossWage}
+                  format="currency"
                   icon={WalletCards}
                   variant="emerald"
                 />
                 <KPICard
                   title="รายการหัก"
-                  value={amountsVisible ? periodTotals.deductions : "••••••"}
-                  format={amountsVisible ? "currency" : undefined}
+                  value={periodTotals.deductions}
+                  format="currency"
                   icon={WalletCards}
                   variant="red"
                 />
                 <KPICard
                   title="ยอดเบิก"
-                  value={amountsVisible ? periodTotals.advanceAmount : "••••••"}
-                  format={amountsVisible ? "currency" : undefined}
+                  value={periodTotals.advanceAmount}
+                  format="currency"
                   icon={WalletCards}
                   variant="orange"
                 />
                 <KPICard
                   title="หนี้ยกมา"
-                  value={amountsVisible ? periodTotals.carryIn : "••••••"}
-                  format={amountsVisible ? "currency" : undefined}
+                  value={periodTotals.carryIn}
+                  format="currency"
                   icon={WalletCards}
                   variant="red"
                 />
                 <KPICard
                   title="คงเหลือประมาณการ"
-                  value={amountsVisible ? periodTotals.netWage : "••••••"}
-                  format={amountsVisible ? "currency" : undefined}
+                  value={periodTotals.netWage}
+                  format="currency"
                   icon={WalletCards}
                   variant={periodTotals.netWage >= 0 ? "emerald" : "red"}
                 />
@@ -1823,7 +1973,7 @@ export default function EmployeeAttendancePage() {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          {formatSensitiveAmount(row.employee.dailyWage)}
+                          {formatAmount(row.employee.dailyWage)}
                         </TableCell>
                         <TableCell className="text-right">
                           {row.fullDay}
@@ -1865,7 +2015,7 @@ export default function EmployeeAttendancePage() {
                           {formatWorkDays(row.absenceUnits)}
                         </TableCell>
                         <TableCell className="text-right">
-                          {formatSensitiveAmount(row.grossWage)}
+                          {formatAmount(row.grossWage)}
                         </TableCell>
                         <TableCell
                           className={cn(
@@ -1875,7 +2025,7 @@ export default function EmployeeAttendancePage() {
                               : "text-muted-foreground",
                           )}
                         >
-                          {formatSensitiveAmount(row.socialSecurity)}
+                          {formatAmount(row.socialSecurity)}
                         </TableCell>
                         <TableCell
                           className={cn(
@@ -1885,7 +2035,7 @@ export default function EmployeeAttendancePage() {
                               : "text-muted-foreground",
                           )}
                         >
-                          {formatSensitiveAmount(row.otherDeduction)}
+                          {formatAmount(row.otherDeduction)}
                         </TableCell>
                         <TableCell
                           className={cn(
@@ -1895,7 +2045,7 @@ export default function EmployeeAttendancePage() {
                               : "text-muted-foreground",
                           )}
                         >
-                          {formatSensitiveAmount(row.advanceAmount)}
+                          {formatAmount(row.advanceAmount)}
                         </TableCell>
                         <TableCell
                           className={cn(
@@ -1905,7 +2055,7 @@ export default function EmployeeAttendancePage() {
                               : "text-muted-foreground",
                           )}
                         >
-                          {formatSensitiveAmount(row.carryIn)}
+                          {formatAmount(row.carryIn)}
                         </TableCell>
                         <TableCell
                           className={cn(
@@ -1915,12 +2065,12 @@ export default function EmployeeAttendancePage() {
                               : "text-main-red",
                           )}
                         >
-                          {formatSensitiveAmount(row.netWage)}
+                          {formatAmount(row.netWage)}
                         </TableCell>
                         <TableCell className="py-5 text-right font-semibold text-main-green">
                           {row.paidAmount === null
                             ? "—"
-                            : formatSensitiveAmount(row.paidAmount)}
+                            : formatAmount(row.paidAmount)}
                         </TableCell>
                       </TableRow>
                     ))}

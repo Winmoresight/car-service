@@ -6,6 +6,7 @@
 import type { NextRequest } from "next/server";
 import { handleApiError, successResponse, withTimeout } from "@/lib/api-utils";
 import { executeQuery } from "@/lib/db";
+import { combineLegacyBangkokDateTime } from "@/lib/legacy-date-time";
 import { getPocvDateExpression } from "@/lib/legacy-pocv";
 import {
   buildReceivablePaymentCte as buildSharedReceivablePaymentCte,
@@ -49,6 +50,7 @@ interface PaymentSummaryRow {
 interface PaymentRow {
   order_num: number;
   occurred_at: Date | null;
+  occurred_time: string | null;
   document_no: string;
   payment_name: string;
   employee_name: string;
@@ -84,6 +86,7 @@ interface ReceivablePaymentRow {
 interface TransferRow {
   document_no: string;
   occurred_at: Date | null;
+  occurred_time: string | null;
   customer_name: string;
   name_car: string;
   province: string;
@@ -99,6 +102,7 @@ interface PaidSaleSummaryRow {
 interface PaidSaleRow {
   document_no: string;
   occurred_at: Date | null;
+  occurred_time: string | null;
   customer_name: string;
   name_car: string;
   province: string;
@@ -116,6 +120,7 @@ interface OutstandingSummaryRow {
 interface OutstandingRow {
   document_no: string;
   occurred_at: Date | null;
+  occurred_time: string | null;
   customer_name: string;
   name_car: string;
   province: string;
@@ -206,6 +211,7 @@ function buildPaymentCte() {
       SELECT
         OrderNum as order_num,
         Datepayment as occurred_at,
+        ISNULL(Times, '') as occurred_time,
         ISNULL(NumberPrintPost, '') as document_no,
         ISNULL(NameExpensesORIncome, '') as payment_name,
         ISNULL(NameSure, '') as employee_name,
@@ -256,6 +262,7 @@ function buildOutstandingCte() {
       SELECT
         ISNULL(m.NumberPrintSalePost, '') as document_no,
         m.DateSalePost as occurred_at,
+        ISNULL(m.Times, '') as occurred_time,
         ISNULL(m.NameCustomer, N'ไม่ระบุลูกค้า') as customer_name,
         ISNULL(m.NameCar, '') as name_car,
         ISNULL(m.Province, '') as province,
@@ -295,6 +302,7 @@ function buildPaidSalesCte() {
       SELECT
         ISNULL(m.NumberPrintSalePost, '') as document_no,
         m.DateSalePost as occurred_at,
+        ISNULL(m.Times, '') as occurred_time,
         ISNULL(m.NameCustomer, N'ไม่ระบุลูกค้า') as customer_name,
         ISNULL(m.NameCar, '') as name_car,
         ISNULL(m.Province, '') as province,
@@ -323,6 +331,7 @@ function buildPaidSalesCte() {
       SELECT
         ISNULL(p.NumberPrintCash, '') as document_no,
         ${pocvDateExpression} as occurred_at,
+        '' as occurred_time,
         ISNULL(p.NameCustomer, N'ไม่ระบุลูกค้า') as customer_name,
         ISNULL(p.NameCar, '') as name_car,
         ISNULL(p.Province, '') as province,
@@ -482,6 +491,7 @@ async function getPaymentData(params: Record<string, unknown>) {
         SELECT TOP (@listLimit)
           order_num,
           occurred_at,
+          occurred_time,
           document_no,
           payment_name,
           employee_name,
@@ -523,7 +533,9 @@ async function getPaymentData(params: Record<string, unknown>) {
           normalizeText(row.bank_name),
           normalizeText(row.remark),
         ]) || "ไม่ระบุรายละเอียด",
-      occurredAt: toISOStringOrNull(row.occurred_at),
+      occurredAt:
+        combineLegacyBangkokDateTime(row.occurred_at, row.occurred_time) ??
+        toISOStringOrNull(row.occurred_at),
       amount: normalizeMoney(row.effective_total),
       cash,
       transfer,
@@ -643,6 +655,7 @@ async function getTransfers(params: Record<string, unknown>) {
         SELECT
           ISNULL(NumberPrintSalePost, '') as document_no,
           DateSalePost as occurred_at,
+          ISNULL(Times, '') as occurred_time,
           ISNULL(NameCustomer, N'ไม่ระบุลูกค้า') as customer_name,
           ISNULL(NameCar, '') as name_car,
           ISNULL(Province, '') as province,
@@ -656,6 +669,7 @@ async function getTransfers(params: Record<string, unknown>) {
         SELECT
           ISNULL(p.NumberPrintCash, '') as document_no,
           ${pocvDateExpression} as occurred_at,
+          '' as occurred_time,
           ISNULL(p.NameCustomer, N'ไม่ระบุลูกค้า') as customer_name,
           ISNULL(p.NameCar, '') as name_car,
           ISNULL(p.Province, '') as province,
@@ -674,6 +688,7 @@ async function getTransfers(params: Record<string, unknown>) {
       SELECT TOP (@listLimit)
         document_no,
         occurred_at,
+        occurred_time,
         customer_name,
         name_car,
         province,
@@ -699,7 +714,9 @@ async function getTransfers(params: Record<string, unknown>) {
         row.province,
         row.bank_name,
       ]) || "ไม่ระบุรายละเอียด",
-    occurredAt: toISOStringOrNull(row.occurred_at),
+    occurredAt:
+      combineLegacyBangkokDateTime(row.occurred_at, row.occurred_time) ??
+      toISOStringOrNull(row.occurred_at),
     amount: normalizeMoney(row.amount),
     cash: 0,
     transfer: normalizeMoney(row.amount),
@@ -728,6 +745,7 @@ async function getPaidSales(params: Record<string, unknown>) {
         SELECT TOP (@listLimit)
           document_no,
           occurred_at,
+          occurred_time,
           customer_name,
           name_car,
           province,
@@ -767,7 +785,9 @@ async function getPaidSales(params: Record<string, unknown>) {
             row.province,
             deposits > 0 ? `มัดจำ ${normalizeMoney(deposits)} บาท` : "",
           ]) || "ชำระครบแล้ว",
-        occurredAt: toISOStringOrNull(row.occurred_at),
+        occurredAt:
+          combineLegacyBangkokDateTime(row.occurred_at, row.occurred_time) ??
+          toISOStringOrNull(row.occurred_at),
         amount: normalizeMoney(row.amount),
         cash,
         transfer,
@@ -798,6 +818,7 @@ async function getOutstandingReceivables(params: Record<string, unknown>) {
         SELECT TOP (@listLimit)
           document_no,
           occurred_at,
+          occurred_time,
           customer_name,
           name_car,
           province,
@@ -825,7 +846,9 @@ async function getOutstandingReceivables(params: Record<string, unknown>) {
       description:
         compactDescription([row.customer_name, row.name_car, row.province]) ||
         "ไม่ระบุรายละเอียด",
-      occurredAt: toISOStringOrNull(row.occurred_at),
+      occurredAt:
+        combineLegacyBangkokDateTime(row.occurred_at, row.occurred_time) ??
+        toISOStringOrNull(row.occurred_at),
       amount: normalizeMoney(row.amount),
       cash: 0,
       transfer: 0,

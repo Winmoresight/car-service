@@ -7,6 +7,7 @@ import sql from "mssql";
 import { type NextRequest, NextResponse } from "next/server";
 import { AUTH_COOKIE_NAME, readAuthToken } from "@/lib/auth-session";
 import { executeQuery, getPool } from "@/lib/db";
+import { combineLegacyBangkokDateTime } from "@/lib/legacy-date-time";
 import type {
   ApiResponse,
   PaginatedPayload,
@@ -957,6 +958,7 @@ export async function GET(request: NextRequest) {
             ${resolvedBarcode} as barCode,
             COALESCE(NULLIF(product.currentName, N''), movement.NameProduct) as name,
             movement.DateSave as date,
+            ISNULL(movement.Times, '') as movementTime,
             CASE
               WHEN movement.Debit > 0 THEN 'in'
               WHEN movement.Credit > 0 THEN 'out'
@@ -984,6 +986,7 @@ export async function GET(request: NextRequest) {
           barCode,
           name,
           date,
+          movementTime,
           type,
           quantity,
           stock,
@@ -997,6 +1000,7 @@ export async function GET(request: NextRequest) {
         barCode: string;
         name: string;
         date: Date;
+        movementTime: string;
         type: "in" | "out";
         quantity: number;
         stock: number;
@@ -1013,7 +1017,9 @@ export async function GET(request: NextRequest) {
       const stockMovements: StockMovement[] = movements.map((row) => ({
         barCode: row.barCode,
         name: row.name,
-        date: new Date(row.date).toISOString(),
+        date:
+          combineLegacyBangkokDateTime(row.date, row.movementTime) ??
+          new Date(row.date).toISOString(),
         type: row.type,
         quantity: row.quantity,
         stock: row.stock,
@@ -1042,6 +1048,7 @@ export async function GET(request: NextRequest) {
           ${resolvedBarcode} as barCode,
           movement.NameProduct as movementName,
           movement.DateSave as lastUpdate,
+          ISNULL(movement.Times, '') as lastUpdateTime,
           COUNT(*) OVER (PARTITION BY ${resolvedBarcode}) as movements,
           ROW_NUMBER() OVER (
             PARTITION BY ${resolvedBarcode}
@@ -1064,6 +1071,7 @@ export async function GET(request: NextRequest) {
           ) as name,
           ISNULL(detail.NProduct, 0) as currentStock,
           latestMovement.lastUpdate,
+          latestMovement.lastUpdateTime,
           ISNULL(latestMovement.movements, 0) as movements,
           ROW_NUMBER() OVER (
             PARTITION BY detail.BarCode
@@ -1086,6 +1094,7 @@ export async function GET(request: NextRequest) {
           name,
           currentStock,
           lastUpdate,
+          lastUpdateTime,
           movements,
           ROW_NUMBER() OVER (ORDER BY name, barCode) as RowNum
         FROM CurrentProducts
@@ -1101,6 +1110,7 @@ export async function GET(request: NextRequest) {
         name,
         currentStock,
         lastUpdate,
+        lastUpdateTime,
         movements
       FROM PaginatedData
       WHERE RowNum > @offset AND RowNum <= (@offset + @limit)
@@ -1112,6 +1122,7 @@ export async function GET(request: NextRequest) {
       name: string;
       currentStock: number;
       lastUpdate: Date | null;
+      lastUpdateTime: string | null;
       movements: number;
     }>(query, { limit, offset, search });
     const [countResult] = await executeQuery<{ total: number }>(
@@ -1131,7 +1142,8 @@ export async function GET(request: NextRequest) {
       barCode: row.barCode,
       name: row.name,
       currentStock: Number(row.currentStock) || 0,
-      lastUpdate: row.lastUpdate ? new Date(row.lastUpdate).toISOString() : "",
+      lastUpdate:
+        combineLegacyBangkokDateTime(row.lastUpdate, row.lastUpdateTime) ?? "",
       movements: Number(row.movements) || 0,
     }));
 

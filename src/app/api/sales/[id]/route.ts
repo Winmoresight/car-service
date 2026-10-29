@@ -6,7 +6,13 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { ensureBillDepositPaymentTable } from "@/lib/bill-deposit-payment";
 import { executeQuery } from "@/lib/db";
+import { combineLegacyBangkokDateTime } from "@/lib/legacy-date-time";
 import { maskPhone } from "@/lib/privacy";
+import {
+  buildReceivablePaymentCte,
+  getReceivablePaymentSourceConfig,
+} from "@/lib/receivable-payment-source";
+import { addPaymentTotals } from "@/lib/sale-payment-totals";
 import type { ApiResponse } from "@/types/api";
 
 function getSafeMoneyExpression(valueExpression: string) {
@@ -94,6 +100,7 @@ export async function GET(
       SELECT 
         m.NumberPrintSalePost as id,
         m.DateSalePost as date,
+        ISNULL(m.Times, '') as saleTime,
         ${getSafeMoneyExpression("m.TotalPrice")} as storedTotalPrice,
         m.TotalCost as totalCost,
         m.TotalProfit as totalProfit,
@@ -140,6 +147,7 @@ export async function GET(
     const [header] = await executeQuery<{
       id: string;
       date: Date;
+      saleTime: string;
       storedTotalPrice: number;
       totalCost: number;
       totalProfit: number;
@@ -172,6 +180,26 @@ export async function GET(
       );
     }
 
+    const receivablePaymentSource = await getReceivablePaymentSourceConfig();
+    const receivablePaymentCte = buildReceivablePaymentCte(
+      receivablePaymentSource,
+      () => "1 = 1",
+    );
+    const [receivablePayments] = await executeQuery<{
+      cash: number;
+      transfer: number;
+    }>(
+      `
+        ${receivablePaymentCte}
+        SELECT
+          ISNULL(SUM(CASE WHEN payment_method = 'cash' THEN amount ELSE 0 END), 0) as cash,
+          ISNULL(SUM(CASE WHEN payment_method = 'transfer' THEN amount ELSE 0 END), 0) as transfer
+        FROM combined
+        WHERE document_no = @id
+      `,
+      { id },
+    );
+
     const storedTotalPrice = normalizeNumber(header.storedTotalPrice);
     const storedCash = normalizeNumber(header.cash);
     const storedTransfer = normalizeNumber(header.transfer);
@@ -193,17 +221,27 @@ export async function GET(
     const depositBankName =
       header.savedDepositBankName || depositPayment.bankName;
     const savedDepositAmount = normalizeNumber(header.savedDepositAmount);
-    const cash = Math.max(
-      storedCash -
-        (header.savedDepositPaymentMethod === "cash" ? savedDepositAmount : 0),
-      0,
-    );
-    const transfer = Math.max(
-      storedTransfer -
-        (header.savedDepositPaymentMethod === "transfer"
-          ? savedDepositAmount
-          : 0),
-      0,
+    const paymentTotals = addPaymentTotals(
+      {
+        cash: Math.max(
+          storedCash -
+            (header.savedDepositPaymentMethod === "cash"
+              ? savedDepositAmount
+              : 0),
+          0,
+        ),
+        transfer: Math.max(
+          storedTransfer -
+            (header.savedDepositPaymentMethod === "transfer"
+              ? savedDepositAmount
+              : 0),
+          0,
+        ),
+      },
+      {
+        cash: normalizeNumber(receivablePayments?.cash),
+        transfer: normalizeNumber(receivablePayments?.transfer),
+      },
     );
     const fallbackOutstanding = header.savedDepositPaymentMethod
       ? storedTotalPrice - storedCash - storedTransfer
@@ -244,12 +282,14 @@ export async function GET(
     // Build response with full customer name for internal sale detail view.
     const saleDetail: SaleDetail = {
       id: header.id,
-      date: new Date(header.date).toISOString(),
+      date:
+        combineLegacyBangkokDateTime(header.date, header.saleTime) ??
+        new Date(header.date).toISOString(),
       totalPrice,
       totalCost: header.totalCost,
       totalProfit: header.totalProfit,
-      cash,
-      transfer,
+      cash: paymentTotals.cash,
+      transfer: paymentTotals.transfer,
       deposits,
       depositPaymentMethod,
       depositBankName,

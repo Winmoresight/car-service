@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
+import { combineLegacyBangkokDateTime } from "@/lib/legacy-date-time";
 import type { ApiResponse, BarcodeScanResult } from "@/types/api";
 
 type LookupQueryStage =
@@ -520,6 +521,7 @@ export async function GET(request: NextRequest) {
       ),
       runLookupQuery<{
         date: Date;
+        movementTime: string;
         type: "in" | "out";
         quantity: number;
         stock: number;
@@ -534,6 +536,7 @@ export async function GET(request: NextRequest) {
         `
           SELECT TOP 100
             movement.DateSave as date,
+            ISNULL(movement.Times, '') as movementTime,
             CASE
               WHEN movement.Debit > 0 THEN 'in'
               ELSE 'out'
@@ -624,7 +627,9 @@ export async function GET(request: NextRequest) {
       lastMovementAt: toIsoString(row.lastMovementAt),
       source: row.source,
       recentMovements: movementRows.map((movement) => ({
-        date: new Date(movement.date).toISOString(),
+        date:
+          combineLegacyBangkokDateTime(movement.date, movement.movementTime) ??
+          new Date(movement.date).toISOString(),
         type: movement.type,
         quantity: Number(movement.quantity) || 0,
         stock: Number(movement.stock) || 0,

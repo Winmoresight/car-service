@@ -163,7 +163,24 @@ export interface CategorySalesShareItem {
 export interface CategorySalesShare {
   categories: CategorySalesShareItem[];
   totalAmount: number;
+  totalProfit: number;
   totalQuantity: number;
+}
+
+export interface CategorySalesDetailItem {
+  billNumber: string;
+  date: string;
+  itemName: string;
+  vehicleRegistration: string;
+  quantity: number;
+  amount: number;
+}
+
+export interface CategorySalesDetail {
+  items: CategorySalesDetailItem[];
+  totalCount: number;
+  limit: number;
+  hasMore: boolean;
 }
 
 // Loss Product (รายการขาดทุน)

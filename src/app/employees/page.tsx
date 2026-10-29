@@ -7,8 +7,6 @@ import {
   CalendarDays,
   ChevronRight,
   DollarSign,
-  Eye,
-  EyeOff,
   IdCard,
   KeyRound,
   LoaderCircle,
@@ -106,7 +104,6 @@ export default function EmployeesPage() {
   const [confirmationCode, setConfirmationCode] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [canManage, setCanManage] = useState(false);
-  const [salaryAmountsVisible, setSalaryAmountsVisible] = useState(false);
   const [employeePhone, setEmployeePhone] = useState("");
   const [isSavingAccess, setIsSavingAccess] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -121,10 +118,6 @@ export default function EmployeesPage() {
       maximumFractionDigits: fractionDigits,
     }).format(value || 0);
   };
-
-  const amountsVisible = !canManage || salaryAmountsVisible;
-  const formatSensitiveCurrency = (value: number, fractionDigits = 0) =>
-    amountsVisible ? formatCurrency(value, fractionDigits) : "••••••";
 
   const formatDate = (dateString: string) => {
     if (!dateString) {
@@ -420,21 +413,6 @@ export default function EmployeesPage() {
                   เพิ่มพนักงาน
                 </Button>
               )}
-              {canManage && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-10 rounded-[8px]"
-                  onClick={() => setSalaryAmountsVisible((visible) => !visible)}
-                  aria-pressed={salaryAmountsVisible}
-                  aria-label={
-                    salaryAmountsVisible ? "ซ่อนยอดเงินเดือน" : "แสดงยอดเงินเดือน"
-                  }
-                >
-                  {salaryAmountsVisible ? <Eye /> : <EyeOff />}
-                  {salaryAmountsVisible ? "ซ่อนยอดเงิน" : "แสดงยอดเงิน"}
-                </Button>
-              )}
               <Button asChild className="h-10">
                 <Link href="/employees/attendance">
                   <CalendarCheck2 />
@@ -462,15 +440,15 @@ export default function EmployeesPage() {
             />
             <KPICard
               title="ค่าแรงเฉลี่ย/วัน"
-              value={amountsVisible ? averageWage : "••••••"}
-              format={amountsVisible ? "currency" : undefined}
+              value={averageWage}
+              format="currency"
               icon={DollarSign}
               variant="emerald"
             />
             <KPICard
               title="ยอดจ่ายล่าสุด"
-              value={amountsVisible ? totalSalary : "••••••"}
-              format={amountsVisible ? "currency" : undefined}
+              value={totalSalary}
+              format="currency"
               subtitle={`${recentPayments.length.toLocaleString("th-TH")} รายการล่าสุด`}
               icon={ReceiptText}
               variant="red"
@@ -644,7 +622,7 @@ export default function EmployeesPage() {
                             )}
                           >
                             {emp.PriceToWorkDay
-                              ? formatSensitiveCurrency(emp.PriceToWorkDay)
+                              ? formatCurrency(emp.PriceToWorkDay)
                               : "-"}
                           </span>
                           <span
@@ -757,7 +735,7 @@ export default function EmployeesPage() {
                   "h-8 rounded-full px-4 text-sm font-bold text-card-foreground",
                 )}
               >
-                {formatSensitiveCurrency(totalSalary, 2)}
+                {formatCurrency(totalSalary, 2)}
               </Badge>
             </div>
           </div>
@@ -875,7 +853,7 @@ export default function EmployeesPage() {
                                 "text-sm font-bold text-card-foreground min-[500px]:text-base",
                               )}
                             >
-                              {formatSensitiveCurrency(payment.TotalPrice, 2)}
+                              {formatCurrency(payment.TotalPrice, 2)}
                             </span>
                             <span className="text-sm font-semibold text-muted-foreground min-[900px]:hidden">
                               {payment.NamePositions || "ไม่ระบุตำแหน่ง"}
@@ -1151,10 +1129,7 @@ export default function EmployeesPage() {
                   {
                     label: "ค่าแรงต่อวัน",
                     value: selectedEmployee.PriceToWorkDay
-                      ? formatSensitiveCurrency(
-                          selectedEmployee.PriceToWorkDay,
-                          2,
-                        )
+                      ? formatCurrency(selectedEmployee.PriceToWorkDay, 2)
                       : "ไม่ระบุ",
                     icon: DollarSign,
                   },
