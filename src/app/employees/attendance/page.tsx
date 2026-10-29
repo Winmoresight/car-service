@@ -323,6 +323,7 @@ export default function EmployeeAttendancePage() {
   const [saving, setSaving] = useState(false);
   const [savingAdjustments, setSavingAdjustments] = useState(false);
   const [settlingPayroll, setSettlingPayroll] = useState(false);
+  const [settleDialogOpen, setSettleDialogOpen] = useState(false);
   const [bulkStatus, setBulkStatus] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [activeTab, setActiveTab] = useState("daily");
@@ -771,14 +772,6 @@ export default function EmployeeAttendancePage() {
   };
 
   const handleSettlePayroll = async () => {
-    if (
-      !window.confirm(
-        `ยืนยันว่าจ่ายเงินเดือนรอบ ${payPeriod.label} แล้วใช่ไหม? หลังปิดรอบจะไม่สามารถแก้รายการหักของรอบนี้ได้`,
-      )
-    ) {
-      return;
-    }
-
     const saved = await handleSaveAdjustments();
     if (!saved) {
       return;
@@ -804,6 +797,7 @@ export default function EmployeeAttendancePage() {
         title: "✅ ปิดรอบและบันทึกการจ่ายแล้ว",
         description: `ระบบบันทึกยอดสุทธิ ยอดหนี้คงเหลือ และเวลาจ่ายของรอบ ${payPeriod.label} แล้ว`,
       });
+      setSettleDialogOpen(false);
       setRefreshKey((current) => current + 1);
     } catch (settlementError) {
       toast.add({
@@ -1435,14 +1429,6 @@ export default function EmployeeAttendancePage() {
                           {formatCurrency(selectedReportRow.netWage)}
                         </strong>
                       </div>
-                      <div className="flex justify-between border-t px-3 py-1">
-                        <span>ยอดจ่ายจริง</span>
-                        <strong>
-                          {selectedReportRow.paidAmount === null
-                            ? "ยังไม่จ่าย"
-                            : formatCurrency(selectedReportRow.paidAmount)}
-                        </strong>
-                      </div>
                     </div>
                     {selectedAdjustmentNote ? (
                       <p className="mt-1 text-sm">
@@ -1460,24 +1446,24 @@ export default function EmployeeAttendancePage() {
                         รวม {formatCurrency(selectedReportRow.advanceAmount)}
                       </p>
                     </div>
-                    <div className="mt-1 grid grid-cols-2 overflow-hidden border text-sm">
+                    <div className="mt-1 overflow-hidden border text-sm">
                       {selectedEmployeeAdvances.length > 0 ? (
                         selectedEmployeeAdvances.map((advance) => (
                           <div
                             key={`${advance.date}:${advance.codeStaff}`}
-                            className="flex justify-between gap-2 border-b px-2 py-1 odd:border-r last:border-b-0"
+                            className="flex justify-between gap-4 border-b px-3 py-1 last:border-b-0"
                           >
                             <span>{formatThaiDate(advance.date)}</span>
                             <span>{formatCurrency(advance.amount)}</span>
                           </div>
                         ))
                       ) : (
-                        <div className="col-span-2 px-3 py-2 text-neutral-600">
+                        <div className="px-3 py-2 text-neutral-600">
                           ไม่มีรายการเบิกตามวันที่ในรอบนี้
                         </div>
                       )}
                       {selectedReportRow.manualAdvance > 0 ? (
-                        <div className="col-span-2 flex justify-between border-t px-3 py-1">
+                        <div className="flex justify-between border-t px-3 py-1">
                           <span>ยอดเบิกปรับเพิ่ม</span>
                           <span>
                             {formatCurrency(selectedReportRow.manualAdvance)}
@@ -1490,14 +1476,10 @@ export default function EmployeeAttendancePage() {
 
                 <section className="mt-auto grid grid-cols-2 gap-12 pt-3 text-center text-sm break-inside-avoid">
                   <div>
-                    <div className="h-6 border-b border-black" />
-                    <p className="mt-1">ผู้รับเงิน</p>
-                    <p>วันที่ ______ / ______ / ______</p>
+                    <p>ลงชื่อ ______________________________ ผู้รับเงิน</p>
                   </div>
                   <div>
-                    <div className="h-6 border-b border-black" />
-                    <p className="mt-1">ผู้จ่ายเงิน/ผู้อนุมัติ</p>
-                    <p>วันที่ ______ / ______ / ______</p>
+                    <p>ลงชื่อ ______________________________ ผู้จ่ายเงิน/ผู้อนุมัติ</p>
                   </div>
                 </section>
               </article>
@@ -1747,13 +1729,13 @@ export default function EmployeeAttendancePage() {
                       <TableHead className="min-w-28 text-right font-semibold">
                         ค่าแรงสะสม (บาท)
                       </TableHead>
-                      <TableHead className="min-w-36 font-semibold">
+                      <TableHead className="w-48 min-w-48 max-w-48 font-semibold">
                         ประกันสังคม/เดือน (บาท)
                       </TableHead>
-                      <TableHead className="min-w-40 font-semibold">
+                      <TableHead className="w-48 min-w-48 max-w-48 font-semibold">
                         หนี้ค้าง/หักอื่น (บาท)
                       </TableHead>
-                      <TableHead className="min-w-40 font-semibold">
+                      <TableHead className="w-48 min-w-48 max-w-48 font-semibold">
                         กรอกยอดเบิกเพิ่ม (บาท)
                       </TableHead>
                       <TableHead className="min-w-32 text-right font-semibold">
@@ -1781,7 +1763,7 @@ export default function EmployeeAttendancePage() {
                         <TableCell className="py-5 text-right font-semibold">
                           {formatAmount(row.grossWage)}
                         </TableCell>
-                        <TableCell className="py-5">
+                        <TableCell className="w-48 min-w-48 max-w-48 py-5 align-top">
                           <Input
                             type="number"
                             min="0"
@@ -1813,7 +1795,7 @@ export default function EmployeeAttendancePage() {
                                   : "กำหนดให้หักงวด 1–15 · ยังไม่พบการบันทึก"}
                           </p>
                         </TableCell>
-                        <TableCell className="py-5">
+                        <TableCell className="w-48 min-w-48 max-w-48 py-5 align-top">
                           <Input
                             type="number"
                             min="0"
@@ -1836,7 +1818,7 @@ export default function EmployeeAttendancePage() {
                             }
                           />
                         </TableCell>
-                        <TableCell className="py-5">
+                        <TableCell className="w-48 min-w-48 max-w-48 py-5 align-top">
                           <Input
                             type="number"
                             min="0"
@@ -1918,7 +1900,7 @@ export default function EmployeeAttendancePage() {
                       payrollSettled ||
                       data.employees.length === 0
                     }
-                    onClick={handleSettlePayroll}
+                    onClick={() => setSettleDialogOpen(true)}
                     aria-busy={settlingPayroll}
                   >
                     {settlingPayroll ? (
@@ -2156,6 +2138,70 @@ export default function EmployeeAttendancePage() {
             </section>
           </TabsContent>
         </Tabs>
+
+        <Dialog
+          open={settleDialogOpen}
+          onOpenChange={(open) => {
+            if (!savingAdjustments && !settlingPayroll) {
+              setSettleDialogOpen(open);
+            }
+          }}
+        >
+          <DialogContent
+            showCloseButton={false}
+            className="max-w-lg gap-0 overflow-hidden rounded-2xl p-0 text-base"
+          >
+            <DialogHeader className="border-b p-5 text-left">
+              <DialogTitle className="text-xl font-semibold">
+                ยืนยันจ่ายเงินและปิดรอบ
+              </DialogTitle>
+              <DialogDescription>รอบค่าแรง {payPeriod.label}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 p-5">
+              <div className="flex justify-between gap-4 rounded-[8px] bg-secondary/60 px-4 py-3">
+                <span className="text-muted-foreground">พนักงาน</span>
+                <strong>{data.employees.length} คน</strong>
+              </div>
+              <div className="flex justify-between gap-4 rounded-[8px] bg-secondary/60 px-4 py-3">
+                <span className="text-muted-foreground">ยอดสุทธิรวม</span>
+                <strong>{formatCurrency(periodTotals.netWage)}</strong>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                หลังยืนยัน ระบบจะบันทึกยอดสุทธิ ยอดหนี้คงเหลือ และเวลาจ่าย
+                จากนั้นจะไม่สามารถแก้รายการหักของรอบนี้ได้
+              </p>
+            </div>
+            <DialogFooter className="m-0 rounded-none">
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-[8px]"
+                disabled={savingAdjustments || settlingPayroll}
+                onClick={() => setSettleDialogOpen(false)}
+              >
+                ยกเลิก
+              </Button>
+              <Button
+                type="button"
+                className="rounded-[8px]"
+                disabled={savingAdjustments || settlingPayroll}
+                onClick={handleSettlePayroll}
+                aria-busy={savingAdjustments || settlingPayroll}
+              >
+                {savingAdjustments || settlingPayroll ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <CheckCircle2 />
+                )}
+                {savingAdjustments
+                  ? "กำลังบันทึกรายการ"
+                  : settlingPayroll
+                    ? "กำลังปิดรอบ"
+                    : "ยืนยันจ่ายเงิน"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
