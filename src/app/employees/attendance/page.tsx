@@ -89,6 +89,7 @@ interface AttendanceDraft {
 
 interface PayrollAdjustment {
   codeStaff: number;
+  extraIncome: number;
   socialSecurity: number;
   monthlySocialSecurity: number;
   otherDeduction: number;
@@ -98,6 +99,7 @@ interface PayrollAdjustment {
   carryIn: number;
   snapshotPayableDays: number | null;
   snapshotGrossWage: number | null;
+  snapshotExtraIncome: number | null;
   snapshotSocialSecurity: number | null;
   snapshotOtherDeduction: number | null;
   snapshotAdvance: number | null;
@@ -109,6 +111,7 @@ interface PayrollAdjustment {
 }
 
 interface PayrollAdjustmentDraft {
+  extraIncome: string;
   socialSecurity: string;
   otherDeduction: string;
   manualAdvance: string;
@@ -385,6 +388,9 @@ export default function EmployeeAttendancePage() {
             note: record?.note ?? "",
           };
           nextAdjustmentDrafts[employee.code] = {
+            extraIncome: adjustment?.extraIncome
+              ? String(adjustment.extraIncome)
+              : "",
             socialSecurity: adjustment?.monthlySocialSecurity
               ? String(adjustment.monthlySocialSecurity)
               : "",
@@ -489,6 +495,9 @@ export default function EmployeeAttendancePage() {
       const grossWage = settled
         ? (savedAdjustment?.snapshotGrossWage ?? calculatedGrossWage)
         : calculatedGrossWage;
+      const extraIncome = settled
+        ? (savedAdjustment?.snapshotExtraIncome ?? 0)
+        : Number(adjustment?.extraIncome) || 0;
       const currentSocialSecurity = deductSocialSecurityThisPeriod
         ? monthlySocialSecurity
         : 0;
@@ -508,6 +517,7 @@ export default function EmployeeAttendancePage() {
       const carryIn = savedAdjustment?.carryIn ?? 0;
       const calculatedNetWage = calculatePayrollBalance({
         grossWage,
+        extraIncome,
         socialSecurity,
         otherDeduction,
         advanceAmount,
@@ -537,6 +547,7 @@ export default function EmployeeAttendancePage() {
         recordedDays: records.length,
         payableDays,
         grossWage,
+        extraIncome,
         monthlySocialSecurity,
         socialSecurity,
         socialSecurityDeductedThisMonth:
@@ -583,6 +594,7 @@ export default function EmployeeAttendancePage() {
     () => ({
       payableDays: periodRows.reduce((sum, row) => sum + row.payableDays, 0),
       grossWage: periodRows.reduce((sum, row) => sum + row.grossWage, 0),
+      extraIncome: periodRows.reduce((sum, row) => sum + row.extraIncome, 0),
       deductions: periodRows.reduce(
         (sum, row) => sum + row.socialSecurity + row.otherDeduction,
         0,
@@ -732,6 +744,8 @@ export default function EmployeeAttendancePage() {
           periodEnd: payPeriod.endDate,
           items: data.employees.map((employee) => ({
             codeStaff: employee.code,
+            extraIncome:
+              Number(adjustmentDrafts[employee.code]?.extraIncome) || 0,
             socialSecurity:
               Number(adjustmentDrafts[employee.code]?.socialSecurity) || 0,
             otherDeduction:
@@ -745,21 +759,21 @@ export default function EmployeeAttendancePage() {
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        const message = result.error || "บันทึกรายการหักไม่สำเร็จ";
+        const message = result.error || "บันทึกรายการเงินเดือนไม่สำเร็จ";
         throw new Error(
           result.details ? `${message}: ${result.details}` : message,
         );
       }
 
       toast.add({
-        title: "✅ บันทึกรายการหักและยอดเบิกแล้ว",
+        title: "✅ บันทึกรายการเงินเดือนแล้ว",
         description: `ข้อมูลรอบ ${payPeriod.label} ถูกบันทึกเรียบร้อยแล้ว`,
       });
       setRefreshKey((current) => current + 1);
       return true;
     } catch (saveError) {
       toast.add({
-        title: "❌ บันทึกรายการหักและยอดเบิกไม่สำเร็จ",
+        title: "❌ บันทึกรายการเงินเดือนไม่สำเร็จ",
         description:
           saveError instanceof Error
             ? saveError.message
@@ -820,6 +834,7 @@ export default function EmployeeAttendancePage() {
       ...periodDates.map((date) => formatThaiDate(date)),
       "วันคิดเงิน",
       "ค่าแรงก่อนหัก",
+      "เงินเพิ่มพิเศษ",
       "ประกันสังคม",
       "หนี้/หักอื่น",
       "ยอดเบิก",
@@ -841,6 +856,7 @@ export default function EmployeeAttendancePage() {
       ),
       row.payableDays,
       row.grossWage,
+      row.extraIncome,
       row.socialSecurity,
       row.otherDeduction,
       row.advanceAmount,
@@ -1228,11 +1244,19 @@ export default function EmployeeAttendancePage() {
                       <h3 className="font-semibold">สรุปการคำนวณ</h3>
                       <div className="mt-2 overflow-hidden rounded-[8px] border text-sm">
                         <div className="flex justify-between border-b px-3 py-2">
-                          <span>รายรับก่อนหัก</span>
+                          <span>ค่าแรงสะสม</span>
                           <span className="font-semibold">
                             {formatCurrency(selectedReportRow.grossWage)}
                           </span>
                         </div>
+                        {selectedReportRow.extraIncome > 0 ? (
+                          <div className="flex justify-between border-b px-3 py-2">
+                            <span>เงินเพิ่มพิเศษ</span>
+                            <span className="font-semibold text-main-green">
+                              +{formatCurrency(selectedReportRow.extraIncome)}
+                            </span>
+                          </div>
+                        ) : null}
                         {selectedReportRow.socialSecurity > 0 ? (
                           <div className="flex justify-between border-b px-3 py-2">
                             <span>หักประกันสังคม</span>
@@ -1394,10 +1418,16 @@ export default function EmployeeAttendancePage() {
                     <h2 className="text-base font-bold">สรุปรายรับและรายการหัก</h2>
                     <div className="mt-1 overflow-hidden border text-sm">
                       <div className="flex justify-between border-b px-3 py-1">
-                        <span>รายรับก่อนหัก</span>
+                        <span>ค่าแรงสะสม</span>
                         <strong>
                           {formatCurrency(selectedReportRow.grossWage)}
                         </strong>
+                      </div>
+                      <div className="flex justify-between border-b px-3 py-1">
+                        <span>เงินเพิ่มพิเศษ</span>
+                        <span>
+                          +{formatCurrency(selectedReportRow.extraIncome)}
+                        </span>
                       </div>
                       <div className="flex justify-between border-b px-3 py-1">
                         <span>หักประกันสังคม</span>
@@ -1683,11 +1713,11 @@ export default function EmployeeAttendancePage() {
               <div className="mb-4 flex flex-col justify-between gap-3 lg:flex-row lg:items-end">
                 <div>
                   <h2 className="text-xl font-semibold text-card-foreground">
-                    รายการหักและยอดเบิก
+                    เงินเพิ่มและรายการหัก/ยอดเบิก
                   </h2>
                   <p className="text-sm font-medium text-muted-foreground">
-                    คำนวณถึง {formatThaiDate(selectedDate)}{" "}
-                    จากค่าแรงสะสมและยอดหักในรอบนี้
+                    คำนวณถึง {formatThaiDate(selectedDate)} จากค่าแรงสะสม เงินเพิ่ม
+                    และยอดหักในรอบนี้
                   </p>
                   <p className="mt-1 text-sm font-medium text-muted-foreground">
                     ตั้งยอดประกันสังคมรายเดือนครั้งเดียว ระบบจะหักในงวด 1–15
@@ -1730,6 +1760,9 @@ export default function EmployeeAttendancePage() {
                         ค่าแรงสะสม (บาท)
                       </TableHead>
                       <TableHead className="w-48 min-w-48 max-w-48 font-semibold">
+                        เงินเพิ่มพิเศษ (บาท)
+                      </TableHead>
+                      <TableHead className="w-48 min-w-48 max-w-48 font-semibold">
                         ประกันสังคม/เดือน (บาท)
                       </TableHead>
                       <TableHead className="w-48 min-w-48 max-w-48 font-semibold">
@@ -1762,6 +1795,32 @@ export default function EmployeeAttendancePage() {
                         </TableCell>
                         <TableCell className="py-5 text-right font-semibold">
                           {formatAmount(row.grossWage)}
+                        </TableCell>
+                        <TableCell className="w-48 min-w-48 max-w-48 py-5 align-top">
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            inputMode="decimal"
+                            value={
+                              adjustmentDrafts[row.employee.code]
+                                ?.extraIncome ?? ""
+                            }
+                            onChange={(event) =>
+                              updateAdjustmentDraft(row.employee.code, {
+                                extraIncome: event.target.value,
+                              })
+                            }
+                            placeholder="0.00"
+                            className="!h-10 rounded-[8px] border-slate-300 bg-white text-right text-sm focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/15 dark:bg-background"
+                            aria-label={`เงินเพิ่มพิเศษ ${row.employee.name}`}
+                            disabled={
+                              !data.access.canManage || Boolean(row.paidAt)
+                            }
+                          />
+                          <p className="mt-1.5 text-sm font-medium text-muted-foreground">
+                            % Commission / เบี้ยขยันพิเศษ
+                          </p>
                         </TableCell>
                         <TableCell className="w-48 min-w-48 max-w-48 py-5 align-top">
                           <Input
@@ -1874,7 +1933,7 @@ export default function EmployeeAttendancePage() {
               </div>
 
               <p className="mt-3 text-sm text-muted-foreground">
-                ถ้าวงเงินติดลบ หมายถึงมียอดเบิกหรือรายการหักเกินกว่าค่าแรงที่ทำได้
+                ถ้าวงเงินติดลบ หมายถึงมียอดเบิกหรือรายการหักเกินกว่าค่าแรงและเงินเพิ่ม
                 และสามารถนำยอดไปเป็นหนี้ค้างของรอบถัดไปได้
               </p>
             </section>
@@ -1887,7 +1946,7 @@ export default function EmployeeAttendancePage() {
                   <p className="text-sm font-medium text-muted-foreground">
                     {payrollSettled
                       ? `จ่ายแล้ว ${new Date(periodRows[0].paidAt ?? "").toLocaleString("th-TH")} โดย ${periodRows[0].paidBy || "ผู้ดูแลระบบ"}`
-                      : `คำนวณถึง ${formatThaiDate(selectedDate)} หลังหักประกันสังคม รายการหักอื่น ยอดเบิก และหนี้ยกมา`}
+                      : `คำนวณถึง ${formatThaiDate(selectedDate)} รวมเงินเพิ่มและหลังหักประกันสังคม รายการหักอื่น ยอดเบิก และหนี้ยกมา`}
                   </p>
                 </div>
                 {data.access.canManage && (
@@ -1917,7 +1976,7 @@ export default function EmployeeAttendancePage() {
                 )}
               </div>
 
-              <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+              <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-7">
                 <KPICard
                   title="วันคิดค่าแรงรวม"
                   value={periodTotals.payableDays}
@@ -1928,6 +1987,13 @@ export default function EmployeeAttendancePage() {
                 <KPICard
                   title="ค่าแรงก่อนหัก"
                   value={periodTotals.grossWage}
+                  format="currency"
+                  icon={WalletCards}
+                  variant="emerald"
+                />
+                <KPICard
+                  title="เงินเพิ่มพิเศษ"
+                  value={periodTotals.extraIncome}
                   format="currency"
                   icon={WalletCards}
                   variant="emerald"
@@ -1966,7 +2032,7 @@ export default function EmployeeAttendancePage() {
                 <Table>
                   <TableHeader className="bg-secondary/70">
                     <TableRow>
-                      <TableHead className="min-w-48 font-semibold">
+                      <TableHead className="sticky left-0 z-20 min-w-48 border-r bg-secondary font-semibold">
                         พนักงาน
                       </TableHead>
                       <TableHead className="text-right font-semibold">
@@ -1994,6 +2060,9 @@ export default function EmployeeAttendancePage() {
                         ก่อนหัก (บาท)
                       </TableHead>
                       <TableHead className="text-right font-semibold">
+                        เงินเพิ่มพิเศษ (บาท)
+                      </TableHead>
+                      <TableHead className="text-right font-semibold">
                         ประกันสังคม (บาท)
                       </TableHead>
                       <TableHead className="text-right font-semibold">
@@ -2016,7 +2085,7 @@ export default function EmployeeAttendancePage() {
                   <TableBody>
                     {periodRows.map((row) => (
                       <TableRow key={row.employee.code} className="[&>td]:py-5">
-                        <TableCell className="py-5">
+                        <TableCell className="sticky left-0 z-10 border-r bg-card py-5">
                           <div className="font-semibold">
                             {row.employee.name}
                           </div>
@@ -2074,6 +2143,16 @@ export default function EmployeeAttendancePage() {
                         </TableCell>
                         <TableCell className="text-right">
                           {formatAmount(row.grossWage)}
+                        </TableCell>
+                        <TableCell
+                          className={cn(
+                            "text-right",
+                            row.extraIncome > 0
+                              ? "font-semibold text-main-green"
+                              : "text-muted-foreground",
+                          )}
+                        >
+                          {formatAmount(row.extraIncome)}
                         </TableCell>
                         <TableCell
                           className={cn(
@@ -2168,7 +2247,7 @@ export default function EmployeeAttendancePage() {
               </div>
               <p className="text-sm text-muted-foreground">
                 หลังยืนยัน ระบบจะบันทึกยอดสุทธิ ยอดหนี้คงเหลือ และเวลาจ่าย
-                จากนั้นจะไม่สามารถแก้รายการหักของรอบนี้ได้
+                จากนั้นจะไม่สามารถแก้เงินเพิ่มหรือรายการหักของรอบนี้ได้
               </p>
             </div>
             <DialogFooter className="m-0 rounded-none">

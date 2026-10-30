@@ -19,6 +19,7 @@ import { useState } from "react";
 import type { DateRange } from "react-day-picker";
 import useSWR from "swr";
 import DashboardBreadcrumb from "@/components/dashboard/dashboard-breadcrumb";
+import { KPICard } from "@/components/dashboard/kpi-card";
 import { outfit } from "@/components/fonts/fonts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -245,97 +246,35 @@ export default function CashInvoicesPage() {
           </div>
 
           {/* Summary Cards */}
-          <div className="grid min-[600px]:grid-cols-2 min-[1280px]:grid-cols-4 gap-4">
-            <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
-              <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
-                  <FileText
-                    strokeWidth={2.5}
-                    className="text-main-blue w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
-                  />
-                </div>
-                <div className="flex flex-col items-end min-[600px]:items-start gap-1">
-                  <span className="text-primary text-lg font-semibold">
-                    ใบกำกับทั้งหมด
-                  </span>
-                  <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
-                    <span className={`${outfit.className}`}>
-                      {summary.totalInvoices.toLocaleString()}
-                    </span>{" "}
-                    ใบ
-                  </h3>
-                </div>
-              </div>
-            </div>
-
-            <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
-              <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
-                  <Receipt
-                    strokeWidth={2.5}
-                    className="text-main-green w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
-                  />
-                </div>
-                <div className="flex flex-col items-end min-[600px]:items-start gap-1">
-                  <span className="text-primary text-lg font-semibold">
-                    รายการทั้งหมด
-                  </span>
-                  <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
-                    <span className={`${outfit.className}`}>
-                      {total.toLocaleString()}
-                    </span>{" "}
-                    รายการ
-                  </h3>
-                </div>
-              </div>
-            </div>
-
-            <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
-              <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
-                  <ShoppingCart
-                    strokeWidth={2.5}
-                    className="text-main-orange w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
-                  />
-                </div>
-                <div className="flex flex-col items-end min-[600px]:items-start gap-1">
-                  <span className="text-primary text-lg font-semibold">
-                    จำนวนสินค้า
-                  </span>
-                  <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
-                    <span className={`${outfit.className}`}>
-                      {summary.totalQuantity.toLocaleString()}
-                    </span>{" "}
-                    ชิ้น
-                  </h3>
-                </div>
-              </div>
-            </div>
-
-            <div className="col-span-1 w-full bg-background dark:bg-secondary rounded-[8px] border p-4">
-              <div className="flex min-[600px]:flex-col justify-between min-[600px]:justify-start gap-3">
-                <div className="flex items-center justify-center w-[66px] h-[66px] min-[450px]:w-[70px] min-[450px]:h-[70px] rounded-[8px] min-[600px]:w-12 min-[600px]:h-12 min-[600px]:rounded-full border bg-white dark:bg-background/65 shrink-0">
-                  <TrendingUp
-                    strokeWidth={2.5}
-                    className="text-main-green w-10 h-10 min-[600px]:w-6 min-[600px]:h-6"
-                  />
-                </div>
-                <div className="flex flex-col items-end min-[600px]:items-start gap-1">
-                  <span className="text-primary text-lg font-semibold">
-                    ยอดขายรวม
-                  </span>
-                  <h3 className="text-primary text-[20px] min-[350px]:text-2xl min-[450px]:text-3xl min-[600px]:text-4xl font-bold text-left">
-                    <span className={`${outfit.className}`}>
-                      {(summary.totalAmount || 0).toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
-                    </span>{" "}
-                    บาท
-                  </h3>
-                </div>
-              </div>
-            </div>
+          <div className="grid gap-4 min-[600px]:grid-cols-2 min-[1280px]:grid-cols-4">
+            <KPICard
+              title="ใบกำกับทั้งหมด"
+              value={summary.totalInvoices}
+              unit="ใบ"
+              icon={FileText}
+              variant="blue"
+            />
+            <KPICard
+              title="รายการทั้งหมด"
+              value={total}
+              unit="รายการ"
+              icon={Receipt}
+              variant="emerald"
+            />
+            <KPICard
+              title="จำนวนสินค้า"
+              value={summary.totalQuantity}
+              unit="ชิ้น"
+              icon={ShoppingCart}
+              variant="orange"
+            />
+            <KPICard
+              title="ยอดขายรวม"
+              value={summary.totalAmount || 0}
+              format="currency"
+              icon={TrendingUp}
+              variant="emerald"
+            />
           </div>
 
           {/* Filters & Actions below the cards */}
@@ -482,9 +421,9 @@ export default function CashInvoicesPage() {
                     {cashInvoices.map((invoice, index) => (
                       <TableRow
                         key={`${invoice.invoiceNo}-${index}`}
-                        className="group border-border/60 transition-colors duration-200 hover:bg-blue-50/30 dark:hover:bg-blue-500/5"
+                        className="group border-border/60 transition-colors duration-200 hover:bg-blue-50/30 dark:hover:bg-blue-500/5 [&>td]:py-5"
                       >
-                        <TableCell className="px-4 py-4 font-medium">
+                        <TableCell className="px-4 font-medium">
                           <div className="flex min-w-0 flex-col">
                             <span
                               className={cn(

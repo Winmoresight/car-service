@@ -1,11 +1,13 @@
 export function calculatePayrollBalance({
   grossWage,
+  extraIncome,
   socialSecurity,
   otherDeduction,
   advanceAmount,
   carryIn,
 }: {
   grossWage: number;
+  extraIncome: number;
   socialSecurity: number;
   otherDeduction: number;
   advanceAmount: number;
@@ -13,7 +15,8 @@ export function calculatePayrollBalance({
 }) {
   const netWage = Number(
     (
-      grossWage -
+      grossWage +
+      extraIncome -
       socialSecurity -
       otherDeduction -
       advanceAmount -

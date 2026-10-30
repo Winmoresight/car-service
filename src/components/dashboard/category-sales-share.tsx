@@ -145,7 +145,7 @@ export function CategorySalesShareCard({
         0,
       )
     : null;
-  const displayCategories: CategorySalesShareItem[] = [
+  const chartCategories: CategorySalesShareItem[] = [
     ...topCategories,
     ...(remainingCategories.length > 0
       ? [
@@ -164,7 +164,7 @@ export function CategorySalesShareCard({
         ]
       : []),
   ];
-  const allVisibleProfitsUnavailable = displayCategories.every(
+  const allProfitsUnavailable = categories.every(
     (category) => category.profit === null,
   );
   const excludedCategoryIdSet = new Set(excludedCategoryIds);
@@ -228,7 +228,20 @@ export function CategorySalesShareCard({
           </div>
         </div>
 
-        <div className="flex flex-col items-start gap-2 min-[520px]:flex-row min-[520px]:items-center">
+        <div className="flex flex-col items-start gap-2 min-[520px]:flex-row min-[520px]:flex-wrap min-[520px]:items-center min-[520px]:justify-end">
+          {allProfitsUnavailable ? (
+            <Button
+              asChild
+              variant="outline"
+              className="h-10 gap-2 px-3 text-sm"
+            >
+              <Link href="/products/categories">
+                <Settings2 className="h-4 w-4" />
+                ตั้งค่า % กำไร
+              </Link>
+            </Button>
+          ) : null}
+
           <Popover>
             <PopoverTrigger asChild>
               <Button
@@ -331,8 +344,8 @@ export function CategorySalesShareCard({
 
       {isLoading ? (
         <div className="grid gap-5 lg:grid-cols-[minmax(300px,0.8fr)_minmax(0,1.2fr)]">
-          <Skeleton className="h-[330px] rounded-2xl" />
-          <Skeleton className="h-[330px] rounded-2xl" />
+          <Skeleton className="h-[430px] rounded-2xl" />
+          <Skeleton className="h-[430px] rounded-2xl" />
         </div>
       ) : hasError ? (
         <div className="rounded-2xl border px-4 py-12 text-center text-sm font-semibold text-destructive">
@@ -344,8 +357,8 @@ export function CategorySalesShareCard({
         </div>
       ) : (
         <div className="grid gap-5 lg:grid-cols-[minmax(300px,0.8fr)_minmax(0,1.2fr)]">
-          <div className="relative flex min-h-[330px] items-center justify-center rounded-2xl border bg-muted/15">
-            <ChartContainer config={chartConfig} className="h-[330px] w-full">
+          <div className="relative flex min-h-[430px] items-center justify-center rounded-2xl border bg-muted/15">
+            <ChartContainer config={chartConfig} className="h-[430px] w-full">
               <PieChart>
                 <defs>
                   {segmentColors.map((color, index) => (
@@ -390,7 +403,7 @@ export function CategorySalesShareCard({
                   }
                 />
                 <Pie
-                  data={displayCategories}
+                  data={chartCategories}
                   dataKey="quantity"
                   nameKey="name"
                   innerRadius={82}
@@ -400,7 +413,7 @@ export function CategorySalesShareCard({
                   stroke="var(--card)"
                   strokeWidth={4}
                 >
-                  {displayCategories.map((category, index) => (
+                  {chartCategories.map((category, index) => (
                     <Cell
                       key={category.name}
                       fill={`url(#${patternIdPrefix}-category-hatch-${index % segmentColors.length})`}
@@ -417,7 +430,7 @@ export function CategorySalesShareCard({
             </div>
           </div>
 
-          <div className="self-start overflow-hidden rounded-2xl border">
+          <div className="flex h-[430px] min-w-0 flex-col self-start overflow-hidden rounded-2xl border">
             <div className="grid grid-cols-2 divide-x border-b bg-muted/15">
               <div className="px-3 py-3">
                 <p className="text-sm font-medium text-muted-foreground">
@@ -431,7 +444,7 @@ export function CategorySalesShareCard({
                 <p className="text-sm font-medium text-muted-foreground">
                   กำไรรวม
                 </p>
-                <p className="mt-1 text-lg font-semibold tabular-nums">
+                <p className="mt-1 text-lg font-semibold tabular-nums text-main-green">
                   {formatCurrency(data?.totalProfit ?? 0)}
                 </p>
               </div>
@@ -439,7 +452,7 @@ export function CategorySalesShareCard({
             <div
               className={cn(
                 "grid gap-2 border-b bg-muted/35 px-3 py-2 text-sm font-medium text-muted-foreground max-[560px]:grid-cols-[32px_minmax(0,1fr)_72px]",
-                allVisibleProfitsUnavailable
+                allProfitsUnavailable
                   ? "grid-cols-[36px_minmax(0,1fr)_82px_110px]"
                   : "grid-cols-[36px_minmax(0,1fr)_82px_110px_110px]",
               )}
@@ -448,17 +461,12 @@ export function CategorySalesShareCard({
               <span>ประเภทสินค้า</span>
               <span className="text-right">สัดส่วน</span>
               <span className="text-right max-[560px]:hidden">ยอดขาย</span>
-              {!allVisibleProfitsUnavailable ? (
+              {!allProfitsUnavailable ? (
                 <span className="text-right max-[560px]:hidden">กำไร</span>
               ) : null}
             </div>
-            <div className="divide-y">
-              {displayCategories.map((category, index) => {
-                const detailNames =
-                  index < topCategories.length
-                    ? [category.name]
-                    : remainingCategories.map((item) => item.name);
-
+            <div className="min-h-0 flex-1 divide-y overflow-y-auto">
+              {categories.map((category, index) => {
                 return (
                   <button
                     key={category.name}
@@ -466,12 +474,15 @@ export function CategorySalesShareCard({
                     aria-label={`ดูรายละเอียด ${category.name}`}
                     className={cn(
                       "group grid w-full items-center gap-2 px-3 py-3 text-left text-sm transition-colors hover:bg-muted/35 focus-visible:bg-muted/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset max-[560px]:grid-cols-[32px_minmax(0,1fr)_72px]",
-                      allVisibleProfitsUnavailable
+                      allProfitsUnavailable
                         ? "grid-cols-[36px_minmax(0,1fr)_82px_110px]"
                         : "grid-cols-[36px_minmax(0,1fr)_82px_110px_110px]",
                     )}
                     onClick={() =>
-                      setSelectedCategory({ name: category.name, detailNames })
+                      setSelectedCategory({
+                        name: category.name,
+                        detailNames: [category.name],
+                      })
                     }
                   >
                     <span className="text-sm font-medium tabular-nums text-muted-foreground">
@@ -482,9 +493,9 @@ export function CategorySalesShareCard({
                         className="h-2.5 w-2.5 shrink-0 rounded-[3px]"
                         style={{
                           backgroundColor:
-                            index < segmentColors.length
-                              ? segmentColors[index]
-                              : "var(--muted-foreground)",
+                            segmentColors[
+                              Math.min(index, segmentColors.length - 1)
+                            ],
                         }}
                       />
                       <span className="min-w-0 flex-1">
@@ -503,7 +514,7 @@ export function CategorySalesShareCard({
                     <span className="truncate text-right text-sm font-medium tabular-nums text-muted-foreground max-[560px]:hidden">
                       {formatCurrency(category.amount)}
                     </span>
-                    {!allVisibleProfitsUnavailable ? (
+                    {!allProfitsUnavailable ? (
                       <span className="min-w-0 text-right max-[560px]:hidden">
                         <span className="block truncate text-sm font-medium tabular-nums">
                           {category.profit === null
@@ -521,19 +532,6 @@ export function CategorySalesShareCard({
                 );
               })}
             </div>
-            {allVisibleProfitsUnavailable ? (
-              <div className="flex flex-col gap-3 border-t bg-muted/25 px-3 py-3 min-[560px]:flex-row min-[560px]:items-center min-[560px]:justify-between">
-                <p className="text-sm font-medium text-muted-foreground">
-                  ยังไม่ได้ตั้งค่าเปอร์เซ็นต์กำไรตามประเภทสินค้า
-                </p>
-                <Button asChild variant="outline" size="sm">
-                  <Link href="/products/categories">
-                    <Settings2 className="h-4 w-4" />
-                    ตั้งค่า % กำไร
-                  </Link>
-                </Button>
-              </div>
-            ) : null}
           </div>
         </div>
       )}

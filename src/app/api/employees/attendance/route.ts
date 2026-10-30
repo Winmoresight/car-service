@@ -35,6 +35,7 @@ interface PayrollAdjustmentPayload {
 
 interface PayrollAdjustmentItem {
   codeStaff: number;
+  extraIncome: number;
   socialSecurity: number;
   otherDeduction: number;
   manualAdvance: number;
@@ -139,6 +140,7 @@ function normalizeAdjustmentItems(value: unknown) {
 
     const item = rawItem as Record<string, unknown>;
     const codeStaff = Number(item.codeStaff);
+    const extraIncome = normalizeMoney(item.extraIncome);
     const socialSecurity = normalizeMoney(item.socialSecurity);
     const otherDeduction = normalizeMoney(item.otherDeduction);
     const manualAdvance = normalizeMoney(item.manualAdvance);
@@ -146,6 +148,7 @@ function normalizeAdjustmentItems(value: unknown) {
     if (
       !Number.isInteger(codeStaff) ||
       codeStaff <= 0 ||
+      extraIncome === null ||
       socialSecurity === null ||
       otherDeduction === null ||
       manualAdvance === null ||
@@ -157,6 +160,7 @@ function normalizeAdjustmentItems(value: unknown) {
     seenEmployees.add(codeStaff);
     items.push({
       codeStaff,
+      extraIncome,
       socialSecurity,
       otherDeduction,
       manualAdvance,
@@ -201,6 +205,8 @@ async function ensurePayrollAdjustmentTable() {
           PeriodStart date NOT NULL,
           PeriodEnd date NOT NULL,
           CodeStaff int NOT NULL,
+          ExtraIncome decimal(18, 2) NOT NULL
+            CONSTRAINT DF_${payrollAdjustmentTable}_ExtraIncome DEFAULT 0,
           SocialSecurity decimal(18, 2) NOT NULL
             CONSTRAINT DF_${payrollAdjustmentTable}_Social DEFAULT 0,
           OtherDeduction decimal(18, 2) NOT NULL
@@ -211,6 +217,7 @@ async function ensurePayrollAdjustmentTable() {
             CONSTRAINT DF_${payrollAdjustmentTable}_CarryIn DEFAULT 0,
           SnapshotPayableDays decimal(5, 1) NULL,
           SnapshotGrossWage decimal(18, 2) NULL,
+          SnapshotExtraIncome decimal(18, 2) NULL,
           SnapshotSocialSecurity decimal(18, 2) NULL,
           SnapshotOtherDeduction decimal(18, 2) NULL,
           SnapshotAdvance decimal(18, 2) NULL,
@@ -238,6 +245,9 @@ async function ensurePayrollAdjustmentTable() {
           CONSTRAINT DF_${payrollAdjustmentTable}_Advance DEFAULT 0
       END
 
+      IF COL_LENGTH(N'dbo.${payrollAdjustmentTable}', N'ExtraIncome') IS NULL
+        ALTER TABLE dbo.${payrollAdjustmentTable} ADD ExtraIncome decimal(18, 2) NOT NULL CONSTRAINT DF_${payrollAdjustmentTable}_ExtraIncome DEFAULT 0
+
 
       IF COL_LENGTH(N'dbo.${payrollAdjustmentTable}', N'CarryIn') IS NULL
         ALTER TABLE dbo.${payrollAdjustmentTable} ADD CarryIn decimal(18, 2) NOT NULL CONSTRAINT DF_${payrollAdjustmentTable}_CarryIn DEFAULT 0
@@ -245,6 +255,8 @@ async function ensurePayrollAdjustmentTable() {
         ALTER TABLE dbo.${payrollAdjustmentTable} ADD SnapshotPayableDays decimal(5, 1) NULL
       IF COL_LENGTH(N'dbo.${payrollAdjustmentTable}', N'SnapshotGrossWage') IS NULL
         ALTER TABLE dbo.${payrollAdjustmentTable} ADD SnapshotGrossWage decimal(18, 2) NULL
+      IF COL_LENGTH(N'dbo.${payrollAdjustmentTable}', N'SnapshotExtraIncome') IS NULL
+        ALTER TABLE dbo.${payrollAdjustmentTable} ADD SnapshotExtraIncome decimal(18, 2) NULL
       IF COL_LENGTH(N'dbo.${payrollAdjustmentTable}', N'SnapshotSocialSecurity') IS NULL
         ALTER TABLE dbo.${payrollAdjustmentTable} ADD SnapshotSocialSecurity decimal(18, 2) NULL
       IF COL_LENGTH(N'dbo.${payrollAdjustmentTable}', N'SnapshotOtherDeduction') IS NULL
@@ -388,6 +400,7 @@ export async function GET(request: NextRequest) {
       ),
       executeQuery<{
         codeStaff: number;
+        extraIncome: number | string;
         socialSecurity: number | string;
         otherDeduction: number | string;
         manualAdvance: number | string;
@@ -397,6 +410,7 @@ export async function GET(request: NextRequest) {
         carryIn: number | string;
         snapshotPayableDays: number | string | null;
         snapshotGrossWage: number | string | null;
+        snapshotExtraIncome: number | string | null;
         snapshotSocialSecurity: number | string | null;
         snapshotOtherDeduction: number | string | null;
         snapshotAdvance: number | string | null;
@@ -409,6 +423,7 @@ export async function GET(request: NextRequest) {
         `
           SELECT
             employee.Code as codeStaff,
+            ISNULL(currentPeriod.ExtraIncome, 0) as extraIncome,
             CASE WHEN DAY(@startDate) = 1
               THEN ISNULL(settings.SocialSecurityMonthly, 0)
               ELSE 0
@@ -423,6 +438,7 @@ export async function GET(request: NextRequest) {
             END as carryIn,
             currentPeriod.SnapshotPayableDays as snapshotPayableDays,
             currentPeriod.SnapshotGrossWage as snapshotGrossWage,
+            currentPeriod.SnapshotExtraIncome as snapshotExtraIncome,
             currentPeriod.SnapshotSocialSecurity as snapshotSocialSecurity,
             currentPeriod.SnapshotOtherDeduction as snapshotOtherDeduction,
             currentPeriod.SnapshotAdvance as snapshotAdvance,
@@ -535,6 +551,7 @@ export async function GET(request: NextRequest) {
         })),
         adjustments: adjustments.map((adjustment) => ({
           codeStaff: Number(adjustment.codeStaff),
+          extraIncome: Number(adjustment.extraIncome) || 0,
           socialSecurity: Number(adjustment.socialSecurity) || 0,
           monthlySocialSecurity: Number(adjustment.monthlySocialSecurity) || 0,
           otherDeduction: Number(adjustment.otherDeduction) || 0,
@@ -549,6 +566,10 @@ export async function GET(request: NextRequest) {
             adjustment.snapshotGrossWage === null
               ? null
               : Number(adjustment.snapshotGrossWage),
+          snapshotExtraIncome:
+            adjustment.snapshotExtraIncome === null
+              ? null
+              : Number(adjustment.snapshotExtraIncome),
           snapshotSocialSecurity:
             adjustment.snapshotSocialSecurity === null
               ? null
@@ -615,7 +636,7 @@ export async function PATCH(request: NextRequest) {
 
     if (!periodStart || !periodEnd || periodStart > periodEnd || !items) {
       return NextResponse.json(
-        { success: false, error: "กรุณาระบุรายการหักและยอดเบิกให้ถูกต้อง" },
+        { success: false, error: "กรุณาระบุรายการเงินเดือนให้ถูกต้อง" },
         { status: 400 },
       );
     }
@@ -648,6 +669,7 @@ export async function PATCH(request: NextRequest) {
       saveRequest.input("periodStart", sql.Date, periodStart);
       saveRequest.input("periodEnd", sql.Date, periodEnd);
       saveRequest.input("codeStaff", sql.Int, item.codeStaff);
+      saveRequest.input("extraIncome", sql.Decimal(18, 2), item.extraIncome);
       saveRequest.input(
         "socialSecurity",
         sql.Decimal(18, 2),
@@ -705,6 +727,7 @@ export async function PATCH(request: NextRequest) {
         UPDATE dbo.${payrollAdjustmentTable}
         SET
           PeriodEnd = @periodEnd,
+          ExtraIncome = @extraIncome,
           SocialSecurity = @socialSecurity,
           OtherDeduction = @otherDeduction,
           ManualAdvance = @manualAdvance,
@@ -720,6 +743,7 @@ export async function PATCH(request: NextRequest) {
             PeriodStart,
             PeriodEnd,
             CodeStaff,
+            ExtraIncome,
             SocialSecurity,
             OtherDeduction,
             ManualAdvance,
@@ -730,6 +754,7 @@ export async function PATCH(request: NextRequest) {
             @periodStart,
             @periodEnd,
             @codeStaff,
+            @extraIncome,
             @socialSecurity,
             @otherDeduction,
             @manualAdvance,
@@ -756,7 +781,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: "ไม่สามารถบันทึกรายการหักและยอดเบิกของพนักงานได้",
+        error: "ไม่สามารถบันทึกรายการเงินเดือนของพนักงานได้",
         ...(process.env.NODE_ENV !== "production" && {
           details: error instanceof Error ? error.message : String(error),
         }),
@@ -834,6 +859,7 @@ export async function POST(request: NextRequest) {
         PeriodStart,
         PeriodEnd,
         CodeStaff,
+        ExtraIncome,
         SocialSecurity,
         OtherDeduction,
         ManualAdvance,
@@ -843,6 +869,7 @@ export async function POST(request: NextRequest) {
         @periodStart,
         @periodEnd,
         employee.Code,
+        0,
         CASE WHEN DAY(@periodStart) = 1
           THEN ISNULL(settings.SocialSecurityMonthly, 0)
           ELSE 0
@@ -870,6 +897,7 @@ export async function POST(request: NextRequest) {
             ISNULL(attendance.PayableDays, 0) * ${getSafeMoneyExpression("employee.PriceToWorkDay")}
             AS decimal(18, 2)
           ) as GrossWage,
+          ISNULL(adjustment.ExtraIncome, 0) as ExtraIncome,
           ISNULL(adjustment.SocialSecurity, 0) as SocialSecurity,
           ISNULL(adjustment.OtherDeduction, 0) as OtherDeduction,
           ISNULL(adjustment.ManualAdvance, 0) + ISNULL(advance.Amount, 0) as AdvanceAmount,
@@ -915,7 +943,7 @@ export async function POST(request: NextRequest) {
         SELECT
           *,
           CAST(
-            GrossWage - SocialSecurity - OtherDeduction - AdvanceAmount - CarryIn
+            GrossWage + ExtraIncome - SocialSecurity - OtherDeduction - AdvanceAmount - CarryIn
             AS decimal(18, 2)
           ) as NetWage
         FROM PayrollData
@@ -926,6 +954,7 @@ export async function POST(request: NextRequest) {
         CarryIn = payroll.CarryIn,
         SnapshotPayableDays = payroll.PayableDays,
         SnapshotGrossWage = payroll.GrossWage,
+        SnapshotExtraIncome = payroll.ExtraIncome,
         SnapshotSocialSecurity = payroll.SocialSecurity,
         SnapshotOtherDeduction = payroll.OtherDeduction,
         SnapshotAdvance = payroll.AdvanceAmount,

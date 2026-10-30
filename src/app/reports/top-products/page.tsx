@@ -261,64 +261,92 @@ export default function TopProductsReportPage() {
 
         {/* Filters */}
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
-                <span className="mb-2 block text-sm font-medium">เดือน</span>
-                <Select value={month} onValueChange={setMonth}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {months.map((m) => (
-                      <SelectItem key={m.value} value={m.value}>
-                        {m.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          <CardContent>
+            <div className="flex flex-col gap-4 min-[760px]:flex-row min-[760px]:items-end min-[760px]:justify-between">
+              <div className="grid w-full gap-3 min-[520px]:grid-cols-[180px_120px_140px] min-[760px]:w-auto">
+                <div>
+                  <label
+                    htmlFor="top-products-month"
+                    className="mb-1.5 block text-sm font-medium"
+                  >
+                    เดือน
+                  </label>
+                  <Select value={month} onValueChange={setMonth}>
+                    <SelectTrigger
+                      id="top-products-month"
+                      className="!h-10 w-full rounded-[8px]"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {months.map((m) => (
+                        <SelectItem key={m.value} value={m.value}>
+                          {m.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="top-products-year"
+                    className="mb-1.5 block text-sm font-medium"
+                  >
+                    ปี
+                  </label>
+                  <Select value={year} onValueChange={setYear}>
+                    <SelectTrigger
+                      id="top-products-year"
+                      className="!h-10 w-full rounded-[8px]"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {years.map((y) => (
+                        <SelectItem key={y.value} value={y.value}>
+                          {y.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="top-products-limit"
+                    className="mb-1.5 block text-sm font-medium"
+                  >
+                    จำนวนอันดับ
+                  </label>
+                  <Select
+                    value={limit.toString()}
+                    onValueChange={(v) => setLimit(Number(v))}
+                  >
+                    <SelectTrigger
+                      id="top-products-limit"
+                      className="!h-10 w-full rounded-[8px]"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">Top 5</SelectItem>
+                      <SelectItem value="10">Top 10</SelectItem>
+                      <SelectItem value="20">Top 20</SelectItem>
+                      <SelectItem value="50">Top 50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              <div className="flex-1">
-                <span className="mb-2 block text-sm font-medium">ปี</span>
-                <Select value={year} onValueChange={setYear}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {years.map((y) => (
-                      <SelectItem key={y.value} value={y.value}>
-                        {y.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex-1">
-                <span className="mb-2 block text-sm font-medium">จำนวน</span>
-                <Select
-                  value={limit.toString()}
-                  onValueChange={(v) => setLimit(Number(v))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="5">Top 5</SelectItem>
-                    <SelectItem value="10">Top 10</SelectItem>
-                    <SelectItem value="20">Top 20</SelectItem>
-                    <SelectItem value="50">Top 50</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-end">
-                <Button variant="outline" className="gap-2 w-full md:w-auto">
-                  <Download className="h-4 w-4" />
-                  Export
-                </Button>
-              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 w-full gap-2 rounded-[8px] min-[520px]:w-fit"
+              >
+                <Download className="h-4 w-4" />
+                ดาวน์โหลด Excel
+              </Button>
             </div>
           </CardContent>
         </Card>
