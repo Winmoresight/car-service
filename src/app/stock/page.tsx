@@ -860,7 +860,7 @@ export default function StockPage() {
                         <TableHead className="w-[42%] px-4 text-base font-bold text-card-foreground min-[500px]:text-lg">
                           สินค้า
                         </TableHead>
-                        <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
+                        <TableHead className="w-20 px-3 text-right text-base font-bold text-card-foreground min-[500px]:w-auto min-[500px]:text-lg">
                           สต็อก
                         </TableHead>
                         <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[760px]:table-cell">
@@ -869,7 +869,7 @@ export default function StockPage() {
                         <TableHead className="hidden text-base font-bold text-card-foreground min-[1024px]:table-cell">
                           อัปเดตล่าสุด
                         </TableHead>
-                        <TableHead className="text-right text-base font-bold text-card-foreground min-[500px]:text-lg">
+                        <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[500px]:table-cell min-[500px]:text-lg">
                           สถานะ
                         </TableHead>
                         <TableHead className="hidden text-right text-base font-bold text-card-foreground min-[650px]:table-cell">
@@ -916,13 +916,13 @@ export default function StockPage() {
                                   {index + 1}
                                 </div>
                                 <div className="flex min-w-0 flex-col">
-                                  <span className="max-w-[150px] truncate text-base font-bold text-card-foreground transition-colors group-hover:text-main-blue min-[420px]:max-w-[220px] min-[550px]:max-w-[320px] min-[1180px]:max-w-[520px]">
+                                  <span className="max-w-[150px] break-words text-base font-bold leading-snug whitespace-normal text-card-foreground transition-colors group-hover:text-main-blue min-[420px]:max-w-[220px] min-[550px]:max-w-[320px] min-[1180px]:max-w-[520px]">
                                     {item.name || "ไม่ระบุสินค้า"}
                                   </span>
                                   <span
                                     className={cn(
                                       outfit.className,
-                                      "text-xs font-semibold text-muted-foreground",
+                                      "max-w-[150px] break-words text-xs font-semibold whitespace-normal text-muted-foreground min-[420px]:max-w-[220px] min-[550px]:max-w-[320px]",
                                     )}
                                   >
                                     {item.barCode || "-"}
@@ -954,7 +954,7 @@ export default function StockPage() {
                               </div>
                             </TableCell>
 
-                            <TableCell className="text-right align-middle">
+                            <TableCell className="w-20 px-3 text-right align-middle min-[500px]:w-auto">
                               <div className="flex flex-col items-end gap-2">
                                 <span
                                   className={cn(
@@ -964,7 +964,7 @@ export default function StockPage() {
                                 >
                                   {formatNumber(item.currentStock)}
                                 </span>
-                                <div className="h-1.5 w-20 overflow-hidden rounded-full bg-secondary">
+                                <div className="hidden h-1.5 w-20 overflow-hidden rounded-full bg-secondary min-[500px]:block">
                                   <div
                                     className={cn(
                                       "h-full rounded-full transition-all duration-500",
@@ -1011,7 +1011,7 @@ export default function StockPage() {
                               </div>
                             </TableCell>
 
-                            <TableCell className="text-right align-middle">
+                            <TableCell className="hidden text-right align-middle min-[500px]:table-cell">
                               <div className="flex flex-col items-end gap-1">
                                 <Badge
                                   variant="outline"
@@ -1197,7 +1197,7 @@ export default function StockPage() {
                                   <MovementIcon className="h-5 w-5" />
                                 </div>
                                 <div className="flex min-w-0 flex-col">
-                                  <span className="max-w-[150px] truncate text-base font-bold text-card-foreground transition-colors group-hover:text-main-blue min-[420px]:max-w-[220px] min-[550px]:max-w-[320px] min-[1180px]:max-w-[500px]">
+                                  <span className="max-w-[150px] break-words text-base font-bold leading-snug whitespace-normal text-card-foreground transition-colors group-hover:text-main-blue min-[420px]:max-w-[220px] min-[550px]:max-w-[320px] min-[1180px]:max-w-[500px]">
                                     {movement.name || "ไม่ระบุสินค้า"}
                                   </span>
                                   <span

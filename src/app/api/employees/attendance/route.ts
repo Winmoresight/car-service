@@ -425,6 +425,7 @@ export async function GET(request: NextRequest) {
             employee.Code as codeStaff,
             ISNULL(currentPeriod.ExtraIncome, 0) as extraIncome,
             CASE WHEN DAY(@startDate) = 1
+              OR ISNULL(firstPeriod.SocialSecurity, 0) <= 0
               THEN ISNULL(settings.SocialSecurityMonthly, 0)
               ELSE 0
             END as socialSecurity,
@@ -659,7 +660,6 @@ export async function PATCH(request: NextRequest) {
       request.cookies.get(AUTH_COOKIE_NAME)?.value,
     );
     const updatedBy = token?.nameUser || token?.username || "web";
-    const deductSocialSecurityThisPeriod = periodStart.endsWith("-01");
     const pool = await getPool();
     transaction = new sql.Transaction(pool);
     await transaction.begin();
@@ -673,7 +673,7 @@ export async function PATCH(request: NextRequest) {
       saveRequest.input(
         "socialSecurity",
         sql.Decimal(18, 2),
-        deductSocialSecurityThisPeriod ? item.socialSecurity : 0,
+        item.socialSecurity,
       );
       saveRequest.input(
         "monthlySocialSecurity",
@@ -694,6 +694,19 @@ export async function PATCH(request: NextRequest) {
       saveRequest.input("updatedBy", sql.NVarChar(100), updatedBy);
 
       await saveRequest.query(`
+        DECLARE @periodSocialSecurity decimal(18, 2) = CASE
+          WHEN DAY(@periodStart) = 1 OR NOT EXISTS (
+            SELECT 1
+            FROM dbo.${payrollAdjustmentTable} firstPeriod
+            WHERE firstPeriod.CodeStaff = @codeStaff
+              AND YEAR(firstPeriod.PeriodStart) = YEAR(@periodStart)
+              AND MONTH(firstPeriod.PeriodStart) = MONTH(@periodStart)
+              AND DAY(firstPeriod.PeriodStart) = 1
+              AND firstPeriod.SocialSecurity > 0
+          ) THEN @socialSecurity
+          ELSE 0
+        END;
+
         IF EXISTS (
           SELECT 1
           FROM dbo.${payrollAdjustmentTable}
@@ -728,7 +741,7 @@ export async function PATCH(request: NextRequest) {
         SET
           PeriodEnd = @periodEnd,
           ExtraIncome = @extraIncome,
-          SocialSecurity = @socialSecurity,
+          SocialSecurity = @periodSocialSecurity,
           OtherDeduction = @otherDeduction,
           ManualAdvance = @manualAdvance,
           Note = @note,
@@ -755,7 +768,7 @@ export async function PATCH(request: NextRequest) {
             @periodEnd,
             @codeStaff,
             @extraIncome,
-            @socialSecurity,
+            @periodSocialSecurity,
             @otherDeduction,
             @manualAdvance,
             @note,
@@ -870,7 +883,15 @@ export async function POST(request: NextRequest) {
         @periodEnd,
         employee.Code,
         0,
-        CASE WHEN DAY(@periodStart) = 1
+        CASE WHEN DAY(@periodStart) = 1 OR NOT EXISTS (
+          SELECT 1
+          FROM dbo.${payrollAdjustmentTable} firstPeriod
+          WHERE firstPeriod.CodeStaff = employee.Code
+            AND YEAR(firstPeriod.PeriodStart) = YEAR(@periodStart)
+            AND MONTH(firstPeriod.PeriodStart) = MONTH(@periodStart)
+            AND DAY(firstPeriod.PeriodStart) = 1
+            AND firstPeriod.SocialSecurity > 0
+        )
           THEN ISNULL(settings.SocialSecurityMonthly, 0)
           ELSE 0
         END,

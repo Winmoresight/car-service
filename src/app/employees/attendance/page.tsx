@@ -43,7 +43,11 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toast";
-import { calculatePayrollBalance } from "@/lib/payroll";
+import {
+  calculatePayrollBalance,
+  getAbsenceDateLabels,
+  shouldDeductSocialSecurity,
+} from "@/lib/payroll";
 import { cn } from "@/lib/utils";
 
 type AttendanceStatus =
@@ -498,7 +502,11 @@ export default function EmployeeAttendancePage() {
       const extraIncome = settled
         ? (savedAdjustment?.snapshotExtraIncome ?? 0)
         : Number(adjustment?.extraIncome) || 0;
-      const currentSocialSecurity = deductSocialSecurityThisPeriod
+      const currentSocialSecurity = shouldDeductSocialSecurity({
+        isFirstPayPeriod: deductSocialSecurityThisPeriod,
+        deductedInFirstPayPeriod:
+          savedAdjustment?.socialSecurityDeductedThisMonth ?? false,
+      })
         ? monthlySocialSecurity
         : 0;
       const socialSecurity = settled
@@ -523,10 +531,7 @@ export default function EmployeeAttendancePage() {
         advanceAmount,
         carryIn,
       }).netWage;
-      const absentDates = records
-        .filter((record) => record.status === "absent")
-        .map((record) => Number(record.date.slice(8, 10)))
-        .filter((day) => Number.isFinite(day));
+      const absenceDateLabels = getAbsenceDateLabels(records);
       const absenceUnits = records.reduce((sum, record) => {
         if (record.status === "absent") {
           return sum + 1;
@@ -540,7 +545,7 @@ export default function EmployeeAttendancePage() {
         fullDay: count("full_day"),
         halfDay: count("half_day"),
         absent: count("absent"),
-        absentDates,
+        absenceDateLabels,
         absenceUnits,
         paidHoliday: count("special_paid"),
         unpaidHoliday: count("sunday_off") + count("special_unpaid"),
@@ -1298,11 +1303,6 @@ export default function EmployeeAttendancePage() {
                         <p className="mt-2 text-sm text-main-orange">
                           ยังไม่ได้ตั้งค่าประกันสังคมรายเดือน
                         </p>
-                      ) : !deductSocialSecurityThisPeriod &&
-                        !selectedReportRow.socialSecurityDeductedThisMonth ? (
-                        <p className="mt-2 text-sm text-main-orange">
-                          ยังไม่พบการหักประกันสังคมในงวด 1–15
-                        </p>
                       ) : null}
                     </div>
 
@@ -1379,9 +1379,9 @@ export default function EmployeeAttendancePage() {
                 <section className="mt-2">
                   <div className="flex items-baseline justify-between gap-4">
                     <h2 className="text-base font-bold">สรุปวันทำงาน</h2>
-                    {selectedReportRow.absentDates.length > 0 ? (
+                    {selectedReportRow.absenceDateLabels.length > 0 ? (
                       <p className="text-sm">
-                        วันที่ขาด: {selectedReportRow.absentDates.join(", ")}
+                        วันที่ขาด: {selectedReportRow.absenceDateLabels.join(", ")}
                       </p>
                     ) : null}
                   </div>
@@ -1721,7 +1721,7 @@ export default function EmployeeAttendancePage() {
                   </p>
                   <p className="mt-1 text-sm font-medium text-muted-foreground">
                     ตั้งยอดประกันสังคมรายเดือนครั้งเดียว ระบบจะหักในงวด 1–15
-                    และแสดงสถานะไว้ในงวด 16–สิ้นเดือน
+                    หรือรอบปัจจุบันหากงวดแรกยังไม่ได้หัก และแสดงสถานะไว้ในงวด 16–สิ้นเดือน
                   </p>
                 </div>
                 <Button
@@ -1851,7 +1851,7 @@ export default function EmployeeAttendancePage() {
                                 ? "หักในงวด 1–15 นี้"
                                 : row.socialSecurityDeductedThisMonth
                                   ? "หักแล้วในงวด 1–15 · งวดนี้ไม่หักซ้ำ"
-                                  : "กำหนดให้หักงวด 1–15 · ยังไม่พบการบันทึก"}
+                                  : "งวด 1–15 ยังไม่หัก · หักในงวดนี้"}
                           </p>
                         </TableCell>
                         <TableCell className="w-48 min-w-48 max-w-48 py-5 align-top">
@@ -2093,9 +2093,9 @@ export default function EmployeeAttendancePage() {
                             บันทึกแล้ว {row.recordedDays} วัน · หยุดไม่ได้เงิน{" "}
                             {row.unpaidHoliday} วัน
                           </div>
-                          {row.absentDates.length > 0 && (
+                          {row.absenceDateLabels.length > 0 && (
                             <div className="text-sm font-medium text-main-red">
-                              ขาดวันที่ {row.absentDates.join(", ")}
+                              ขาดวันที่ {row.absenceDateLabels.join(", ")}
                             </div>
                           )}
                         </TableCell>
