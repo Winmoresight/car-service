@@ -714,7 +714,7 @@ export async function PATCH(request: NextRequest) {
             AND CodeStaff = @codeStaff
             AND PaidAt IS NOT NULL
         )
-          THROW 50001, N'รอบเงินเดือนที่จ่ายแล้วไม่สามารถแก้รายการหักได้', 1;
+          RAISERROR(N'รอบเงินเดือนที่จ่ายแล้วไม่สามารถแก้รายการหักได้', 16, 1);
 
         UPDATE dbo.${payrollSettingsTable}
         SET
