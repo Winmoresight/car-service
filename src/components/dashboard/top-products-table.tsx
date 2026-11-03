@@ -94,19 +94,19 @@ export function TopProductsTable({
         </div>
       ) : (
         <div className="overflow-hidden rounded-[12px] border bg-white">
-          <Table>
+          <Table className="table-fixed">
             <TableHeader className="bg-secondary/70">
               <TableRow className="border-border/60 hover:bg-transparent">
-                <TableHead className="w-[44%] px-4 text-sm font-medium text-muted-foreground min-[500px]:text-base">
+                <TableHead className="w-[58%] px-3 text-sm font-medium text-muted-foreground min-[760px]:w-[44%] min-[760px]:px-4 min-[500px]:text-base">
                   สินค้า
                 </TableHead>
-                <TableHead className="text-right text-sm font-medium text-muted-foreground min-[500px]:text-base">
+                <TableHead className="w-[42%] text-right text-sm font-medium text-muted-foreground min-[760px]:w-auto min-[500px]:text-base">
                   ยอดขาย
                 </TableHead>
                 <TableHead className="hidden text-right text-sm font-medium text-muted-foreground min-[760px]:table-cell min-[500px]:text-base">
                   กำไร
                 </TableHead>
-                <TableHead className="text-right text-sm font-medium text-muted-foreground min-[500px]:text-base">
+                <TableHead className="hidden text-right text-sm font-medium text-muted-foreground min-[760px]:table-cell min-[500px]:text-base">
                   อัตรากำไร
                 </TableHead>
               </TableRow>
@@ -120,19 +120,19 @@ export function TopProductsTable({
                     key={`${product.name}-${index}`}
                     className="group border-border/60 transition-colors hover:bg-secondary/35"
                   >
-                    <TableCell className="px-4 py-4 font-medium">
-                      <div className="flex items-center gap-3">
+                    <TableCell className="px-3 py-4 font-medium min-[760px]:px-4">
+                      <div className="flex min-w-0 items-center gap-2 min-[760px]:gap-3">
                         <div
                           className={cn(
                             outfit.className,
-                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-sm font-bold select-none min-[550px]:h-12 min-[550px]:w-12",
+                            "flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border text-sm font-bold select-none min-[760px]:h-12 min-[760px]:w-12 min-[760px]:rounded-xl",
                             "bg-secondary text-primary",
                           )}
                         >
                           {rank}
                         </div>
                         <div className="flex min-w-0 flex-col">
-                          <span className="max-w-[130px] truncate text-base font-semibold text-card-foreground min-[420px]:max-w-[200px] min-[1180px]:max-w-[300px]">
+                          <span className="truncate text-base font-semibold text-card-foreground">
                             {product.name || "ไม่ระบุสินค้า"}
                           </span>
                           <span className="text-sm text-muted-foreground">
@@ -162,6 +162,16 @@ export function TopProductsTable({
                         >
                           กำไร {formatAmount(product.profit)}
                         </span>
+                        <span
+                          className={cn(
+                            "text-sm font-medium min-[760px]:hidden",
+                            product.profitMargin < 0
+                              ? "text-[#E17658]"
+                              : "text-[#2E9B57]",
+                          )}
+                        >
+                          อัตรากำไร {product.profitMargin.toFixed(1)}%
+                        </span>
                       </div>
                     </TableCell>
 
@@ -179,7 +189,7 @@ export function TopProductsTable({
                       </span>
                     </TableCell>
 
-                    <TableCell className="text-right align-middle">
+                    <TableCell className="hidden text-right align-middle min-[760px]:table-cell">
                       <div className="flex items-center justify-end">
                         <span
                           className={cn(

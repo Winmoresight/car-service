@@ -450,7 +450,7 @@ export default function DashboardPage() {
             <h2 className="mb-3 text-base font-medium text-primary">
               ตัวเลขหลัก
             </h2>
-            <div className="grid grid-cols-2 gap-3 sm:gap-4 min-[1280px]:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 min-[1280px]:grid-cols-4">
               <KPICard
                 title={`ยอดขาย${dateLabel}`}
                 value={kpi?.todaySales || 0}
@@ -493,7 +493,7 @@ export default function DashboardPage() {
             <h2 className="mb-3 text-base font-medium text-primary">
               รายละเอียดกระแสเงิน
             </h2>
-            <div className="grid grid-cols-2 gap-3 sm:gap-4 min-[1280px]:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 min-[1280px]:grid-cols-4">
               <KPICard
                 title="ยอดขายเงินสด"
                 value={kpi?.todayCash || 0}

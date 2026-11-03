@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { AUTH_COOKIE_NAME, readAuthToken } from "@/lib/auth-session";
 import { executeQuery, getPool } from "@/lib/db";
 import { getEmployeeAccess } from "@/lib/employee-access";
+import { isPayrollSettlementPeriod } from "@/lib/payroll";
 
 const attendanceTable = "WebEmployeeAttendance";
 const payrollAdjustmentTable = "WebEmployeePayrollAdjustment";
@@ -66,18 +67,6 @@ function normalizeDate(value: unknown) {
     parsed.getDate() === day
     ? text
     : null;
-}
-
-function isPayrollPeriod(startDate: string, endDate: string) {
-  const [year, month, startDay] = startDate.split("-").map(Number);
-  const [, endMonth, endDay] = endDate.split("-").map(Number);
-  const lastDay = new Date(year, month, 0).getDate();
-
-  return (
-    month === endMonth &&
-    ((startDay === 1 && endDay === 15) ||
-      (startDay === 16 && endDay === lastDay))
-  );
 }
 
 function normalizeItems(value: unknown) {
@@ -458,7 +447,6 @@ export async function GET(request: NextRequest) {
           LEFT JOIN dbo.${payrollAdjustmentTable} currentPeriod
             ON currentPeriod.CodeStaff = employee.Code
             AND currentPeriod.PeriodStart = @startDate
-            AND currentPeriod.PeriodEnd = @endDate
           OUTER APPLY (
             SELECT TOP 1 adjustment.SocialSecurity
             FROM dbo.${payrollAdjustmentTable} adjustment
@@ -828,7 +816,7 @@ export async function POST(request: NextRequest) {
       !periodStart ||
       !periodEnd ||
       periodStart > periodEnd ||
-      !isPayrollPeriod(periodStart, periodEnd)
+      !isPayrollSettlementPeriod(periodStart, periodEnd)
     ) {
       return NextResponse.json(
         { success: false, error: "กรุณาระบุรอบเงินเดือนให้ถูกต้อง" },

@@ -344,8 +344,8 @@ export function CategorySalesShareCard({
 
       {isLoading ? (
         <div className="grid gap-5 lg:grid-cols-[minmax(300px,0.8fr)_minmax(0,1.2fr)]">
-          <Skeleton className="h-[430px] rounded-2xl" />
-          <Skeleton className="h-[430px] rounded-2xl" />
+          <Skeleton className="h-[300px] rounded-2xl sm:h-[360px] lg:h-[430px]" />
+          <Skeleton className="h-[360px] rounded-2xl lg:h-[430px]" />
         </div>
       ) : hasError ? (
         <div className="rounded-2xl border px-4 py-12 text-center text-sm font-semibold text-destructive">
@@ -357,8 +357,12 @@ export function CategorySalesShareCard({
         </div>
       ) : (
         <div className="grid gap-5 lg:grid-cols-[minmax(300px,0.8fr)_minmax(0,1.2fr)]">
-          <div className="relative flex min-h-[430px] items-center justify-center rounded-2xl border bg-muted/15">
-            <ChartContainer config={chartConfig} className="h-[430px] w-full">
+          <div className="relative flex h-[300px] min-w-0 items-center justify-center rounded-2xl border bg-muted/15 sm:h-[360px] lg:h-[430px]">
+            <ChartContainer
+              config={chartConfig}
+              initialDimension={{ width: 300, height: 300 }}
+              className="h-full w-full min-w-0 !aspect-auto"
+            >
               <PieChart>
                 <defs>
                   {segmentColors.map((color, index) => (
@@ -430,7 +434,7 @@ export function CategorySalesShareCard({
             </div>
           </div>
 
-          <div className="flex h-[430px] min-w-0 flex-col self-start overflow-hidden rounded-2xl border">
+          <div className="flex h-[360px] min-w-0 flex-col self-start overflow-hidden rounded-2xl border lg:h-[430px]">
             <div className="grid grid-cols-2 divide-x border-b bg-muted/15">
               <div className="px-3 py-3">
                 <p className="text-sm font-medium text-muted-foreground">

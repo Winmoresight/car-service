@@ -3,7 +3,9 @@ import test from "node:test";
 import {
   calculatePayrollBalance,
   getAbsenceDateLabels,
+  isPayrollSettlementPeriod,
   shouldDeductSocialSecurity,
+  summarizePayrollBalances,
 } from "./payroll";
 
 test("deducts current charges and carries unpaid debt forward", () => {
@@ -46,6 +48,24 @@ test("adds extra income before deducting charges", () => {
     }),
     { netWage: 2_000, paidAmount: 2_000, carryOut: 0 },
   );
+});
+
+test("keeps payable and negative payroll totals separate", () => {
+  assert.deepEqual(
+    summarizePayrollBalances([
+      { netWage: 3_000 },
+      { netWage: 500 },
+      { netWage: -200 },
+    ]),
+    { paidAmount: 3_500, carryOut: 200 },
+  );
+});
+
+test("allows closing a payroll period through the selected date", () => {
+  assert.equal(isPayrollSettlementPeriod("2026-11-01", "2026-11-03"), true);
+  assert.equal(isPayrollSettlementPeriod("2026-11-01", "2026-11-16"), false);
+  assert.equal(isPayrollSettlementPeriod("2026-11-16", "2026-11-30"), true);
+  assert.equal(isPayrollSettlementPeriod("2026-11-16", "2026-12-01"), false);
 });
 
 test("deducts social security in the current period when the first period missed it", () => {

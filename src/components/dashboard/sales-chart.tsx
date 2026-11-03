@@ -158,7 +158,7 @@ export function SalesChart({
           <>
             <ChartContainer
               config={chartConfig}
-              className="h-[390px] w-full"
+              className="h-[310px] w-full min-w-0 !aspect-auto sm:h-[390px]"
               id="sales-chart"
             >
               <LineChart

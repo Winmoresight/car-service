@@ -47,6 +47,7 @@ import {
   calculatePayrollBalance,
   getAbsenceDateLabels,
   shouldDeductSocialSecurity,
+  summarizePayrollBalances,
 } from "@/lib/payroll";
 import { cn } from "@/lib/utils";
 
@@ -609,10 +610,11 @@ export default function EmployeeAttendancePage() {
         0,
       ),
       carryIn: periodRows.reduce((sum, row) => sum + row.carryIn, 0),
-      netWage: periodRows.reduce((sum, row) => sum + row.netWage, 0),
+      ...summarizePayrollBalances(periodRows),
     }),
     [periodRows],
   );
+  const settlementPeriodLabel = `${formatThaiDate(payPeriod.startDate)} – ${formatThaiDate(selectedDate)}`;
 
   const reportRows = periodRows;
   const selectedReportRow = useMemo(
@@ -803,7 +805,7 @@ export default function EmployeeAttendancePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           periodStart: payPeriod.startDate,
-          periodEnd: payPeriod.endDate,
+          periodEnd: selectedDate,
         }),
       });
       const result = await response.json();
@@ -814,7 +816,7 @@ export default function EmployeeAttendancePage() {
 
       toast.add({
         title: "✅ ปิดรอบและบันทึกการจ่ายแล้ว",
-        description: `ระบบบันทึกยอดสุทธิ ยอดหนี้คงเหลือ และเวลาจ่ายของรอบ ${payPeriod.label} แล้ว`,
+        description: `ระบบบันทึกยอดจ่ายจริง ยอดติดลบยกไป และเวลาจ่ายของรอบ ${settlementPeriodLabel} แล้ว`,
       });
       setSettleDialogOpen(false);
       setRefreshKey((current) => current + 1);
@@ -1976,7 +1978,7 @@ export default function EmployeeAttendancePage() {
                 )}
               </div>
 
-              <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-7">
+              <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
                 <KPICard
                   title="วันคิดค่าแรงรวม"
                   value={periodTotals.payableDays}
@@ -2020,11 +2022,18 @@ export default function EmployeeAttendancePage() {
                   variant="red"
                 />
                 <KPICard
-                  title="คงเหลือประมาณการ"
-                  value={periodTotals.netWage}
+                  title="ยอดจ่ายจริง"
+                  value={periodTotals.paidAmount}
                   format="currency"
                   icon={WalletCards}
-                  variant={periodTotals.netWage >= 0 ? "emerald" : "red"}
+                  variant="emerald"
+                />
+                <KPICard
+                  title="ยอดติดลบยกไป"
+                  value={periodTotals.carryOut}
+                  format="currency"
+                  icon={WalletCards}
+                  variant="red"
                 />
               </div>
 
@@ -2234,7 +2243,9 @@ export default function EmployeeAttendancePage() {
               <DialogTitle className="text-xl font-semibold">
                 ยืนยันจ่ายเงินและปิดรอบ
               </DialogTitle>
-              <DialogDescription>รอบค่าแรง {payPeriod.label}</DialogDescription>
+              <DialogDescription>
+                รอบจ่าย {settlementPeriodLabel}
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-3 p-5">
               <div className="flex justify-between gap-4 rounded-[8px] bg-secondary/60 px-4 py-3">
@@ -2242,12 +2253,22 @@ export default function EmployeeAttendancePage() {
                 <strong>{data.employees.length} คน</strong>
               </div>
               <div className="flex justify-between gap-4 rounded-[8px] bg-secondary/60 px-4 py-3">
-                <span className="text-muted-foreground">ยอดสุทธิรวม</span>
-                <strong>{formatCurrency(periodTotals.netWage)}</strong>
+                <span className="text-muted-foreground">
+                  ยอดจ่ายจริง (เฉพาะยอดบวก)
+                </span>
+                <strong>{formatCurrency(periodTotals.paidAmount)}</strong>
+              </div>
+              <div className="flex justify-between gap-4 rounded-[8px] bg-secondary/60 px-4 py-3">
+                <span className="text-muted-foreground">
+                  ยอดติดลบยกไปรอบถัดไป
+                </span>
+                <strong className="text-main-red">
+                  {formatCurrency(periodTotals.carryOut)}
+                </strong>
               </div>
               <p className="text-sm text-muted-foreground">
-                หลังยืนยัน ระบบจะบันทึกยอดสุทธิ ยอดหนี้คงเหลือ และเวลาจ่าย
-                จากนั้นจะไม่สามารถแก้เงินเพิ่มหรือรายการหักของรอบนี้ได้
+                ระบบจะคิดยอดเฉพาะช่วง {settlementPeriodLabel}
+                หลังยืนยันจะไม่สามารถแก้เงินเพิ่มหรือรายการหักของรอบนี้ได้
               </p>
             </div>
             <DialogFooter className="m-0 rounded-none">

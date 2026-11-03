@@ -105,16 +105,16 @@ export function LossAlertTable({
       </div>
 
       <div className="overflow-hidden rounded-[12px] border bg-white">
-        <Table>
+        <Table className="table-fixed">
           <TableHeader className="bg-secondary/70">
             <TableRow className="border-border/60 hover:bg-transparent">
-              <TableHead className="w-[42%] px-4 text-sm font-medium text-muted-foreground min-[500px]:text-base">
+              <TableHead className="w-[60%] px-3 text-sm font-medium text-muted-foreground min-[760px]:w-[42%] min-[760px]:px-4 min-[500px]:text-base">
                 สินค้า/รายการ
               </TableHead>
-              <TableHead className="text-right text-sm font-medium text-muted-foreground min-[500px]:text-base">
+              <TableHead className="hidden text-right text-sm font-medium text-muted-foreground min-[760px]:table-cell min-[500px]:text-base">
                 ยอดขาย
               </TableHead>
-              <TableHead className="text-right text-sm font-medium text-muted-foreground min-[500px]:text-base">
+              <TableHead className="w-[40%] text-right text-sm font-medium text-muted-foreground min-[760px]:w-auto min-[500px]:text-base">
                 ขาดทุน
               </TableHead>
               <TableHead className="hidden text-right text-sm font-medium text-muted-foreground min-[760px]:table-cell min-[500px]:text-base">
@@ -131,28 +131,29 @@ export function LossAlertTable({
                 key={`${product.name}-${index}`}
                 className="group border-border/60 transition-colors duration-200 hover:bg-secondary/35"
               >
-                <TableCell className="px-4 py-4 font-medium">
-                  <div className="flex items-center gap-3">
+                <TableCell className="px-3 py-4 font-medium min-[760px]:px-4">
+                  <div className="flex min-w-0 items-center gap-2 min-[760px]:gap-3">
                     <div
                       className={cn(
                         outfit.className,
-                        "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border bg-secondary text-sm font-bold text-primary select-none min-[550px]:h-12 min-[550px]:w-12",
+                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border bg-secondary text-sm font-bold text-primary select-none min-[760px]:h-12 min-[760px]:w-12 min-[760px]:rounded-xl",
                       )}
                     >
                       {index + 1}
                     </div>
                     <div className="flex min-w-0 flex-col">
-                      <span className="max-w-[130px] truncate text-base font-medium text-card-foreground min-[420px]:max-w-[200px] min-[1180px]:max-w-[300px]">
+                      <span className="truncate text-base font-medium text-card-foreground">
                         {product.name || "ไม่ระบุสินค้า"}
                       </span>
                       <span className="text-sm text-muted-foreground min-[760px]:hidden">
-                        {formatNumber(product.quantity)} ชิ้น
+                        {formatNumber(product.quantity)} ชิ้น · ยอดขาย{" "}
+                        {formatAmount(product.sales)}
                       </span>
                     </div>
                   </div>
                 </TableCell>
 
-                <TableCell className="text-right align-middle">
+                <TableCell className="hidden text-right align-middle min-[760px]:table-cell">
                   <span
                     className={cn(
                       outfit.className,
